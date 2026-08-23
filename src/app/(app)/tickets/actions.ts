@@ -69,33 +69,34 @@ export async function buscarClientes(query: string) {
   return { data: data ?? [], error: null };
 }
 
-export async function membresiaActivaDeCliente(clienteId: string) {
+// Vista previa para el cajero: cuántas lavadas lleva el cliente en el ciclo
+// actual y si la próxima ya sería la 6ta gratis. Es solo informativo — el
+// descuento real se calcula y valida siempre en el servidor (trigger
+// tr_ticket_descuento_autorizado) al crear el ticket, nunca a partir de lo
+// que mande este preview.
+export async function progresoLealtadCliente(clienteId: string) {
   const supabase = await createClient();
-  const hoy = new Date().toISOString().slice(0, 10);
 
-  const { data: vinculo, error } = await supabase
-    .from("membresias_clientes")
-    .select("id, membresia_id, saldo_paquete, fecha_fin")
+  const { data: tickets, error } = await supabase
+    .from("tickets")
+    .select("estado, lavada_gratis, hora_salida")
     .eq("cliente_id", clienteId)
-    .eq("activa", true)
-    .gte("fecha_fin", hoy)
-    .maybeSingle();
+    .eq("estado", "entregado");
 
-  if (error || !vinculo) return { data: null, error: error?.message ?? null };
+  if (error) return { data: null, error: error.message };
 
-  const { data: membresia } = await supabase
-    .from("membresias")
-    .select("nombre, tipo, beneficio_valor")
-    .eq("id", vinculo.membresia_id)
-    .maybeSingle();
+  const lavadas = (tickets ?? []).filter((t) => !t.lavada_gratis).length;
+  const lavadasEnCiclo = lavadas % 6;
+  const ultimaLavada = (tickets ?? []).reduce<string | null>((max, t) => {
+    if (!t.hora_salida) return max;
+    return !max || t.hora_salida > max ? t.hora_salida : max;
+  }, null);
 
   return {
     data: {
-      membresiaClienteId: vinculo.id,
-      saldoPaquete: vinculo.saldo_paquete,
-      nombre: membresia?.nombre ?? "Membresía",
-      tipo: membresia?.tipo ?? null,
-      beneficioValor: membresia?.beneficio_valor ?? 0,
+      lavadasEnCiclo,
+      proximaGratis: lavadasEnCiclo === 5,
+      ultimaLavada,
     },
     error: null,
   };
@@ -120,7 +121,6 @@ export async function crearTicket(input: {
   servicioId: string;
   empleadoId: string;
   turnoId: string;
-  membresiaClienteId: string | null;
 }) {
   const supabase = await createClient();
 
@@ -130,38 +130,16 @@ export async function crearTicket(input: {
 
   if (!user) return { error: "Sesión no válida." };
 
-  // El descuento de una membresía descuento_fijo se aplica aquí, derivado siempre
-  // del catálogo (nunca de lo que mande el cliente) — el trigger tr_ticket_descuento_autorizado
-  // vuelve a validar server-side que coincide exactamente con el beneficio_valor del plan.
-  let descuentoMonto = 0;
-  if (input.membresiaClienteId) {
-    const { data: vinculo } = await supabase
-      .from("membresias_clientes")
-      .select("membresia_id")
-      .eq("id", input.membresiaClienteId)
-      .maybeSingle();
-
-    if (vinculo) {
-      const { data: membresia } = await supabase
-        .from("membresias")
-        .select("tipo, beneficio_valor")
-        .eq("id", vinculo.membresia_id)
-        .maybeSingle();
-
-      if (membresia?.tipo === "descuento_fijo") {
-        descuentoMonto = membresia.beneficio_valor;
-      }
-    }
-  }
-
+  // El descuento de la 6ta lavada gratis lo calcula y valida por completo el
+  // trigger tr_ticket_descuento_autorizado del lado del servidor (cuenta las
+  // lavadas previas del cliente) — aquí no se manda ni se confía en ningún
+  // monto de descuento.
   const { error } = await supabase.from("tickets").insert({
     cliente_id: input.clienteId,
     vehiculo_id: input.vehiculoId,
     servicio_id: input.servicioId,
     empleado_id: input.empleadoId,
     turno_id: input.turnoId,
-    membresia_cliente_id: input.membresiaClienteId,
-    descuento_monto: descuentoMonto,
     creado_por: user.id,
   });
 
@@ -190,7 +168,6 @@ export async function registrarPago(input: {
   turnoId: string;
   metodo: PagoMetodo;
   monto: number;
-  membresiaUsada: boolean;
 }) {
   const supabase = await createClient();
 
@@ -205,7 +182,6 @@ export async function registrarPago(input: {
     turno_id: input.turnoId,
     metodo: input.metodo,
     monto: input.monto,
-    membresia_usada: input.membresiaUsada,
     usuario_id: user.id,
   });
 

@@ -118,66 +118,6 @@ export interface Database {
         };
         Relationships: [];
       };
-      membresias: {
-        Row: {
-          id: string;
-          nombre: string;
-          tipo: "descuento_fijo" | "paquete_prepagado";
-          beneficio_valor: number;
-          precio: number;
-          vigencia_dias: number;
-          activo: boolean;
-        };
-        Insert: {
-          id?: string;
-          nombre: string;
-          tipo: "descuento_fijo" | "paquete_prepagado";
-          beneficio_valor: number;
-          precio: number;
-          vigencia_dias: number;
-          activo?: boolean;
-        };
-        Update: {
-          id?: string;
-          nombre?: string;
-          tipo?: "descuento_fijo" | "paquete_prepagado";
-          beneficio_valor?: number;
-          precio?: number;
-          vigencia_dias?: number;
-          activo?: boolean;
-        };
-        Relationships: [];
-      };
-      membresias_clientes: {
-        Row: {
-          id: string;
-          cliente_id: string;
-          membresia_id: string;
-          fecha_inicio: string;
-          fecha_fin: string;
-          saldo_paquete: number;
-          activa: boolean;
-        };
-        Insert: {
-          id?: string;
-          cliente_id: string;
-          membresia_id: string;
-          fecha_inicio?: string;
-          fecha_fin: string;
-          saldo_paquete?: number;
-          activa?: boolean;
-        };
-        Update: {
-          id?: string;
-          cliente_id?: string;
-          membresia_id?: string;
-          fecha_inicio?: string;
-          fecha_fin?: string;
-          saldo_paquete?: number;
-          activa?: boolean;
-        };
-        Relationships: [];
-      };
       vehiculos: {
         Row: {
           id: string;
@@ -207,7 +147,7 @@ export interface Database {
           servicio_id: string;
           empleado_id: string;
           turno_id: string;
-          membresia_cliente_id: string | null;
+          lavada_gratis: boolean;
           prioridad: boolean;
           descuento_monto: number;
           descuento_autorizado_por: string | null;
@@ -223,7 +163,7 @@ export interface Database {
           servicio_id: string;
           empleado_id: string;
           turno_id: string;
-          membresia_cliente_id?: string | null;
+          lavada_gratis?: boolean;
           prioridad?: boolean;
           descuento_monto?: number;
           descuento_autorizado_por?: string | null;
@@ -239,7 +179,7 @@ export interface Database {
           servicio_id?: string;
           empleado_id?: string;
           turno_id?: string;
-          membresia_cliente_id?: string | null;
+          lavada_gratis?: boolean;
           prioridad?: boolean;
           descuento_monto?: number;
           descuento_autorizado_por?: string | null;
@@ -257,7 +197,6 @@ export interface Database {
           metodo: "efectivo" | "tarjeta" | "transferencia" | "membresia";
           monto: number;
           turno_id: string;
-          membresia_usada: boolean;
           usuario_id: string;
           creado_en: string;
         };
@@ -267,7 +206,6 @@ export interface Database {
           metodo: "efectivo" | "tarjeta" | "transferencia" | "membresia";
           monto: number;
           turno_id: string;
-          membresia_usada?: boolean;
           usuario_id?: string;
           creado_en?: string;
         };
@@ -277,7 +215,6 @@ export interface Database {
           metodo?: "efectivo" | "tarjeta" | "transferencia" | "membresia";
           monto?: number;
           turno_id?: string;
-          membresia_usada?: boolean;
           usuario_id?: string;
           creado_en?: string;
         };
@@ -333,7 +270,6 @@ export interface Database {
       turno_estado: "abierto" | "cerrado";
       ticket_estado: "en_espera" | "en_proceso" | "terminado" | "entregado";
       pago_metodo: "efectivo" | "tarjeta" | "transferencia" | "membresia";
-      membresia_tipo: "descuento_fijo" | "paquete_prepagado";
     };
     CompositeTypes: Record<string, never>;
   };
@@ -344,14 +280,11 @@ export type RolUsuario = Database["public"]["Enums"]["rol_usuario"];
 export type TurnoEstado = Database["public"]["Enums"]["turno_estado"];
 export type TicketEstado = Database["public"]["Enums"]["ticket_estado"];
 export type PagoMetodo = Database["public"]["Enums"]["pago_metodo"];
-export type MembresiaTipo = Database["public"]["Enums"]["membresia_tipo"];
 
 export type Usuario = Database["public"]["Tables"]["usuarios"]["Row"];
 export type Turno = Database["public"]["Tables"]["turnos"]["Row"];
 export type ServicioCatalogo = Database["public"]["Tables"]["servicios_catalogo"]["Row"];
 export type Cliente = Database["public"]["Tables"]["clientes"]["Row"];
-export type Membresia = Database["public"]["Tables"]["membresias"]["Row"];
-export type MembresiaCliente = Database["public"]["Tables"]["membresias_clientes"]["Row"];
 export type Vehiculo = Database["public"]["Tables"]["vehiculos"]["Row"];
 export type Ticket = Database["public"]["Tables"]["tickets"]["Row"];
 export type Pago = Database["public"]["Tables"]["pagos"]["Row"];

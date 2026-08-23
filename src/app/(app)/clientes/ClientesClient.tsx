@@ -9,8 +9,9 @@ type ClienteConDetalle = {
   id: string;
   nombre: string;
   telefono: string | null;
-  membresiaActiva: string | null;
   vehiculos: number;
+  ultimaLavada: string | null;
+  lavadasEnCiclo: number;
 };
 
 export function ClientesClient({ clientes }: { clientes: ClienteConDetalle[] }) {
@@ -109,7 +110,8 @@ export function ClientesClient({ clientes }: { clientes: ClienteConDetalle[] }) 
               <th className="px-4 py-3">Nombre</th>
               <th className="px-4 py-3">Teléfono</th>
               <th className="px-4 py-3">Vehículos</th>
-              <th className="px-4 py-3">Membresía</th>
+              <th className="px-4 py-3">Última lavada</th>
+              <th className="px-4 py-3">Lealtad</th>
             </tr>
           </thead>
           <tbody>
@@ -122,20 +124,25 @@ export function ClientesClient({ clientes }: { clientes: ClienteConDetalle[] }) 
                 </td>
                 <td className="px-4 py-3 text-muted">{cliente.telefono ?? "—"}</td>
                 <td className="px-4 py-3 text-muted">{cliente.vehiculos}</td>
+                <td className="px-4 py-3 text-muted">
+                  {cliente.ultimaLavada
+                    ? new Date(cliente.ultimaLavada).toLocaleDateString("es-MX", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })
+                    : "—"}
+                </td>
                 <td className="px-4 py-3">
-                  {cliente.membresiaActiva ? (
-                    <span className="rounded-full border border-success/40 bg-success/15 px-2.5 py-0.5 text-xs font-medium text-success">
-                      {cliente.membresiaActiva}
-                    </span>
-                  ) : (
-                    <span className="text-xs text-muted">Sin membresía</span>
-                  )}
+                  <span className="rounded-full border border-accent/40 bg-accent/15 px-2.5 py-0.5 text-xs font-medium text-accent">
+                    {cliente.lavadasEnCiclo} de 6
+                  </span>
                 </td>
               </tr>
             ))}
             {clientes.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-muted">
+                <td colSpan={5} className="px-4 py-6 text-center text-muted">
                   Sin clientes registrados.
                 </td>
               </tr>

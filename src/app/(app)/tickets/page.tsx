@@ -54,41 +54,25 @@ export default async function TicketsPage() {
   const clienteIds = [...new Set((tickets ?? []).map((t) => t.cliente_id).filter(Boolean))] as string[];
   const vehiculoIds = [...new Set((tickets ?? []).map((t) => t.vehiculo_id).filter(Boolean))] as string[];
   const empleadoIds = [...new Set((tickets ?? []).map((t) => t.empleado_id).filter(Boolean))] as string[];
-  const membresiaClienteIds = [
-    ...new Set((tickets ?? []).map((t) => t.membresia_cliente_id).filter(Boolean)),
-  ] as string[];
 
-  const [{ data: clientes }, { data: vehiculos }, { data: empleados }, { data: pagos }, { data: vinculos }] =
-    await Promise.all([
-      clienteIds.length
-        ? supabase.from("clientes").select("id, nombre, telefono").in("id", clienteIds)
-        : Promise.resolve({ data: [] }),
-      vehiculoIds.length
-        ? supabase.from("vehiculos").select("id, placas, tipo_vehiculo").in("id", vehiculoIds)
-        : Promise.resolve({ data: [] }),
-      empleadoIds.length
-        ? supabase.from("usuarios").select("id, nombre").in("id", empleadoIds)
-        : Promise.resolve({ data: [] }),
-      turno
-        ? supabase.from("pagos").select("ticket_id, monto, metodo").eq("turno_id", turno.id)
-        : Promise.resolve({ data: [] }),
-      membresiaClienteIds.length
-        ? supabase.from("membresias_clientes").select("id, membresia_id").in("id", membresiaClienteIds)
-        : Promise.resolve({ data: [] }),
-    ]);
-
-  const membresiaIds = [...new Set((vinculos ?? []).map((v) => v.membresia_id))];
-  const { data: membresias } = membresiaIds.length
-    ? await supabase.from("membresias").select("id, tipo").in("id", membresiaIds)
-    : { data: [] };
+  const [{ data: clientes }, { data: vehiculos }, { data: empleados }, { data: pagos }] = await Promise.all([
+    clienteIds.length
+      ? supabase.from("clientes").select("id, nombre, telefono").in("id", clienteIds)
+      : Promise.resolve({ data: [] }),
+    vehiculoIds.length
+      ? supabase.from("vehiculos").select("id, placas, tipo_vehiculo").in("id", vehiculoIds)
+      : Promise.resolve({ data: [] }),
+    empleadoIds.length
+      ? supabase.from("usuarios").select("id, nombre").in("id", empleadoIds)
+      : Promise.resolve({ data: [] }),
+    turno
+      ? supabase.from("pagos").select("ticket_id, monto, metodo").eq("turno_id", turno.id)
+      : Promise.resolve({ data: [] }),
+  ]);
 
   const clienteMap = new Map((clientes ?? []).map((c) => [c.id, c]));
   const vehiculoMap = new Map((vehiculos ?? []).map((v) => [v.id, v]));
   const empleadoMap = new Map((empleados ?? []).map((e) => [e.id, e]));
-  const tipoPorMembresiaId = new Map((membresias ?? []).map((m) => [m.id, m.tipo]));
-  const tipoPorVinculoId = new Map(
-    (vinculos ?? []).map((v) => [v.id, tipoPorMembresiaId.get(v.membresia_id) ?? null])
-  );
   const pagosPorTicket = new Map<string, { monto: number; metodo: string }[]>();
   for (const pago of pagos ?? []) {
     const lista = pagosPorTicket.get(pago.ticket_id) ?? [];
@@ -103,7 +87,6 @@ export default async function TicketsPage() {
     vehiculo: t.vehiculo_id ? vehiculoMap.get(t.vehiculo_id) ?? null : null,
     empleado: t.empleado_id ? empleadoMap.get(t.empleado_id) ?? null : null,
     tienePago: (pagosPorTicket.get(t.id) ?? []).length > 0,
-    membresiaTipo: t.membresia_cliente_id ? tipoPorVinculoId.get(t.membresia_cliente_id) ?? null : null,
   }));
 
   return (

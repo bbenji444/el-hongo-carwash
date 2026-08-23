@@ -9,7 +9,6 @@ const METODOS: { value: PagoMetodo; label: string }[] = [
   { value: "efectivo", label: "Efectivo" },
   { value: "tarjeta", label: "Tarjeta" },
   { value: "transferencia", label: "Transferencia" },
-  { value: "membresia", label: "Membresía" },
 ];
 
 export function CobroModal({
@@ -25,12 +24,8 @@ export function CobroModal({
 }) {
   const precioBase = ticket.servicio?.precio ?? 0;
   const totalSugerido = Math.max(precioBase - ticket.descuento_monto, 0);
-  // Solo paquete_prepagado descuenta contra un saldo real vía "membresia" como método de
-  // pago; descuento_fijo ya bajó el precio en descuento_monto, así que se cobra con un
-  // método real (efectivo/tarjeta/transferencia).
-  const permiteMetodoMembresia = ticket.membresiaTipo === "paquete_prepagado";
 
-  const [metodo, setMetodo] = useState<PagoMetodo>(permiteMetodoMembresia ? "membresia" : "efectivo");
+  const [metodo, setMetodo] = useState<PagoMetodo>("efectivo");
   const [monto, setMonto] = useState(String(totalSugerido.toFixed(2)));
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -42,10 +37,6 @@ export function CobroModal({
       setError("Ingresa un monto válido.");
       return;
     }
-    if (metodo === "membresia" && !permiteMetodoMembresia) {
-      setError("Este ticket no tiene una membresía de paquete prepagado asociada.");
-      return;
-    }
 
     startTransition(async () => {
       const result = await registrarPago({
@@ -53,7 +44,6 @@ export function CobroModal({
         turnoId,
         metodo,
         monto: montoNum,
-        membresiaUsada: metodo === "membresia",
       });
 
       if (result.error) {
@@ -92,7 +82,7 @@ export function CobroModal({
               className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
             >
               {METODOS.map((m) => (
-                <option key={m.value} value={m.value} disabled={m.value === "membresia" && !permiteMetodoMembresia}>
+                <option key={m.value} value={m.value}>
                   {m.label}
                 </option>
               ))}

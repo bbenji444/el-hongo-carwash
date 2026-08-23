@@ -8,7 +8,6 @@ const METODO_LABEL: Record<string, string> = {
   efectivo: "Efectivo",
   tarjeta: "Tarjeta",
   transferencia: "Transferencia",
-  membresia: "Membresía",
 };
 
 type Resumen = {
@@ -66,7 +65,7 @@ export function TurnoActivoCard({ turno, resumen }: { turno: Turno; resumen: Res
             </p>
           </div>
         )}
-        {(["tarjeta", "transferencia", "membresia"] as const).map((m) => (
+        {(["tarjeta", "transferencia"] as const).map((m) => (
           <div key={m} className="rounded-lg border border-border bg-background p-3">
             <p className="text-[10px] uppercase tracking-wide text-muted">{METODO_LABEL[m]}</p>
             <p className="text-sm font-semibold text-foreground">

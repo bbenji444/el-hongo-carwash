@@ -1,4 +1,4 @@
-import type { Ticket, ServicioCatalogo, RolUsuario, MembresiaTipo } from "@/types/database.types";
+import type { Ticket, ServicioCatalogo, RolUsuario } from "@/types/database.types";
 
 export type TicketConDetalle = Ticket & {
   servicio: ServicioCatalogo | null;
@@ -6,7 +6,6 @@ export type TicketConDetalle = Ticket & {
   vehiculo: { id: string; placas: string | null; tipo_vehiculo: string | null } | null;
   empleado: { id: string; nombre: string } | null;
   tienePago: boolean;
-  membresiaTipo: MembresiaTipo | null;
 };
 
 export type { RolUsuario };

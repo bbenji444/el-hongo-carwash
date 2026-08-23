@@ -1,55 +1,37 @@
 "use client";
 
 import { useState, useTransition, type FormEvent } from "react";
-import type { MembresiaTipo } from "@/types/database.types";
-import { crearVehiculo, afiliarMembresia, desactivarMembresiaCliente } from "../actions";
+import type { TicketEstado } from "@/types/database.types";
+import { crearVehiculo } from "../actions";
 
 type Vehiculo = { id: string; placas: string | null; tipo_vehiculo: string | null };
-type MembresiaCatalogo = {
+type LavadaHistorial = {
   id: string;
-  nombre: string;
-  tipo: MembresiaTipo;
-  beneficio_valor: number;
-  precio: number;
-  vigencia_dias: number;
-};
-type MembresiaActiva = {
-  vinculoId: string;
-  nombre: string;
-  tipo: MembresiaTipo | null;
-  beneficioValor: number;
-  saldoPaquete: number;
-  fechaInicio: string;
-  fechaFin: string;
-};
-
-const TIPO_LABEL: Record<MembresiaTipo, string> = {
-  descuento_fijo: "Descuento fijo",
-  paquete_prepagado: "Paquete prepagado",
+  servicioNombre: string;
+  estado: TicketEstado;
+  horaEntrada: string;
+  horaSalida: string | null;
+  descuentoMonto: number;
+  lavadaGratis: boolean;
 };
 
 export function ClienteDetalleClient({
   clienteId,
   vehiculos,
-  membresiaActiva,
-  membresiasCatalogo,
-  puedeDesactivarMembresia,
+  historial,
+  lavadasEnCiclo,
+  ultimaLavada,
 }: {
   clienteId: string;
   vehiculos: Vehiculo[];
-  membresiaActiva: MembresiaActiva | null;
-  membresiasCatalogo: MembresiaCatalogo[];
-  puedeDesactivarMembresia: boolean;
+  historial: LavadaHistorial[];
+  lavadasEnCiclo: number;
+  ultimaLavada: string | null;
 }) {
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
       <VehiculosSection clienteId={clienteId} vehiculos={vehiculos} />
-      <MembresiaSection
-        clienteId={clienteId}
-        membresiaActiva={membresiaActiva}
-        membresiasCatalogo={membresiasCatalogo}
-        puedeDesactivarMembresia={puedeDesactivarMembresia}
-      />
+      <HistorialLavadosSection historial={historial} lavadasEnCiclo={lavadasEnCiclo} ultimaLavada={ultimaLavada} />
     </div>
   );
 }
@@ -141,97 +123,58 @@ function VehiculosSection({ clienteId, vehiculos }: { clienteId: string; vehicul
   );
 }
 
-function MembresiaSection({
-  clienteId,
-  membresiaActiva,
-  membresiasCatalogo,
-  puedeDesactivarMembresia,
+function HistorialLavadosSection({
+  historial,
+  lavadasEnCiclo,
+  ultimaLavada,
 }: {
-  clienteId: string;
-  membresiaActiva: MembresiaActiva | null;
-  membresiasCatalogo: MembresiaCatalogo[];
-  puedeDesactivarMembresia: boolean;
+  historial: LavadaHistorial[];
+  lavadasEnCiclo: number;
+  ultimaLavada: string | null;
 }) {
-  const [membresiaId, setMembresiaId] = useState(membresiasCatalogo[0]?.id ?? "");
-  const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
-
-  function handleAfiliar(e: FormEvent) {
-    e.preventDefault();
-    setError(null);
-
-    if (!membresiaId) {
-      setError("Selecciona una membresía.");
-      return;
-    }
-
-    startTransition(async () => {
-      const result = await afiliarMembresia({ clienteId, membresiaId });
-      if (result.error) {
-        setError(result.error);
-      }
-    });
-  }
-
-  function handleDesactivar() {
-    if (!membresiaActiva) return;
-    startTransition(async () => {
-      await desactivarMembresiaCliente(membresiaActiva.vinculoId, clienteId);
-    });
-  }
+  const faltan = 6 - lavadasEnCiclo;
 
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-5">
-      <h2 className="font-semibold text-foreground">Membresía</h2>
+      <h2 className="font-semibold text-foreground">Programa de lealtad</h2>
 
-      {membresiaActiva ? (
-        <div className="flex flex-col gap-2 rounded-lg border border-success/40 bg-success/10 p-3 text-sm">
-          <p className="font-medium text-foreground">{membresiaActiva.nombre}</p>
-          <p className="text-muted">{membresiaActiva.tipo ? TIPO_LABEL[membresiaActiva.tipo] : "—"}</p>
-          {membresiaActiva.tipo === "paquete_prepagado" && (
-            <p className="text-muted">Saldo restante: ${membresiaActiva.saldoPaquete.toFixed(2)}</p>
-          )}
-          {membresiaActiva.tipo === "descuento_fijo" && (
-            <p className="text-muted">Descuento por ticket: ${membresiaActiva.beneficioValor.toFixed(2)}</p>
-          )}
-          <p className="text-xs text-muted">
-            Vigente {membresiaActiva.fechaInicio} — {membresiaActiva.fechaFin}
-          </p>
-          {puedeDesactivarMembresia && (
-            <button
-              onClick={handleDesactivar}
-              disabled={pending}
-              className="mt-1 w-fit text-xs text-primary hover:underline disabled:opacity-60"
-            >
-              Desactivar membresía
-            </button>
-          )}
-        </div>
-      ) : (
-        <form onSubmit={handleAfiliar} className="flex flex-col gap-2">
-          <p className="text-sm text-muted">Este cliente no tiene una membresía activa.</p>
-          <select
-            value={membresiaId}
-            onChange={(e) => setMembresiaId(e.target.value)}
-            className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
-          >
-            {membresiasCatalogo.length === 0 && <option value="">Sin planes activos</option>}
-            {membresiasCatalogo.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.nombre} · {TIPO_LABEL[m.tipo]} · ${m.precio.toFixed(2)}
-              </option>
-            ))}
-          </select>
-          <button
-            type="submit"
-            disabled={pending || membresiasCatalogo.length === 0}
-            className="w-fit rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:opacity-60"
-          >
-            {pending ? "Afiliando..." : "Afiliar membresía"}
-          </button>
-          {error && <p className="text-xs text-primary">{error}</p>}
-        </form>
-      )}
+      <div className="flex flex-col gap-2 rounded-lg border border-accent/40 bg-accent/10 p-3 text-sm">
+        <p className="font-medium text-foreground">{lavadasEnCiclo} de 6 lavadas</p>
+        <p className="text-muted">
+          {faltan === 6
+            ? "Aún no acumula lavadas en este ciclo."
+            : `Le faltan ${faltan} lavada${faltan === 1 ? "" : "s"} para la siguiente gratis.`}
+        </p>
+        <p className="text-xs text-muted">
+          Última lavada:{" "}
+          {ultimaLavada
+            ? new Date(ultimaLavada).toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" })
+            : "Sin registro"}
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <p className="text-xs font-medium text-muted">Historial</p>
+        {historial.length === 0 && <p className="text-sm text-muted">Sin lavadas registradas.</p>}
+        {historial.map((h) => (
+          <div key={h.id} className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-foreground">{h.servicioNombre}</span>
+              {h.lavadaGratis && (
+                <span className="rounded-full border border-success/40 bg-success/15 px-2 py-0.5 text-[10px] font-medium text-success">
+                  Gratis
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-muted">
+              {new Date(h.horaEntrada).toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" })}
+              {" · "}
+              {h.estado === "entregado" ? "Entregado" : "En curso"}
+              {h.descuentoMonto > 0 && ` · -$${h.descuentoMonto.toFixed(2)}`}
+            </p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

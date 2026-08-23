@@ -8,8 +8,7 @@ const SECCIONES = [
   { href: "/tickets", label: "Tickets", desc: "Tablero de tickets del turno en curso." },
   { href: "/servicios", label: "Servicios", desc: "Catálogo de servicios." },
   { href: "/turnos", label: "Caja y turnos", desc: "Cierre de turno y conciliación de efectivo." },
-  { href: "/clientes", label: "Clientes", desc: "Directorio de clientes, vehículos y membresías." },
-  { href: "/membresias", label: "Membresías", desc: "Catálogo de planes de membresía." },
+  { href: "/clientes", label: "Clientes", desc: "Directorio de clientes, vehículos y programa de lealtad." },
   { href: "/inventario", label: "Inventario", desc: "Insumos y recetas de consumo por servicio." },
   { href: "/reportes", label: "Reportes", desc: "Ventas, descuentos y diferencias de caja.", soloSupervisor: true },
 ];

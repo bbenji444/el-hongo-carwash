@@ -40,7 +40,7 @@ export default async function TurnosPage() {
         .neq("estado", "entregado"),
     ]);
 
-    const totales: Record<string, number> = { efectivo: 0, tarjeta: 0, transferencia: 0, membresia: 0 };
+    const totales: Record<string, number> = { efectivo: 0, tarjeta: 0, transferencia: 0 };
     for (const p of pagos ?? []) {
       totales[p.metodo] = (totales[p.metodo] ?? 0) + p.monto;
     }
@@ -53,7 +53,7 @@ export default async function TurnosPage() {
     resumen = {
       totalesVisibles: puedeVerEfectivo
         ? totales
-        : { tarjeta: totales.tarjeta, transferencia: totales.transferencia, membresia: totales.membresia },
+        : { tarjeta: totales.tarjeta, transferencia: totales.transferencia },
       efectivoEsperado: puedeVerEfectivo ? turnoAbierto.efectivo_inicial + totales.efectivo : null,
       pendientes: pendientes ?? 0,
       ocultarEfectivo: !puedeVerEfectivo,

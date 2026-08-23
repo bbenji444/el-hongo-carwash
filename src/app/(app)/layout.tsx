@@ -12,7 +12,6 @@ const NAV_ITEMS = [
   { label: "Servicios", href: "/servicios" },
   { label: "Caja y turnos", href: "/turnos" },
   { label: "Clientes", href: "/clientes" },
-  { label: "Membresías", href: "/membresias" },
   { label: "Inventario", href: "/inventario" },
   { label: "Reportes", href: "/reportes" },
 ];
@@ -57,9 +56,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <Image
             src="/logo.jpg"
             alt="El Hongo Car Wash"
-            width={40}
-            height={40}
-            className="rounded-full border border-primary"
+            width={44}
+            height={44}
+            className="rounded-full border-2 border-primary shadow-[0_0_0_3px_rgba(227,30,36,0.15)]"
           />
           <div>
             <p className="text-sm font-bold leading-tight text-foreground">EL HONGO</p>

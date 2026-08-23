@@ -7,18 +7,12 @@ import {
   crearCliente,
   crearVehiculo,
   crearTicket,
-  membresiaActivaDeCliente,
+  progresoLealtadCliente,
   usuariosActivos,
 } from "./actions";
 
 type ClienteResultado = { id: string; nombre: string; telefono: string | null };
-type MembresiaInfo = {
-  membresiaClienteId: string;
-  saldoPaquete: number;
-  nombre: string;
-  tipo: string | null;
-  beneficioValor: number;
-};
+type LealtadInfo = { lavadasEnCiclo: number; proximaGratis: boolean; ultimaLavada: string | null };
 
 export function NuevoTicketModal({
   turnoId,
@@ -51,8 +45,7 @@ export function NuevoTicketModal({
   const [empleados, setEmpleados] = useState<{ id: string; nombre: string; rol: RolUsuario }[]>([]);
   const [empleadoId, setEmpleadoId] = useState(usuarioActualId);
 
-  const [membresia, setMembresia] = useState<MembresiaInfo | null>(null);
-  const [usarMembresia, setUsarMembresia] = useState(false);
+  const [lealtad, setLealtad] = useState<LealtadInfo | null>(null);
 
   useEffect(() => {
     if (rolActual === "encargado" || rolActual === "dueno") {
@@ -69,11 +62,11 @@ export function NuevoTicketModal({
   }, [clienteQuery, clienteSeleccionado]);
 
   useEffect(() => {
-    if (!clienteSeleccionado) return;
-    membresiaActivaDeCliente(clienteSeleccionado.id).then((res) => {
-      setMembresia(res.data);
-      setUsarMembresia(!!res.data);
-    });
+    if (!clienteSeleccionado) {
+      setLealtad(null);
+      return;
+    }
+    progresoLealtadCliente(clienteSeleccionado.id).then((res) => setLealtad(res.data));
   }, [clienteSeleccionado]);
 
   function seleccionarCliente(c: ClienteResultado) {
@@ -89,8 +82,7 @@ export function NuevoTicketModal({
     setNuevoClienteTelefono("");
     setCreandoClienteNuevo(false);
     setResultados([]);
-    setMembresia(null);
-    setUsarMembresia(false);
+    setLealtad(null);
   }
 
   function handleSubmit() {
@@ -137,7 +129,6 @@ export function NuevoTicketModal({
         servicioId,
         empleadoId,
         turnoId,
-        membresiaClienteId: usarMembresia && membresia ? membresia.membresiaClienteId : null,
       });
 
       if (result.error) {
@@ -226,25 +217,18 @@ export function NuevoTicketModal({
             )}
           </div>
 
-          {/* Membresía */}
-          {membresia && (
-            <div className="flex items-center justify-between rounded-lg border border-success/40 bg-success/10 px-3 py-2">
-              <div>
-                <p className="text-sm font-medium text-foreground">{membresia.nombre}</p>
-                <p className="text-xs text-muted">
-                  {membresia.tipo === "paquete_prepagado"
-                    ? `Saldo: $${membresia.saldoPaquete.toFixed(2)}`
-                    : `Descuento fijo: $${membresia.beneficioValor.toFixed(2)}`}
-                </p>
-              </div>
-              <label className="flex items-center gap-2 text-xs text-muted">
-                <input
-                  type="checkbox"
-                  checked={usarMembresia}
-                  onChange={(e) => setUsarMembresia(e.target.checked)}
-                />
-                Aplicar
-              </label>
+          {/* Programa de lealtad */}
+          {lealtad && (
+            <div
+              className={`rounded-lg border px-3 py-2 text-sm ${
+                lealtad.proximaGratis
+                  ? "border-success/40 bg-success/10 text-success"
+                  : "border-border bg-background text-muted"
+              }`}
+            >
+              {lealtad.proximaGratis
+                ? "¡Esta será su 6ta lavada — sale gratis!"
+                : `Lleva ${lealtad.lavadasEnCiclo} de 6 lavadas en su ciclo actual.`}
             </div>
           )}
 

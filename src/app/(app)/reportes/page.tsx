@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { inicioDeDiaMX } from "@/lib/fecha";
 
 type Periodo = "hoy" | "7d" | "30d" | "todo";
 
@@ -12,11 +13,10 @@ const PERIODOS: { value: Periodo; label: string }[] = [
 ];
 
 function desdeFecha(periodo: Periodo): string | null {
-  const ahora = new Date();
   if (periodo === "hoy") {
-    ahora.setHours(0, 0, 0, 0);
-    return ahora.toISOString();
+    return inicioDeDiaMX(0).toISOString();
   }
+  const ahora = new Date();
   if (periodo === "7d") {
     ahora.setDate(ahora.getDate() - 7);
     return ahora.toISOString();

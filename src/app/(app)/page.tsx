@@ -1,17 +1,7 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { diaMX, inicioDeDiaMX } from "@/lib/fecha";
 import { VentasPorServicioChart, TendenciaVentasChart } from "./DashboardCharts";
-
-const SECCIONES = [
-  { href: "/tickets", label: "Tickets", desc: "Tablero de tickets del turno en curso." },
-  { href: "/servicios", label: "Servicios", desc: "Catálogo de servicios." },
-  { href: "/turnos", label: "Caja y turnos", desc: "Cierre de turno y conciliación de efectivo." },
-  { href: "/clientes", label: "Clientes", desc: "Directorio de clientes, vehículos y programa de lealtad." },
-  { href: "/inventario", label: "Inventario", desc: "Insumos y recetas de consumo por servicio." },
-  { href: "/reportes", label: "Reportes", desc: "Ventas, descuentos y diferencias de caja.", soloSupervisor: true },
-];
 
 function money(n: number) {
   return `$${n.toFixed(2)}`;
@@ -55,7 +45,6 @@ export default async function DashboardPage() {
     ]);
 
   const pendientesHoy = (ticketsHoy ?? []).filter((t) => t.estado !== "entregado").length;
-  const secciones = esCajero ? SECCIONES.filter((s) => !s.soloSupervisor) : SECCIONES;
 
   if (esCajero) {
     return (
@@ -82,19 +71,6 @@ export default async function DashboardPage() {
         <div className="rounded-xl border border-border bg-surface p-5">
           <p className="text-xs uppercase tracking-wide text-muted">Tickets pendientes hoy</p>
           <p className="mt-1 text-2xl font-bold text-foreground">{pendientesHoy}</p>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {secciones.map((s) => (
-            <Link
-              key={s.href}
-              href={s.href}
-              className="rounded-xl border border-primary/40 bg-primary/5 p-5 transition hover:bg-primary/10"
-            >
-              <p className="font-semibold text-foreground">{s.label}</p>
-              <p className="mt-2 text-sm text-muted">{s.desc}</p>
-            </Link>
-          ))}
         </div>
       </div>
     );
@@ -184,19 +160,6 @@ export default async function DashboardPage() {
             <TendenciaVentasChart data={tendenciaVentas} />
           </div>
         </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {secciones.map((s) => (
-          <Link
-            key={s.href}
-            href={s.href}
-            className="rounded-xl border border-primary/40 bg-primary/5 p-5 transition hover:bg-primary/10"
-          >
-            <p className="font-semibold text-foreground">{s.label}</p>
-            <p className="mt-2 text-sm text-muted">{s.desc}</p>
-          </Link>
-        ))}
       </div>
     </div>
   );

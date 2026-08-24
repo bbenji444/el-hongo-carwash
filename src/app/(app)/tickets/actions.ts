@@ -179,6 +179,14 @@ export async function registrarPago(input: {
 
   if (!user) return { error: "Sesión no válida." };
 
+  // Una lavada gratis (6ta lavada del ciclo de lealtad) no genera cobro: la
+  // tabla pagos exige monto > 0, así que aquí no se inserta nada, solo se
+  // deja avanzar el ticket (el estado "gratis" ya vive en tickets.lavada_gratis).
+  if (input.monto === 0) {
+    revalidatePath("/tickets");
+    return { error: null };
+  }
+
   const { error } = await supabase.from("pagos").insert({
     ticket_id: input.ticketId,
     turno_id: input.turnoId,

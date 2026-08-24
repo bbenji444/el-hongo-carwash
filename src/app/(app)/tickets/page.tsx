@@ -86,8 +86,34 @@ export default async function TicketsPage() {
     cliente: t.cliente_id ? clienteMap.get(t.cliente_id) ?? null : null,
     vehiculo: t.vehiculo_id ? vehiculoMap.get(t.vehiculo_id) ?? null : null,
     empleado: t.empleado_id ? empleadoMap.get(t.empleado_id) ?? null : null,
-    tienePago: (pagosPorTicket.get(t.id) ?? []).length > 0,
+    tienePago: (pagosPorTicket.get(t.id) ?? []).length > 0 || t.lavada_gratis,
   }));
+
+  // Resumen de caja del turno en curso, para que el cajero vea el dinero
+  // acumulado sin salirse de Tickets. Los cajeros no ven el efectivo (deben
+  // contarlo a ciegas al cerrar turno, ver turnos/page.tsx), solo tarjeta y
+  // transferencia.
+  let resumenCaja: {
+    totalesVisibles: Record<string, number>;
+    ocultarEfectivo: boolean;
+    pendientes: number;
+  } | null = null;
+
+  if (turno) {
+    const totalesPorMetodo: Record<string, number> = { efectivo: 0, tarjeta: 0, transferencia: 0 };
+    for (const p of pagos ?? []) {
+      totalesPorMetodo[p.metodo] = (totalesPorMetodo[p.metodo] ?? 0) + p.monto;
+    }
+    const puedeVerEfectivo = usuario.rol !== "cajero";
+
+    resumenCaja = {
+      totalesVisibles: puedeVerEfectivo
+        ? totalesPorMetodo
+        : { tarjeta: totalesPorMetodo.tarjeta, transferencia: totalesPorMetodo.transferencia },
+      ocultarEfectivo: !puedeVerEfectivo,
+      pendientes: (tickets ?? []).filter((t) => t.estado !== "entregado").length,
+    };
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -102,6 +128,7 @@ export default async function TicketsPage() {
         tickets={ticketsConDetalle}
         rolActual={usuario.rol as RolUsuario}
         usuarioActualId={usuario.id}
+        resumenCaja={resumenCaja}
       />
     </div>
   );

@@ -24,6 +24,7 @@ export function CobroModal({
 }) {
   const precioBase = ticket.servicio?.precio ?? 0;
   const totalSugerido = Math.max(precioBase - ticket.descuento_monto, 0);
+  const esGratis = totalSugerido === 0;
 
   const [metodo, setMetodo] = useState<PagoMetodo>("efectivo");
   const [monto, setMonto] = useState(String(totalSugerido.toFixed(2)));
@@ -33,7 +34,7 @@ export function CobroModal({
   function handleSubmit() {
     setError(null);
     const montoNum = Number(monto);
-    if (!Number.isFinite(montoNum) || montoNum <= 0) {
+    if (!Number.isFinite(montoNum) || montoNum < 0) {
       setError("Ingresa un monto válido.");
       return;
     }
@@ -74,32 +75,40 @@ export function CobroModal({
         </div>
 
         <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-muted">Método de pago</label>
-            <select
-              value={metodo}
-              onChange={(e) => setMetodo(e.target.value as PagoMetodo)}
-              className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
-            >
-              {METODOS.map((m) => (
-                <option key={m.value} value={m.value}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
-          </div>
+          {esGratis ? (
+            <p className="rounded-lg border border-success/40 bg-success/10 px-3 py-2 text-sm text-success">
+              Esta es la 6ª lavada del cliente: es gratis. No se registra ningún pago, solo se marca como cobrada.
+            </p>
+          ) : (
+            <>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-muted">Método de pago</label>
+                <select
+                  value={metodo}
+                  onChange={(e) => setMetodo(e.target.value as PagoMetodo)}
+                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+                >
+                  {METODOS.map((m) => (
+                    <option key={m.value} value={m.value}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-muted">Monto</label>
-            <input
-              value={monto}
-              onChange={(e) => setMonto(e.target.value)}
-              type="number"
-              min="0"
-              step="0.01"
-              className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
-            />
-          </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-muted">Monto</label>
+                <input
+                  value={monto}
+                  onChange={(e) => setMonto(e.target.value)}
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+                />
+              </div>
+            </>
+          )}
 
           {error && (
             <p className="rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 text-sm text-primary">
@@ -112,7 +121,7 @@ export function CobroModal({
             disabled={pending}
             className="rounded-lg bg-primary px-4 py-2.5 font-semibold text-white transition hover:bg-primary-hover disabled:opacity-60"
           >
-            {pending ? "Cobrando..." : "Registrar pago"}
+            {pending ? "Cobrando..." : esGratis ? "Marcar como cobrada" : "Registrar pago"}
           </button>
         </div>
       </div>

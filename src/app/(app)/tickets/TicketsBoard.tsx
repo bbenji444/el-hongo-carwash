@@ -16,6 +16,18 @@ const COLUMNAS: { estado: TicketConDetalle["estado"]; titulo: string }[] = [
   { estado: "entregado", titulo: "Entregado" },
 ];
 
+const METODO_LABEL: Record<string, string> = {
+  efectivo: "Efectivo",
+  tarjeta: "Tarjeta",
+  transferencia: "Transferencia",
+};
+
+type ResumenCaja = {
+  totalesVisibles: Record<string, number>;
+  ocultarEfectivo: boolean;
+  pendientes: number;
+};
+
 function ordenar(tickets: TicketConDetalle[]) {
   return [...tickets].sort((a, b) => {
     if (a.prioridad !== b.prioridad) return a.prioridad ? -1 : 1;
@@ -29,15 +41,21 @@ export function TicketsBoard({
   tickets,
   rolActual,
   usuarioActualId,
+  resumenCaja,
 }: {
   turno: Turno | null;
   servicios: ServicioCatalogo[];
   tickets: TicketConDetalle[];
   rolActual: RolUsuario;
   usuarioActualId: string;
+  resumenCaja: ResumenCaja | null;
 }) {
   const [mostrarNuevo, setMostrarNuevo] = useState(false);
   const [cobroTicket, setCobroTicket] = useState<TicketConDetalle | null>(null);
+  // Si el cobro se disparó al intentar entregar (columna "Terminado"), pagar debe
+  // avanzar el ticket a Entregado. Si se disparó desde el botón suelto "Cobrar"
+  // en una columna anterior, solo debe registrar el pago sin saltarse pasos.
+  const [cobroYEntregar, setCobroYEntregar] = useState(false);
   const [descuentoTicket, setDescuentoTicket] = useState<TicketConDetalle | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -48,6 +66,7 @@ export function TicketsBoard({
   function avanzar(ticket: TicketConDetalle, nuevoEstado: TicketConDetalle["estado"]) {
     if (nuevoEstado === "entregado" && !ticket.tienePago) {
       setCobroTicket(ticket);
+      setCobroYEntregar(true);
       return;
     }
     startTransition(async () => {
@@ -69,6 +88,32 @@ export function TicketsBoard({
           + Nuevo ticket
         </button>
       </div>
+
+      {resumenCaja && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface px-5 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Caja de este turno</p>
+          <div className="flex flex-wrap gap-2">
+            {!resumenCaja.ocultarEfectivo && (
+              <span className="rounded-full border border-border bg-background px-3 py-1 text-xs text-foreground">
+                {METODO_LABEL.efectivo}: ${(resumenCaja.totalesVisibles.efectivo ?? 0).toFixed(2)}
+              </span>
+            )}
+            {(["tarjeta", "transferencia"] as const).map((m) => (
+              <span
+                key={m}
+                className="rounded-full border border-border bg-background px-3 py-1 text-xs text-foreground"
+              >
+                {METODO_LABEL[m]}: ${(resumenCaja.totalesVisibles[m] ?? 0).toFixed(2)}
+              </span>
+            ))}
+          </div>
+          {resumenCaja.pendientes > 0 && (
+            <span className="ml-auto rounded-full border border-warning/40 bg-warning/10 px-3 py-1 text-xs font-medium text-warning">
+              {resumenCaja.pendientes} sin entregar
+            </span>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
         {COLUMNAS.map((col) => {
@@ -157,9 +202,12 @@ export function TicketsBoard({
                           Descuento
                         </button>
                       )}
-                      {col.estado !== "entregado" && !ticket.tienePago && (
+                      {col.estado !== "entregado" && col.estado !== "terminado" && !ticket.tienePago && (
                         <button
-                          onClick={() => setCobroTicket(ticket)}
+                          onClick={() => {
+                            setCobroTicket(ticket);
+                            setCobroYEntregar(false);
+                          }}
                           className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted hover:text-foreground"
                         >
                           Cobrar
@@ -193,13 +241,20 @@ export function TicketsBoard({
         <CobroModal
           ticket={cobroTicket}
           turnoId={turno.id}
-          onClose={() => setCobroTicket(null)}
-          onPagado={() => {
-            const ticketAEntregar = cobroTicket;
+          onClose={() => {
             setCobroTicket(null);
-            startTransition(async () => {
-              await actualizarEstadoTicket(ticketAEntregar.id, "entregado");
-            });
+            setCobroYEntregar(false);
+          }}
+          onPagado={() => {
+            const ticketPagado = cobroTicket;
+            const debeEntregar = cobroYEntregar;
+            setCobroTicket(null);
+            setCobroYEntregar(false);
+            if (debeEntregar) {
+              startTransition(async () => {
+                await actualizarEstadoTicket(ticketPagado.id, "entregado");
+              });
+            }
           }}
         />
       )}

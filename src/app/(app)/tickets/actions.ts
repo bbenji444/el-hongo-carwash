@@ -85,8 +85,10 @@ export async function progresoLealtadCliente(clienteId: string) {
 
   if (error) return { data: null, error: error.message };
 
-  const lavadas = (tickets ?? []).filter((t) => !t.lavada_gratis).length;
-  const lavadasEnCiclo = lavadas % 6;
+  // El ciclo se cuenta sobre TODAS las lavadas entregadas (gratis o no): cada
+  // ciclo completo son 6 lavadas exactas, así que el residuo módulo 6 ya
+  // vuelve a 0 justo después de la lavada gratis.
+  const lavadasEnCiclo = (tickets ?? []).length % 6;
   const ultimaLavada = (tickets ?? []).reduce<string | null>((max, t) => {
     if (!t.hora_salida) return max;
     return !max || t.hora_salida > max ? t.hora_salida : max;

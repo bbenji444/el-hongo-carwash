@@ -59,8 +59,9 @@ export default async function ClienteDetallePage({ params }: { params: Promise<{
     lavadaGratis: t.lavada_gratis,
   }));
 
-  const lavadasEnCiclo =
-    (tickets ?? []).filter((t) => t.estado === "entregado" && !t.lavada_gratis).length % 6;
+  // Se cuentan TODAS las lavadas entregadas (gratis o no): cada ciclo son 6
+  // lavadas exactas, el residuo módulo 6 vuelve a 0 solo después de la gratis.
+  const lavadasEnCiclo = (tickets ?? []).filter((t) => t.estado === "entregado").length % 6;
   const ultimaLavada = (tickets ?? []).find((t) => t.estado === "entregado")?.hora_salida ?? null;
 
   return (

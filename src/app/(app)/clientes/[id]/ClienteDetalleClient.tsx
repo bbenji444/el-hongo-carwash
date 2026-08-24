@@ -132,18 +132,27 @@ function HistorialLavadosSection({
   lavadasEnCiclo: number;
   ultimaLavada: string | null;
 }) {
+  const proximaGratis = lavadasEnCiclo === 5;
   const faltan = 6 - lavadasEnCiclo;
 
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-5">
       <h2 className="font-semibold text-foreground">Programa de lealtad</h2>
 
-      <div className="flex flex-col gap-2 rounded-lg border border-accent/40 bg-accent/10 p-3 text-sm">
-        <p className="font-medium text-foreground">{lavadasEnCiclo} de 6 lavadas</p>
+      <div
+        className={`flex flex-col gap-2 rounded-lg border p-3 text-sm ${
+          proximaGratis ? "border-success/40 bg-success/10" : "border-accent/40 bg-accent/10"
+        }`}
+      >
+        <p className={`font-medium ${proximaGratis ? "text-success" : "text-foreground"}`}>
+          {proximaGratis ? "¡Su próxima lavada es gratis!" : `${lavadasEnCiclo} de 6 lavadas`}
+        </p>
         <p className="text-muted">
-          {faltan === 6
-            ? "Aún no acumula lavadas en este ciclo."
-            : `Le faltan ${faltan} lavada${faltan === 1 ? "" : "s"} para la siguiente gratis.`}
+          {proximaGratis
+            ? "Ya acumuló 5 lavadas en este ciclo."
+            : ultimaLavada === null
+              ? "Aún no acumula lavadas en este ciclo."
+              : `Le faltan ${faltan} lavada${faltan === 1 ? "" : "s"} para la siguiente gratis.`}
         </p>
         <p className="text-xs text-muted">
           Última lavada:{" "}

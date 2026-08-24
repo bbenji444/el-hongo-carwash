@@ -34,7 +34,7 @@ export default async function ClientesPage({
     clienteIds.length
       ? supabase
           .from("tickets")
-          .select("cliente_id, hora_salida, lavada_gratis")
+          .select("cliente_id, hora_salida")
           .eq("estado", "entregado")
           .in("cliente_id", clienteIds)
       : Promise.resolve({ data: [] }),
@@ -49,9 +49,9 @@ export default async function ClientesPage({
   const lavadasPorCliente = new Map<string, number>();
   for (const t of ticketsEntregados ?? []) {
     if (!t.cliente_id) continue;
-    if (!t.lavada_gratis) {
-      lavadasPorCliente.set(t.cliente_id, (lavadasPorCliente.get(t.cliente_id) ?? 0) + 1);
-    }
+    // Se cuentan TODAS las lavadas entregadas (gratis o no): cada ciclo son
+    // 6 lavadas exactas, el residuo módulo 6 vuelve a 0 solo después de la gratis.
+    lavadasPorCliente.set(t.cliente_id, (lavadasPorCliente.get(t.cliente_id) ?? 0) + 1);
     if (t.hora_salida) {
       const actual = ultimaLavadaPorCliente.get(t.cliente_id);
       if (!actual || t.hora_salida > actual) {

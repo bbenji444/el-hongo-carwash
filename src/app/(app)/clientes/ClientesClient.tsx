@@ -134,9 +134,15 @@ export function ClientesClient({ clientes }: { clientes: ClienteConDetalle[] }) 
                     : "—"}
                 </td>
                 <td className="px-4 py-3">
-                  <span className="rounded-full border border-accent/40 bg-accent/15 px-2.5 py-0.5 text-xs font-medium text-accent">
-                    {cliente.lavadasEnCiclo} de 6
-                  </span>
+                  {cliente.lavadasEnCiclo === 5 ? (
+                    <span className="rounded-full border border-success/40 bg-success/15 px-2.5 py-0.5 text-xs font-medium text-success">
+                      ¡Próxima gratis!
+                    </span>
+                  ) : (
+                    <span className="rounded-full border border-accent/40 bg-accent/15 px-2.5 py-0.5 text-xs font-medium text-accent">
+                      {cliente.lavadasEnCiclo} de 6
+                    </span>
+                  )}
                 </td>
               </tr>
             ))}

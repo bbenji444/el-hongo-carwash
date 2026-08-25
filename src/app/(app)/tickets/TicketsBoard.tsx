@@ -30,17 +30,34 @@ type ResumenCaja = {
 };
 
 // Semáforo de espera: verde en orden, amarillo a partir de 10 min, rojo a
-// partir de 15 min sin que el ticket llegue a "Entregado".
-const ESPERA_ESTILO: Record<"ok" | "alerta" | "critico", string> = {
-  ok: "border-success/40 bg-success/15 text-success",
-  alerta: "border-warning/40 bg-warning/15 text-warning",
-  critico: "border-primary/40 bg-primary/15 text-primary",
+// partir de 15 min sin que el ticket llegue a "Entregado". El fondo de toda
+// la tarjeta cambia según el nivel, no solo un badge.
+type NivelEspera = "ok" | "alerta" | "critico";
+
+const TARJETA_ESTILO: Record<NivelEspera, string> = {
+  ok: "border-border bg-surface",
+  alerta: "border-warning/50 bg-warning/10",
+  critico: "border-primary/60 bg-primary/15",
 };
 
-function calcularEspera(horaEntrada: string, ahora: number) {
-  const minutos = Math.max(0, Math.floor((ahora - new Date(horaEntrada).getTime()) / 60000));
-  const nivel: keyof typeof ESPERA_ESTILO = minutos >= 15 ? "critico" : minutos >= 10 ? "alerta" : "ok";
-  return { minutos, nivel };
+const CRONOMETRO_ESTILO: Record<NivelEspera, string> = {
+  ok: "text-foreground",
+  alerta: "text-warning",
+  critico: "text-primary",
+};
+
+function calcularNivel(minutosTotal: number): NivelEspera {
+  return minutosTotal >= 15 ? "critico" : minutosTotal >= 10 ? "alerta" : "ok";
+}
+
+function formatearDuracion(ms: number) {
+  const totalSegundos = Math.max(0, Math.floor(ms / 1000));
+  const horas = Math.floor(totalSegundos / 3600);
+  const minutos = Math.floor((totalSegundos % 3600) / 60);
+  const segundos = totalSegundos % 60;
+  const mm = String(minutos).padStart(2, "0");
+  const ss = String(segundos).padStart(2, "0");
+  return horas > 0 ? `${horas}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
 function ordenar(tickets: TicketConDetalle[]) {
@@ -78,7 +95,7 @@ export function TicketsBoard({
 
   const [ahora, setAhora] = useState(() => Date.now());
   useEffect(() => {
-    const id = setInterval(() => setAhora(Date.now()), 30_000);
+    const id = setInterval(() => setAhora(Date.now()), 1_000);
     return () => clearInterval(id);
   }, []);
 
@@ -158,12 +175,14 @@ export function TicketsBoard({
               </p>
               <div className="flex flex-col gap-3">
                 {ticketsCol.map((ticket) => {
-                  const espera =
-                    col.estado !== "entregado" ? calcularEspera(ticket.hora_entrada, ahora) : null;
+                  const entregado = col.estado === "entregado";
+                  const totalMs = ahora - new Date(ticket.hora_entrada).getTime();
+                  const etapaMs = ahora - new Date(ticket.hora_cambio_estado).getTime();
+                  const nivel = entregado ? "ok" : calcularNivel(Math.floor(totalMs / 60000));
                   return (
                   <div
                     key={ticket.id}
-                    className="flex flex-col gap-1.5 rounded-xl border border-border bg-surface p-3"
+                    className={`flex flex-col gap-1.5 rounded-xl border p-3 ${TARJETA_ESTILO[nivel]}`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div>
@@ -199,20 +218,24 @@ export function TicketsBoard({
                           Pagado
                         </span>
                       )}
-                      {espera && (
-                        <span
-                          className={`w-fit rounded-full border px-2 py-0.5 text-[10px] font-medium ${ESPERA_ESTILO[espera.nivel]}`}
-                        >
-                          ⏱ {espera.minutos} min
-                        </span>
-                      )}
-                      <span className="text-[10px] text-muted/70">
-                        {new Date(ticket.hora_entrada).toLocaleTimeString("es-MX", {
+                    </div>
+
+                    {entregado ? (
+                      <p className="text-[11px] text-muted">
+                        Entregado a las{" "}
+                        {new Date(ticket.hora_salida ?? ticket.hora_cambio_estado).toLocaleTimeString("es-MX", {
                           hour: "2-digit",
                           minute: "2-digit",
                         })}
-                      </span>
-                    </div>
+                      </p>
+                    ) : (
+                      <div className="flex flex-col gap-0.5 text-[11px]">
+                        <span className={`font-semibold ${CRONOMETRO_ESTILO[nivel]}`}>
+                          ⏱ Total: {formatearDuracion(totalMs)}
+                        </span>
+                        <span className="text-muted">⏳ En esta etapa: {formatearDuracion(etapaMs)}</span>
+                      </div>
+                    )}
 
                     <div className="mt-1 flex flex-wrap gap-2">
                       {col.estado === "en_espera" && (

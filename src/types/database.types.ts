@@ -154,6 +154,7 @@ export interface Database {
           estado: "en_espera" | "en_proceso" | "terminado" | "entregado";
           hora_entrada: string;
           hora_salida: string | null;
+          hora_cambio_estado: string;
           creado_por: string;
         };
         Insert: {
@@ -170,6 +171,7 @@ export interface Database {
           estado?: "en_espera" | "en_proceso" | "terminado" | "entregado";
           hora_entrada?: string;
           hora_salida?: string | null;
+          hora_cambio_estado?: string;
           creado_por?: string;
         };
         Update: {
@@ -186,6 +188,7 @@ export interface Database {
           estado?: "en_espera" | "en_proceso" | "terminado" | "entregado";
           hora_entrada?: string;
           hora_salida?: string | null;
+          hora_cambio_estado?: string;
           creado_por?: string;
         };
         Relationships: [];

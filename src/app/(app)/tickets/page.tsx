@@ -144,20 +144,13 @@ export default async function TicketsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Tickets</h1>
-        <p className="text-sm text-muted">Tablero del turno en curso.</p>
-      </div>
-
-      <TicketsBoard
-        turno={turno ?? null}
-        servicios={servicios ?? []}
-        tickets={ticketsConDetalle}
-        rolActual={usuario.rol as RolUsuario}
-        usuarioActualId={usuario.id}
-        resumenCaja={resumenCaja}
-      />
-    </div>
+    <TicketsBoard
+      turno={turno ?? null}
+      servicios={servicios ?? []}
+      tickets={ticketsConDetalle}
+      rolActual={usuario.rol as RolUsuario}
+      usuarioActualId={usuario.id}
+      resumenCaja={resumenCaja}
+    />
   );
 }

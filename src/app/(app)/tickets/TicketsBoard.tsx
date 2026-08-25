@@ -111,8 +111,20 @@ export function TicketsBoard({
     return () => clearInterval(id);
   }, []);
 
+  const encabezado = (
+    <div>
+      <h1 className="text-2xl font-bold text-foreground">Tickets</h1>
+      <p className="text-sm text-muted">Tablero del turno en curso.</p>
+    </div>
+  );
+
   if (!turno) {
-    return <AbrirTurnoForm />;
+    return (
+      <div className="flex flex-col gap-5">
+        {encabezado}
+        <AbrirTurnoForm />
+      </div>
+    );
   }
 
   function avanzar(ticket: TicketConDetalle, nuevoEstado: TicketConDetalle["estado"]) {
@@ -132,11 +144,8 @@ export function TicketsBoard({
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex items-center justify-between rounded-xl border border-border bg-surface px-5 py-3">
-        <p className="text-sm text-muted">
-          Turno abierto · Efectivo inicial:{" "}
-          <span className="text-foreground">${turno.efectivo_inicial.toFixed(2)}</span>
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        {encabezado}
         <button
           onClick={() => setMostrarNuevo(true)}
           className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-hover"
@@ -151,10 +160,12 @@ export function TicketsBoard({
         </p>
       )}
 
-      {resumenCaja && (
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface px-5 py-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Caja de este turno</p>
-          <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-surface px-5 py-3">
+        <span className="whitespace-nowrap rounded-full border border-border bg-background px-3 py-1 text-xs text-foreground">
+          Efectivo inicial: ${turno.efectivo_inicial.toFixed(2)}
+        </span>
+        {resumenCaja && (
+          <>
             {!resumenCaja.ocultarEfectivo && (
               <span className="rounded-full border border-border bg-background px-3 py-1 text-xs text-foreground">
                 {METODO_LABEL.efectivo}: ${(resumenCaja.totalesVisibles.efectivo ?? 0).toFixed(2)}
@@ -180,14 +191,14 @@ export function TicketsBoard({
               Tiempo promedio:{" "}
               {resumenCaja.tiempoPromedioMin !== null ? formatearMinutos(resumenCaja.tiempoPromedioMin) : "—"}
             </span>
-          </div>
-          {resumenCaja.pendientes > 0 && (
-            <span className="ml-auto rounded-full border border-warning/40 bg-warning/10 px-3 py-1 text-xs font-medium text-warning">
-              {resumenCaja.pendientes} sin entregar
-            </span>
-          )}
-        </div>
-      )}
+            {resumenCaja.pendientes > 0 && (
+              <span className="ml-auto rounded-full border border-warning/40 bg-warning/10 px-3 py-1 text-xs font-medium text-warning">
+                {resumenCaja.pendientes} sin entregar
+              </span>
+            )}
+          </>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
         {COLUMNAS.map((col) => {

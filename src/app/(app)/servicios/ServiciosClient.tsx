@@ -3,7 +3,7 @@
 import { useState, useTransition, type FormEvent } from "react";
 import type { ServicioCatalogo, ServicioPrecio } from "@/types/database.types";
 import { TAMANOS_VEHICULO, precioPorTamano } from "@/lib/servicios";
-import { crearServicio, actualizarServicio, toggleActivoServicio } from "./actions";
+import { crearServicio, actualizarServicio, toggleActivoServicio, eliminarServicio } from "./actions";
 
 type ServicioConPrecios = ServicioCatalogo & { precios: ServicioPrecio[] };
 
@@ -110,6 +110,19 @@ export function ServiciosClient({
   function handleToggle(servicio: ServicioConPrecios) {
     startTransition(async () => {
       await toggleActivoServicio(servicio.id, !servicio.activo);
+    });
+  }
+
+  function handleEliminar(servicio: ServicioConPrecios) {
+    if (!window.confirm(`¿Eliminar el paquete "${servicio.nombre}"? Esta acción no se puede deshacer.`)) {
+      return;
+    }
+    setError(null);
+    startTransition(async () => {
+      const result = await eliminarServicio(servicio.id);
+      if (result.error) {
+        setError(result.error);
+      }
     });
   }
 
@@ -300,6 +313,13 @@ export function ServiciosClient({
                         className="text-xs text-muted hover:text-foreground disabled:opacity-60"
                       >
                         {servicio.activo ? "Desactivar" : "Activar"}
+                      </button>
+                      <button
+                        onClick={() => handleEliminar(servicio)}
+                        disabled={pending}
+                        className="text-xs text-primary hover:underline disabled:opacity-60"
+                      >
+                        Eliminar
                       </button>
                     </div>
                   </td>

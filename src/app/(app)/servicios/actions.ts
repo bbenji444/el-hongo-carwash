@@ -93,3 +93,24 @@ export async function toggleActivoServicio(id: string, activo: boolean) {
   revalidatePath("/servicios");
   return { error: null };
 }
+
+export async function eliminarServicio(id: string) {
+  const supabase = await createClient();
+
+  const { error } = await supabase.from("servicios_catalogo").delete().eq("id", id);
+
+  if (error) {
+    // 23503 = violación de llave foránea: hay tickets que ya usan este
+    // paquete, así que borrarlo rompería ese historial. En ese caso hay que
+    // desactivarlo en vez de eliminarlo.
+    if (error.code === "23503") {
+      return {
+        error: "No se puede eliminar: ya tiene tickets registrados. Desactívalo en vez de eliminarlo.",
+      };
+    }
+    return { error: error.message };
+  }
+
+  revalidatePath("/servicios");
+  return { error: null };
+}

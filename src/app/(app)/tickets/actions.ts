@@ -104,6 +104,52 @@ export async function progresoLealtadCliente(clienteId: string) {
   };
 }
 
+// Detalle completo de un cliente para el popup que se abre al hacer click en su
+// nombre desde una tarjeta de ticket: historial de visitas, gasto acumulado y
+// progreso de lealtad. Es una consulta de solo lectura, sin efectos secundarios.
+export async function detalleCliente(clienteId: string) {
+  const supabase = await createClient();
+
+  const [{ data: cliente, error: clienteError }, { data: vehiculos }, { data: ticketsCliente }] =
+    await Promise.all([
+      supabase.from("clientes").select("id, nombre, telefono, creado_en").eq("id", clienteId).maybeSingle(),
+      supabase.from("vehiculos").select("id, placas, tipo_vehiculo").eq("cliente_id", clienteId),
+      supabase.from("tickets").select("id, estado, lavada_gratis, hora_salida").eq("cliente_id", clienteId),
+    ]);
+
+  if (clienteError) return { data: null, error: clienteError.message };
+  if (!cliente) return { data: null, error: "Cliente no encontrado." };
+
+  const entregados = (ticketsCliente ?? []).filter((t) => t.estado === "entregado");
+  const ticketIds = entregados.map((t) => t.id);
+
+  const { data: pagos } = ticketIds.length
+    ? await supabase.from("pagos").select("monto").in("ticket_id", ticketIds)
+    : { data: [] };
+
+  const gastoTotal = (pagos ?? []).reduce((sum, p) => sum + p.monto, 0);
+  const ultimaVisita = entregados.reduce<string | null>((max, t) => {
+    if (!t.hora_salida) return max;
+    return !max || t.hora_salida > max ? t.hora_salida : max;
+  }, null);
+
+  // Mismo cálculo de ciclo que progresoLealtadCliente, ver nota ahí.
+  const lavadasEnCiclo = entregados.length % 6;
+
+  return {
+    data: {
+      cliente,
+      vehiculos: vehiculos ?? [],
+      visitasTotales: entregados.length,
+      gastoTotal,
+      ultimaVisita,
+      lavadasEnCiclo,
+      proximaGratis: lavadasEnCiclo === 5,
+    },
+    error: null,
+  };
+}
+
 export async function usuariosActivos() {
   const supabase = await createClient();
 

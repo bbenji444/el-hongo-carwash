@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import type { ServicioCatalogo, Turno } from "@/types/database.types";
 import type { TicketConDetalle, RolUsuario } from "./types";
 import { AbrirTurnoForm } from "./AbrirTurnoForm";
 import { NuevoTicketModal } from "./NuevoTicketModal";
 import { CobroModal } from "./CobroModal";
 import { DescuentoModal } from "./DescuentoModal";
+import { ClienteDetalleModal } from "./ClienteDetalleModal";
 import { actualizarEstadoTicket } from "./actions";
 
 const COLUMNAS: { estado: TicketConDetalle["estado"]; titulo: string }[] = [
@@ -27,6 +28,20 @@ type ResumenCaja = {
   ocultarEfectivo: boolean;
   pendientes: number;
 };
+
+// Semáforo de espera: verde en orden, amarillo a partir de 10 min, rojo a
+// partir de 15 min sin que el ticket llegue a "Entregado".
+const ESPERA_ESTILO: Record<"ok" | "alerta" | "critico", string> = {
+  ok: "border-success/40 bg-success/15 text-success",
+  alerta: "border-warning/40 bg-warning/15 text-warning",
+  critico: "border-primary/40 bg-primary/15 text-primary",
+};
+
+function calcularEspera(horaEntrada: string, ahora: number) {
+  const minutos = Math.max(0, Math.floor((ahora - new Date(horaEntrada).getTime()) / 60000));
+  const nivel: keyof typeof ESPERA_ESTILO = minutos >= 15 ? "critico" : minutos >= 10 ? "alerta" : "ok";
+  return { minutos, nivel };
+}
 
 function ordenar(tickets: TicketConDetalle[]) {
   return [...tickets].sort((a, b) => {
@@ -57,8 +72,15 @@ export function TicketsBoard({
   // en una columna anterior, solo debe registrar el pago sin saltarse pasos.
   const [cobroYEntregar, setCobroYEntregar] = useState(false);
   const [descuentoTicket, setDescuentoTicket] = useState<TicketConDetalle | null>(null);
+  const [clienteDetalleTicket, setClienteDetalleTicket] = useState<TicketConDetalle | null>(null);
   const [errorAvance, setErrorAvance] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  const [ahora, setAhora] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setAhora(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   if (!turno) {
     return <AbrirTurnoForm />;
@@ -135,16 +157,24 @@ export function TicketsBoard({
                 {col.titulo} ({ticketsCol.length})
               </p>
               <div className="flex flex-col gap-3">
-                {ticketsCol.map((ticket) => (
+                {ticketsCol.map((ticket) => {
+                  const espera =
+                    col.estado !== "entregado" ? calcularEspera(ticket.hora_entrada, ahora) : null;
+                  return (
                   <div
                     key={ticket.id}
-                    className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-4"
+                    className="flex flex-col gap-1.5 rounded-xl border border-border bg-surface p-3"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <p className="text-sm font-semibold text-foreground">
+                        <button
+                          type="button"
+                          disabled={!ticket.cliente}
+                          onClick={() => setClienteDetalleTicket(ticket)}
+                          className="text-left text-sm font-semibold text-foreground disabled:cursor-default enabled:hover:text-accent enabled:hover:underline"
+                        >
                           {ticket.cliente?.nombre ?? "Cliente de mostrador"}
-                        </p>
+                        </button>
                         {ticket.vehiculo?.placas && (
                           <p className="text-xs text-muted">{ticket.vehiculo.placas}</p>
                         )}
@@ -156,26 +186,33 @@ export function TicketsBoard({
                       )}
                     </div>
 
-                    <p className="text-sm text-foreground">{ticket.servicio?.nombre}</p>
-                    <p className="text-xs text-muted">
-                      ${ticket.servicio?.precio.toFixed(2)}
+                    <p className="text-xs text-foreground">
+                      {ticket.servicio?.nombre} · ${ticket.servicio?.precio.toFixed(2)}
                       {ticket.descuento_monto > 0 && (
                         <span className="text-warning"> · -${ticket.descuento_monto.toFixed(2)} desc.</span>
                       )}
                     </p>
-                    <p className="text-xs text-muted">Empleado: {ticket.empleado?.nombre ?? "—"}</p>
-                    <p className="text-[11px] text-muted/70">
-                      {new Date(ticket.hora_entrada).toLocaleTimeString("es-MX", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </p>
 
-                    {ticket.tienePago && (
-                      <span className="w-fit rounded-full border border-success/40 bg-success/15 px-2 py-0.5 text-[10px] text-success">
-                        Pagado
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {ticket.tienePago && (
+                        <span className="w-fit rounded-full border border-success/40 bg-success/15 px-2 py-0.5 text-[10px] text-success">
+                          Pagado
+                        </span>
+                      )}
+                      {espera && (
+                        <span
+                          className={`w-fit rounded-full border px-2 py-0.5 text-[10px] font-medium ${ESPERA_ESTILO[espera.nivel]}`}
+                        >
+                          ⏱ {espera.minutos} min
+                        </span>
+                      )}
+                      <span className="text-[10px] text-muted/70">
+                        {new Date(ticket.hora_entrada).toLocaleTimeString("es-MX", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
                       </span>
-                    )}
+                    </div>
 
                     <div className="mt-1 flex flex-wrap gap-2">
                       {col.estado === "en_espera" && (
@@ -226,7 +263,8 @@ export function TicketsBoard({
                       )}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
                 {ticketsCol.length === 0 && (
                   <p className="rounded-xl border border-dashed border-border p-4 text-center text-xs text-muted">
                     Sin tickets
@@ -279,6 +317,18 @@ export function TicketsBoard({
           ticket={descuentoTicket}
           onClose={() => setDescuentoTicket(null)}
           onAutorizado={() => setDescuentoTicket(null)}
+        />
+      )}
+
+      {clienteDetalleTicket?.cliente && (
+        <ClienteDetalleModal
+          clienteId={clienteDetalleTicket.cliente.id}
+          ticketActual={{
+            servicioNombre: clienteDetalleTicket.servicio?.nombre ?? null,
+            empleadoNombre: clienteDetalleTicket.empleado?.nombre ?? null,
+            placas: clienteDetalleTicket.vehiculo?.placas ?? null,
+          }}
+          onClose={() => setClienteDetalleTicket(null)}
         />
       )}
     </div>

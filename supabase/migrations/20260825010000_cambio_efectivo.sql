@@ -11,5 +11,12 @@ alter table public.pagos add column if not exists cambio_entregado numeric(10, 2
     case when monto_recibido is not null then monto_recibido - monto else null end
   ) stored;
 
-alter table public.pagos add constraint if not exists pagos_monto_recibido_check
-  check (monto_recibido is null or monto_recibido >= monto);
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'pagos_monto_recibido_check'
+  ) then
+    alter table public.pagos add constraint pagos_monto_recibido_check
+      check (monto_recibido is null or monto_recibido >= monto);
+  end if;
+end $$;

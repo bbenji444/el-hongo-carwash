@@ -23,20 +23,25 @@
 --   6. Se insertan los 4 paquetes reales con sus precios reales.
 -- ============================================================================
 
-create type tamano_vehiculo as enum (
-  'automovil',
-  'camioneta_chica',
-  'camioneta_grande',
-  'camioneta_extra_grande'
-);
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'tamano_vehiculo') then
+    create type tamano_vehiculo as enum (
+      'automovil',
+      'camioneta_chica',
+      'camioneta_grande',
+      'camioneta_extra_grande'
+    );
+  end if;
+end $$;
 
 alter table public.servicios_catalogo
-  add column descripcion text,
-  add column caracteristicas text[] not null default '{}',
-  add column orden integer not null default 0,
-  add column destacado boolean not null default false;
+  add column if not exists descripcion text,
+  add column if not exists caracteristicas text[] not null default '{}',
+  add column if not exists orden integer not null default 0,
+  add column if not exists destacado boolean not null default false;
 
-create table public.servicios_precios (
+create table if not exists public.servicios_precios (
   id uuid primary key default gen_random_uuid(),
   servicio_id uuid not null references public.servicios_catalogo (id) on delete cascade,
   tamano_vehiculo tamano_vehiculo not null,
@@ -44,35 +49,62 @@ create table public.servicios_precios (
   unique (servicio_id, tamano_vehiculo)
 );
 
-create index idx_servicios_precios_servicio on public.servicios_precios (servicio_id);
+create index if not exists idx_servicios_precios_servicio on public.servicios_precios (servicio_id);
 
 alter table public.servicios_precios enable row level security;
 
+drop policy if exists servicios_precios_select on public.servicios_precios;
 create policy servicios_precios_select on public.servicios_precios
 for select using (public.usuario_rol() is not null);
 
+drop policy if exists servicios_precios_insert_dueno on public.servicios_precios;
 create policy servicios_precios_insert_dueno on public.servicios_precios
 for insert with check (public.usuario_rol() = 'dueno');
 
+drop policy if exists servicios_precios_update_dueno on public.servicios_precios;
 create policy servicios_precios_update_dueno on public.servicios_precios
 for update using (public.usuario_rol() = 'dueno') with check (public.usuario_rol() = 'dueno');
 
+drop policy if exists servicios_precios_delete_dueno on public.servicios_precios;
 create policy servicios_precios_delete_dueno on public.servicios_precios
 for delete using (public.usuario_rol() = 'dueno');
 
 -- Migra el precio único de cada servicio existente a los 4 tamaños, para que
 -- ningún servicio ya creado (ni ticket abierto que lo referencia) se quede
--- sin precio al quitar la columna vieja.
-insert into public.servicios_precios (servicio_id, tamano_vehiculo, precio)
-select sc.id, tv.tamano, sc.precio
-from public.servicios_catalogo sc
-cross join (select unnest(enum_range(null::tamano_vehiculo)) as tamano) tv
-on conflict (servicio_id, tamano_vehiculo) do nothing;
+-- sin precio al quitar la columna vieja. Envuelto en el IF (en vez de SQL
+-- plano) porque, si esta migración ya se corrió parcialmente antes y la
+-- columna `precio` ya no existe, un SELECT sc.precio suelto rompería con
+-- "column does not exist"; plpgsql solo valida cada sentencia hasta que le
+-- toca ejecutarse, así que este chequeo la protege también en un reintento.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'servicios_catalogo' and column_name = 'precio'
+  ) then
+    insert into public.servicios_precios (servicio_id, tamano_vehiculo, precio)
+    select sc.id, tv.tamano, sc.precio
+    from public.servicios_catalogo sc
+    cross join (select unnest(enum_range(null::tamano_vehiculo)) as tamano) tv
+    on conflict (servicio_id, tamano_vehiculo) do nothing;
 
-alter table public.servicios_catalogo drop column precio;
+    alter table public.servicios_catalogo drop column precio;
+  end if;
+end $$;
 
-alter table public.tickets add column tamano_vehiculo tamano_vehiculo;
+alter table public.tickets add column if not exists tamano_vehiculo tamano_vehiculo;
+
+-- Un UPDATE normal sobre tickets dispara tr_ticket_descuento_autorizado en
+-- cada fila existente: ese trigger recalcula desde cero la elegibilidad de
+-- la 6ta lavada gratis con los datos de HOY, y para un ticket viejo que ya
+-- traía un descuento de lealtad (o autorizado) esa relectura puede no
+-- volver a cumplirse y el trigger rechaza el UPDATE completo con "requiere
+-- autorizacion". Se desactiva solo mientras dura este backfill puntual
+-- (mismo patrón que usa supabase/seed_demo_datos.sql).
+alter table public.tickets disable trigger tr_ticket_descuento_autorizado;
 update public.tickets set tamano_vehiculo = 'automovil' where tamano_vehiculo is null;
+alter table public.tickets enable trigger tr_ticket_descuento_autorizado;
+
 alter table public.tickets alter column tamano_vehiculo set not null;
 
 -- El trigger de lealtad calculaba el monto de la 6ta lavada gratis leyendo

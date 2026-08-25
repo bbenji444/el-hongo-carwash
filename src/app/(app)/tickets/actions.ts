@@ -200,9 +200,17 @@ export async function crearTicket(input: {
 export async function actualizarEstadoTicket(ticketId: string, estado: TicketEstado) {
   const supabase = await createClient();
 
+  // hora_cambio_estado se manda explícito aquí (no se deja solo al trigger de
+  // DB) para que el cronómetro de "tiempo en esta etapa" reinicie siempre que
+  // esta acción cambia el estado, sin depender de que la migración del
+  // trigger haya quedado aplicada correctamente en el entorno del usuario.
   const { error } = await supabase
     .from("tickets")
-    .update({ estado, hora_salida: estado === "entregado" ? new Date().toISOString() : null })
+    .update({
+      estado,
+      hora_cambio_estado: new Date().toISOString(),
+      hora_salida: estado === "entregado" ? new Date().toISOString() : null,
+    })
     .eq("id", ticketId);
 
   if (error) return { error: error.message };

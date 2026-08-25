@@ -32,9 +32,10 @@ type ResumenCaja = {
   tiempoPromedioMin: number | null;
 };
 
-// Semáforo de espera: verde en orden, amarillo a partir de 10 min, rojo a
-// partir de 15 min sin que el ticket llegue a "Entregado". El fondo de toda
-// la tarjeta cambia según el nivel, no solo un badge.
+// Semáforo de espera: verde en orden, amarillo a partir de 25 min, rojo a
+// partir de 35 min sin que el ticket llegue a "Entregado". El color se mide
+// sobre el tiempo total del ciclo (persiste aunque cambie de etapa) y el
+// fondo de toda la tarjeta cambia según el nivel, no solo un badge.
 type NivelEspera = "ok" | "alerta" | "critico";
 
 const TARJETA_ESTILO: Record<NivelEspera, string> = {
@@ -50,7 +51,7 @@ const CRONOMETRO_ESTILO: Record<NivelEspera, string> = {
 };
 
 function calcularNivel(minutosTotal: number): NivelEspera {
-  return minutosTotal >= 15 ? "critico" : minutosTotal >= 10 ? "alerta" : "ok";
+  return minutosTotal >= 35 ? "critico" : minutosTotal >= 25 ? "alerta" : "ok";
 }
 
 function formatearDuracion(ms: number) {

@@ -27,6 +27,9 @@ type ResumenCaja = {
   totalesVisibles: Record<string, number>;
   ocultarEfectivo: boolean;
   pendientes: number;
+  efectivoEsperado: number | null;
+  ventasHoy: number;
+  tiempoPromedioMin: number | null;
 };
 
 // Semáforo de espera: verde en orden, amarillo a partir de 10 min, rojo a
@@ -58,6 +61,14 @@ function formatearDuracion(ms: number) {
   const mm = String(minutos).padStart(2, "0");
   const ss = String(segundos).padStart(2, "0");
   return horas > 0 ? `${horas}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+
+function formatearMinutos(minutos: number) {
+  const redondeado = Math.round(minutos);
+  if (redondeado < 60) return `${redondeado} min`;
+  const horas = Math.floor(redondeado / 60);
+  const resto = redondeado % 60;
+  return resto > 0 ? `${horas}h ${resto}min` : `${horas}h`;
 }
 
 function ordenar(tickets: TicketConDetalle[]) {
@@ -148,6 +159,11 @@ export function TicketsBoard({
                 {METODO_LABEL.efectivo}: ${(resumenCaja.totalesVisibles.efectivo ?? 0).toFixed(2)}
               </span>
             )}
+            {resumenCaja.efectivoEsperado !== null && (
+              <span className="rounded-full border border-border bg-background px-3 py-1 text-xs text-foreground">
+                Efectivo esperado: ${resumenCaja.efectivoEsperado.toFixed(2)}
+              </span>
+            )}
             {(["tarjeta", "transferencia"] as const).map((m) => (
               <span
                 key={m}
@@ -156,6 +172,13 @@ export function TicketsBoard({
                 {METODO_LABEL[m]}: ${(resumenCaja.totalesVisibles[m] ?? 0).toFixed(2)}
               </span>
             ))}
+            <span className="rounded-full border border-border bg-background px-3 py-1 text-xs text-foreground">
+              Ventas hoy: {resumenCaja.ventasHoy}
+            </span>
+            <span className="rounded-full border border-border bg-background px-3 py-1 text-xs text-foreground">
+              Tiempo promedio:{" "}
+              {resumenCaja.tiempoPromedioMin !== null ? formatearMinutos(resumenCaja.tiempoPromedioMin) : "—"}
+            </span>
           </div>
           {resumenCaja.pendientes > 0 && (
             <span className="ml-auto rounded-full border border-warning/40 bg-warning/10 px-3 py-1 text-xs font-medium text-warning">

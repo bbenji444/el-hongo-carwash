@@ -97,6 +97,9 @@ export default async function TicketsPage() {
     totalesVisibles: Record<string, number>;
     ocultarEfectivo: boolean;
     pendientes: number;
+    efectivoEsperado: number | null;
+    ventasHoy: number;
+    tiempoPromedioMin: number | null;
   } | null = null;
 
   if (turno) {
@@ -106,12 +109,37 @@ export default async function TicketsPage() {
     }
     const puedeVerEfectivo = usuario.rol !== "cajero";
 
+    // Ventas del día y tiempo promedio de servicio se miden por día natural
+    // (todos los turnos de hoy), no solo el turno en curso — a diferencia del
+    // efectivo, que sí es un dato propio de este turno.
+    const inicioDia = new Date();
+    inicioDia.setHours(0, 0, 0, 0);
+    const { data: ticketsHoy } = await supabase
+      .from("tickets")
+      .select("hora_entrada, hora_salida")
+      .eq("estado", "entregado")
+      .gte("hora_salida", inicioDia.toISOString());
+
+    const entregadosHoy = (ticketsHoy ?? []).filter((t) => t.hora_salida);
+    const tiempoPromedioMin =
+      entregadosHoy.length > 0
+        ? entregadosHoy.reduce(
+            (suma, t) => suma + (new Date(t.hora_salida!).getTime() - new Date(t.hora_entrada).getTime()),
+            0
+          ) /
+          entregadosHoy.length /
+          60000
+        : null;
+
     resumenCaja = {
       totalesVisibles: puedeVerEfectivo
         ? totalesPorMetodo
         : { tarjeta: totalesPorMetodo.tarjeta, transferencia: totalesPorMetodo.transferencia },
       ocultarEfectivo: !puedeVerEfectivo,
       pendientes: (tickets ?? []).filter((t) => t.estado !== "entregado").length,
+      efectivoEsperado: puedeVerEfectivo ? turno.efectivo_inicial + totalesPorMetodo.efectivo : null,
+      ventasHoy: entregadosHoy.length,
+      tiempoPromedioMin,
     };
   }
 

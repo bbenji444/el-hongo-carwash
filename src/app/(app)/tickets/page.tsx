@@ -151,6 +151,7 @@ export default async function TicketsPage() {
       rolActual={usuario.rol as RolUsuario}
       usuarioActualId={usuario.id}
       resumenCaja={resumenCaja}
+      serverAhora={new Date().toISOString()}
     />
   );
 }

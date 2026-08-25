@@ -86,6 +86,7 @@ export function TicketsBoard({
   rolActual,
   usuarioActualId,
   resumenCaja,
+  serverAhora,
 }: {
   turno: Turno | null;
   servicios: ServicioCatalogo[];
@@ -93,6 +94,7 @@ export function TicketsBoard({
   rolActual: RolUsuario;
   usuarioActualId: string;
   resumenCaja: ResumenCaja | null;
+  serverAhora: string;
 }) {
   const [mostrarNuevo, setMostrarNuevo] = useState(false);
   const [cobroTicket, setCobroTicket] = useState<TicketConDetalle | null>(null);
@@ -110,6 +112,19 @@ export function TicketsBoard({
     const id = setInterval(() => setAhora(Date.now()), 1_000);
     return () => clearInterval(id);
   }, []);
+
+  // Los cronómetros comparan la hora del navegador contra marcas de tiempo
+  // puestas por el servidor. Si el reloj del equipo del cajero está
+  // desfasado (adelantado o atrasado) respecto al servidor, esa resta sale
+  // mal y el cronómetro se ve pegado en 0 hasta que el reloj local "alcanza"
+  // la hora del servidor. Por eso se corrige con un offset medido en cada
+  // carga: diferencia entre la hora que mandó el servidor y la hora local
+  // en ese instante, y se le suma siempre al "ahora" del cronómetro.
+  const [offsetMs, setOffsetMs] = useState(0);
+  useEffect(() => {
+    setOffsetMs(new Date(serverAhora).getTime() - Date.now());
+  }, [serverAhora]);
+  const ahoraCorregido = ahora + offsetMs;
 
   const encabezado = (
     <div>
@@ -211,8 +226,8 @@ export function TicketsBoard({
               <div className="flex flex-col gap-3">
                 {ticketsCol.map((ticket) => {
                   const entregado = col.estado === "entregado";
-                  const totalMs = ahora - new Date(ticket.hora_entrada).getTime();
-                  const etapaMs = ahora - new Date(ticket.hora_cambio_estado).getTime();
+                  const totalMs = ahoraCorregido - new Date(ticket.hora_entrada).getTime();
+                  const etapaMs = ahoraCorregido - new Date(ticket.hora_cambio_estado).getTime();
                   const nivel = entregado ? "ok" : calcularNivel(Math.floor(totalMs / 60000));
                   return (
                   <div

@@ -57,6 +57,7 @@ export function TicketsBoard({
   // en una columna anterior, solo debe registrar el pago sin saltarse pasos.
   const [cobroYEntregar, setCobroYEntregar] = useState(false);
   const [descuentoTicket, setDescuentoTicket] = useState<TicketConDetalle | null>(null);
+  const [errorAvance, setErrorAvance] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   if (!turno) {
@@ -69,8 +70,12 @@ export function TicketsBoard({
       setCobroYEntregar(true);
       return;
     }
+    setErrorAvance(null);
     startTransition(async () => {
-      await actualizarEstadoTicket(ticket.id, nuevoEstado);
+      const result = await actualizarEstadoTicket(ticket.id, nuevoEstado);
+      if (result.error) {
+        setErrorAvance(result.error);
+      }
     });
   }
 
@@ -88,6 +93,12 @@ export function TicketsBoard({
           + Nuevo ticket
         </button>
       </div>
+
+      {errorAvance && (
+        <p className="rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 text-sm text-primary">
+          {errorAvance}
+        </p>
+      )}
 
       {resumenCaja && (
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface px-5 py-3">
@@ -251,8 +262,12 @@ export function TicketsBoard({
             setCobroTicket(null);
             setCobroYEntregar(false);
             if (debeEntregar) {
+              setErrorAvance(null);
               startTransition(async () => {
-                await actualizarEstadoTicket(ticketPagado.id, "entregado");
+                const result = await actualizarEstadoTicket(ticketPagado.id, "entregado");
+                if (result.error) {
+                  setErrorAvance(result.error);
+                }
               });
             }
           }}

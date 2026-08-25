@@ -10,11 +10,11 @@ function subscribe(callback: () => void) {
 }
 
 function getSnapshot() {
-  return document.documentElement.classList.contains("light");
+  return !document.documentElement.classList.contains("dark");
 }
 
 function getServerSnapshot() {
-  return false;
+  return true;
 }
 
 function notificar() {
@@ -26,7 +26,7 @@ export function ThemeToggle() {
 
   function alternar() {
     const siguiente = !claro;
-    document.documentElement.classList.toggle("light", siguiente);
+    document.documentElement.classList.toggle("dark", !siguiente);
     localStorage.setItem("theme", siguiente ? "light" : "dark");
     notificar();
   }

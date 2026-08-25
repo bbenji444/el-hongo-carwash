@@ -39,13 +39,13 @@ type ResumenCaja = {
 type NivelEspera = "ok" | "alerta" | "critico";
 
 const TARJETA_ESTILO: Record<NivelEspera, string> = {
-  ok: "border-border bg-surface",
+  ok: "border-success/50 bg-success/10",
   alerta: "border-warning/50 bg-warning/10",
   critico: "border-primary/60 bg-primary/15",
 };
 
 const CRONOMETRO_ESTILO: Record<NivelEspera, string> = {
-  ok: "text-foreground",
+  ok: "text-success",
   alerta: "text-warning",
   critico: "text-primary",
 };

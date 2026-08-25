@@ -170,6 +170,7 @@ export async function registrarPago(input: {
   turnoId: string;
   metodo: PagoMetodo;
   monto: number;
+  montoRecibido?: number | null;
 }) {
   const supabase = await createClient();
 
@@ -192,6 +193,7 @@ export async function registrarPago(input: {
     turno_id: input.turnoId,
     metodo: input.metodo,
     monto: input.monto,
+    monto_recibido: input.montoRecibido ?? null,
     usuario_id: user.id,
   });
 

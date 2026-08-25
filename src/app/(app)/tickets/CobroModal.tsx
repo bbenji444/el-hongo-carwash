@@ -28,15 +28,34 @@ export function CobroModal({
 
   const [metodo, setMetodo] = useState<PagoMetodo>("efectivo");
   const [monto, setMonto] = useState(String(totalSugerido.toFixed(2)));
+  const [montoRecibido, setMontoRecibido] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
+  const montoNum = Number(monto);
+  const montoRecibidoNum = Number(montoRecibido);
+  const esEfectivo = metodo === "efectivo";
+  const cambio =
+    esEfectivo && montoRecibido !== "" && Number.isFinite(montoRecibidoNum)
+      ? montoRecibidoNum - montoNum
+      : null;
+
   function handleSubmit() {
     setError(null);
-    const montoNum = Number(monto);
     if (!Number.isFinite(montoNum) || montoNum < 0) {
       setError("Ingresa un monto válido.");
       return;
+    }
+
+    if (esEfectivo) {
+      if (montoRecibido === "" || !Number.isFinite(montoRecibidoNum)) {
+        setError("Ingresa con cuánto paga el cliente.");
+        return;
+      }
+      if (montoRecibidoNum < montoNum) {
+        setError("Lo que paga el cliente no puede ser menor al total a cobrar.");
+        return;
+      }
     }
 
     startTransition(async () => {
@@ -45,6 +64,7 @@ export function CobroModal({
         turnoId,
         metodo,
         monto: montoNum,
+        montoRecibido: esEfectivo ? montoRecibidoNum : null,
       });
 
       if (result.error) {
@@ -97,7 +117,7 @@ export function CobroModal({
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-muted">Monto</label>
+                <label className="text-xs font-medium text-muted">Monto a cobrar</label>
                 <input
                   value={monto}
                   onChange={(e) => setMonto(e.target.value)}
@@ -107,6 +127,35 @@ export function CobroModal({
                   className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
                 />
               </div>
+
+              {esEfectivo && (
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-medium text-muted">¿Con cuánto paga el cliente?</label>
+                  <input
+                    value={montoRecibido}
+                    onChange={(e) => setMontoRecibido(e.target.value)}
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="Ej. 200"
+                    className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+                  />
+                </div>
+              )}
+
+              {esEfectivo && cambio !== null && (
+                <div
+                  className={`rounded-lg border px-3 py-2 text-sm font-semibold ${
+                    cambio < 0
+                      ? "border-primary/40 bg-primary/10 text-primary"
+                      : "border-success/40 bg-success/10 text-success"
+                  }`}
+                >
+                  {cambio < 0
+                    ? `Falta $${Math.abs(cambio).toFixed(2)} para cubrir el total.`
+                    : `Cambio a devolver: $${cambio.toFixed(2)}`}
+                </div>
+              )}
             </>
           )}
 

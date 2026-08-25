@@ -196,6 +196,8 @@ export interface Database {
           ticket_id: string;
           metodo: "efectivo" | "tarjeta" | "transferencia" | "membresia";
           monto: number;
+          monto_recibido: number | null;
+          cambio_entregado: number | null;
           turno_id: string;
           usuario_id: string;
           creado_en: string;
@@ -205,6 +207,7 @@ export interface Database {
           ticket_id: string;
           metodo: "efectivo" | "tarjeta" | "transferencia" | "membresia";
           monto: number;
+          monto_recibido?: number | null;
           turno_id: string;
           usuario_id?: string;
           creado_en?: string;
@@ -214,6 +217,7 @@ export interface Database {
           ticket_id?: string;
           metodo?: "efectivo" | "tarjeta" | "transferencia" | "membresia";
           monto?: number;
+          monto_recibido?: number | null;
           turno_id?: string;
           usuario_id?: string;
           creado_en?: string;

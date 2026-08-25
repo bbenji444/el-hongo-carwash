@@ -45,7 +45,7 @@ export default async function ClienteDetallePage({ params }: { params: Promise<{
 
   const servicioIds = [...new Set((tickets ?? []).map((t) => t.servicio_id))];
   const { data: servicios } = servicioIds.length
-    ? await supabase.from("servicios_catalogo").select("id, nombre, precio").in("id", servicioIds)
+    ? await supabase.from("servicios_catalogo").select("id, nombre").in("id", servicioIds)
     : { data: [] };
   const servicioMap = new Map((servicios ?? []).map((s) => [s.id, s]));
 

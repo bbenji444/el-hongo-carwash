@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ServiciosClient } from "./ServiciosClient";
+import type { ServicioPrecio } from "@/types/database.types";
 
 export default async function ServiciosPage() {
   const supabase = await createClient();
@@ -23,10 +24,25 @@ export default async function ServiciosPage() {
     redirect("/login");
   }
 
-  const { data: servicios } = await supabase
+  const { data: serviciosBase } = await supabase
     .from("servicios_catalogo")
     .select("*")
+    .order("orden")
     .order("nombre");
+
+  const { data: precios } = await supabase.from("servicios_precios").select("*");
+
+  const preciosPorServicio = new Map<string, ServicioPrecio[]>();
+  for (const precio of precios ?? []) {
+    const lista = preciosPorServicio.get(precio.servicio_id) ?? [];
+    lista.push(precio);
+    preciosPorServicio.set(precio.servicio_id, lista);
+  }
+
+  const servicios = (serviciosBase ?? []).map((s) => ({
+    ...s,
+    precios: preciosPorServicio.get(s.id) ?? [],
+  }));
 
   return (
     <div className="flex flex-col gap-6">

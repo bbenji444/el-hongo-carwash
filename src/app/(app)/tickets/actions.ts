@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient as createSupabaseJsClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
-import type { Database, TicketEstado, PagoMetodo } from "@/types/database.types";
+import type { Database, TicketEstado, PagoMetodo, TamanoVehiculo } from "@/types/database.types";
 
 export async function abrirTurno(efectivoInicial: number) {
   const supabase = await createClient();
@@ -167,6 +167,7 @@ export async function crearTicket(input: {
   clienteId: string | null;
   vehiculoId: string | null;
   servicioId: string;
+  tamanoVehiculo: TamanoVehiculo;
   empleadoId: string;
   turnoId: string;
 }) {
@@ -186,6 +187,7 @@ export async function crearTicket(input: {
     cliente_id: input.clienteId,
     vehiculo_id: input.vehiculoId,
     servicio_id: input.servicioId,
+    tamano_vehiculo: input.tamanoVehiculo,
     empleado_id: input.empleadoId,
     turno_id: input.turnoId,
     creado_por: user.id,

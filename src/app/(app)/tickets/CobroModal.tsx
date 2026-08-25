@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import type { PagoMetodo } from "@/types/database.types";
 import { registrarPago } from "./actions";
 import type { TicketConDetalle } from "./types";
+import { precioPorTamano } from "@/lib/servicios";
 
 const METODOS: { value: PagoMetodo; label: string }[] = [
   { value: "efectivo", label: "Efectivo" },
@@ -22,7 +23,7 @@ export function CobroModal({
   onClose: () => void;
   onPagado: () => void;
 }) {
-  const precioBase = ticket.servicio?.precio ?? 0;
+  const precioBase = precioPorTamano(ticket.servicio?.precios, ticket.tamano_vehiculo);
   const totalSugerido = Math.max(precioBase - ticket.descuento_monto, 0);
   const esGratis = totalSugerido === 0;
 

@@ -72,6 +72,8 @@ declare
   v_monto numeric(10, 2);
   v_metodo pago_metodo;
   v_metodos text[3] := array['efectivo', 'tarjeta', 'transferencia'];
+  v_tamano_vehiculo tamano_vehiculo;
+  v_tamanos_vehiculo text[4] := array['automovil', 'camioneta_chica', 'camioneta_grande', 'camioneta_extra_grande'];
   v_hora_entrada timestamptz;
   v_dias_cliente int[];
   v_dia int;
@@ -141,7 +143,10 @@ begin
 
       v_empleado_id := v_usuario_ids[1 + floor(random() * v_n_usuarios)::int];
       v_servicio_id := v_servicio_ids[1 + floor(random() * v_n_servicios)::int];
-      select precio into v_precio from public.servicios_catalogo where id = v_servicio_id;
+      v_tamano_vehiculo := (v_tamanos_vehiculo[1 + floor(random() * 4)::int])::tamano_vehiculo;
+      select precio into v_precio
+      from public.servicios_precios
+      where servicio_id = v_servicio_id and tamano_vehiculo = v_tamano_vehiculo;
 
       v_hora_entrada := (current_date - v_dia) + time '09:00'
         + (floor(random() * 8)::int * interval '1 hour')
@@ -150,10 +155,10 @@ begin
       -- No se fija descuento_monto a mano: el trigger de lealtad lo calcula y
       -- lo fuerza solo si esta es la 6ta lavada del ciclo del cliente.
       insert into public.tickets (
-        vehiculo_id, cliente_id, servicio_id, empleado_id, turno_id,
+        vehiculo_id, cliente_id, servicio_id, empleado_id, turno_id, tamano_vehiculo,
         estado, hora_entrada, hora_salida, creado_por
       ) values (
-        v_vehiculo_id, v_cliente_ids[c], v_servicio_id, v_empleado_id, v_turno_id,
+        v_vehiculo_id, v_cliente_ids[c], v_servicio_id, v_empleado_id, v_turno_id, v_tamano_vehiculo,
         'entregado', v_hora_entrada, v_hora_entrada + interval '35 minutes', v_empleado_id
       ) returning id, descuento_monto into v_ticket_id, v_descuento;
 

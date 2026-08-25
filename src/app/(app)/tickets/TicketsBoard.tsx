@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import type { ServicioCatalogo, Turno } from "@/types/database.types";
-import type { TicketConDetalle, RolUsuario } from "./types";
+import type { Turno } from "@/types/database.types";
+import type { TicketConDetalle, ServicioConPrecios, RolUsuario } from "./types";
+import { nombreTamano, precioPorTamano } from "@/lib/servicios";
 import { AbrirTurnoForm } from "./AbrirTurnoForm";
 import { NuevoTicketModal } from "./NuevoTicketModal";
 import { CobroModal } from "./CobroModal";
@@ -89,7 +90,7 @@ export function TicketsBoard({
   serverAhora,
 }: {
   turno: Turno | null;
-  servicios: ServicioCatalogo[];
+  servicios: ServicioConPrecios[];
   tickets: TicketConDetalle[];
   rolActual: RolUsuario;
   usuarioActualId: string;
@@ -244,9 +245,11 @@ export function TicketsBoard({
                         >
                           {ticket.cliente?.nombre ?? "Cliente de mostrador"}
                         </button>
-                        {ticket.vehiculo?.placas && (
-                          <p className="text-xs text-muted">{ticket.vehiculo.placas}</p>
-                        )}
+                        <p className="text-xs text-muted">
+                          {[ticket.vehiculo?.placas, nombreTamano(ticket.tamano_vehiculo)]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
                       </div>
                       {ticket.prioridad && (
                         <span className="rounded-full border border-accent/40 bg-accent/15 px-2 py-0.5 text-[10px] font-medium text-accent">
@@ -256,7 +259,8 @@ export function TicketsBoard({
                     </div>
 
                     <p className="text-xs text-foreground">
-                      {ticket.servicio?.nombre} · ${ticket.servicio?.precio.toFixed(2)}
+                      {ticket.servicio?.nombre} · $
+                      {precioPorTamano(ticket.servicio?.precios, ticket.tamano_vehiculo).toFixed(2)}
                       {ticket.descuento_monto > 0 && (
                         <span className="text-warning"> · -${ticket.descuento_monto.toFixed(2)} desc.</span>
                       )}

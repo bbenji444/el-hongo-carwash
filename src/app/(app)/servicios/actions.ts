@@ -2,42 +2,79 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import type { TamanoVehiculo } from "@/types/database.types";
 
-export async function crearServicio(input: {
+type PrecioInput = { tamanoVehiculo: TamanoVehiculo; precio: number };
+
+type ServicioInput = {
   nombre: string;
-  precio: number;
+  descripcion: string | null;
+  caracteristicas: string[];
+  orden: number;
+  destacado: boolean;
   tiempoEstimadoMin: number | null;
-}) {
+  precios: PrecioInput[];
+};
+
+export async function crearServicio(input: ServicioInput) {
   const supabase = await createClient();
 
-  const { error } = await supabase.from("servicios_catalogo").insert({
-    nombre: input.nombre,
-    precio: input.precio,
-    tiempo_estimado_min: input.tiempoEstimadoMin,
-  });
+  const { data, error } = await supabase
+    .from("servicios_catalogo")
+    .insert({
+      nombre: input.nombre,
+      descripcion: input.descripcion,
+      caracteristicas: input.caracteristicas,
+      orden: input.orden,
+      destacado: input.destacado,
+      tiempo_estimado_min: input.tiempoEstimadoMin,
+    })
+    .select("id")
+    .single();
 
   if (error) return { error: error.message };
+
+  const { error: preciosError } = await supabase.from("servicios_precios").insert(
+    input.precios.map((p) => ({
+      servicio_id: data.id,
+      tamano_vehiculo: p.tamanoVehiculo,
+      precio: p.precio,
+    }))
+  );
+
+  if (preciosError) return { error: preciosError.message };
 
   revalidatePath("/servicios");
   return { error: null };
 }
 
-export async function actualizarServicio(
-  id: string,
-  input: { nombre: string; precio: number; tiempoEstimadoMin: number | null }
-) {
+export async function actualizarServicio(id: string, input: ServicioInput) {
   const supabase = await createClient();
 
   const { error } = await supabase
     .from("servicios_catalogo")
     .update({
       nombre: input.nombre,
-      precio: input.precio,
+      descripcion: input.descripcion,
+      caracteristicas: input.caracteristicas,
+      orden: input.orden,
+      destacado: input.destacado,
       tiempo_estimado_min: input.tiempoEstimadoMin,
     })
     .eq("id", id);
 
   if (error) return { error: error.message };
+
+  const { error: preciosError } = await supabase.from("servicios_precios").upsert(
+    input.precios.map((p) => ({
+      servicio_id: id,
+      tamano_vehiculo: p.tamanoVehiculo,
+      precio: p.precio,
+    })),
+    { onConflict: "servicio_id,tamano_vehiculo" }
+  );
+
+  if (preciosError) return { error: preciosError.message };
 
   revalidatePath("/servicios");
   return { error: null };

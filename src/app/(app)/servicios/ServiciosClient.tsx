@@ -1,16 +1,31 @@
 "use client";
 
 import { useState, useTransition, type FormEvent } from "react";
-import type { ServicioCatalogo } from "@/types/database.types";
+import type { ServicioCatalogo, ServicioPrecio } from "@/types/database.types";
+import { TAMANOS_VEHICULO, precioPorTamano } from "@/lib/servicios";
 import { crearServicio, actualizarServicio, toggleActivoServicio } from "./actions";
 
-const emptyForm = { nombre: "", precio: "", tiempoEstimadoMin: "" };
+type ServicioConPrecios = ServicioCatalogo & { precios: ServicioPrecio[] };
+
+function preciosVacios() {
+  return Object.fromEntries(TAMANOS_VEHICULO.map((t) => [t.value, ""])) as Record<string, string>;
+}
+
+const emptyForm = {
+  nombre: "",
+  descripcion: "",
+  caracteristicas: "",
+  orden: "",
+  destacado: false,
+  tiempoEstimadoMin: "",
+  precios: preciosVacios(),
+};
 
 export function ServiciosClient({
   servicios,
   esDueno,
 }: {
-  servicios: ServicioCatalogo[];
+  servicios: ServicioConPrecios[];
   esDueno: boolean;
 }) {
   const [editandoId, setEditandoId] = useState<string | null>(null);
@@ -19,12 +34,21 @@ export function ServiciosClient({
   const [pending, startTransition] = useTransition();
   const [mostrarForm, setMostrarForm] = useState(false);
 
-  function abrirEdicion(servicio: ServicioCatalogo) {
+  function abrirEdicion(servicio: ServicioConPrecios) {
     setEditandoId(servicio.id);
     setForm({
       nombre: servicio.nombre,
-      precio: String(servicio.precio),
+      descripcion: servicio.descripcion ?? "",
+      caracteristicas: servicio.caracteristicas.join("\n"),
+      orden: String(servicio.orden),
+      destacado: servicio.destacado,
       tiempoEstimadoMin: servicio.tiempo_estimado_min ? String(servicio.tiempo_estimado_min) : "",
+      precios: {
+        ...preciosVacios(),
+        ...Object.fromEntries(
+          TAMANOS_VEHICULO.map((t) => [t.value, String(precioPorTamano(servicio.precios, t.value) || "")])
+        ),
+      },
     });
     setMostrarForm(true);
   }
@@ -39,18 +63,38 @@ export function ServiciosClient({
     e.preventDefault();
     setError(null);
 
-    const precio = Number(form.precio);
-    if (!form.nombre.trim() || !Number.isFinite(precio) || precio <= 0) {
-      setError("Nombre y precio válido son obligatorios.");
+    if (!form.nombre.trim()) {
+      setError("El nombre es obligatorio.");
+      return;
+    }
+
+    const precios = TAMANOS_VEHICULO.map((t) => ({
+      tamanoVehiculo: t.value,
+      precio: Number(form.precios[t.value]),
+    }));
+    if (precios.some((p) => !Number.isFinite(p.precio) || p.precio <= 0)) {
+      setError("Ingresa un precio válido para los 4 tamaños de vehículo.");
       return;
     }
 
     const tiempoEstimadoMin = form.tiempoEstimadoMin ? Number(form.tiempoEstimadoMin) : null;
+    const caracteristicas = form.caracteristicas
+      .split("\n")
+      .map((c) => c.trim())
+      .filter(Boolean);
+
+    const input = {
+      nombre: form.nombre.trim(),
+      descripcion: form.descripcion.trim() || null,
+      caracteristicas,
+      orden: form.orden ? Number(form.orden) : 0,
+      destacado: form.destacado,
+      tiempoEstimadoMin,
+      precios,
+    };
 
     startTransition(async () => {
-      const result = editandoId
-        ? await actualizarServicio(editandoId, { nombre: form.nombre.trim(), precio, tiempoEstimadoMin })
-        : await crearServicio({ nombre: form.nombre.trim(), precio, tiempoEstimadoMin });
+      const result = editandoId ? await actualizarServicio(editandoId, input) : await crearServicio(input);
 
       if (result.error) {
         setError(result.error);
@@ -63,7 +107,7 @@ export function ServiciosClient({
     });
   }
 
-  function handleToggle(servicio: ServicioCatalogo) {
+  function handleToggle(servicio: ServicioConPrecios) {
     startTransition(async () => {
       await toggleActivoServicio(servicio.id, !servicio.activo);
     });
@@ -78,45 +122,100 @@ export function ServiciosClient({
               onClick={abrirNuevo}
               className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-hover"
             >
-              + Nuevo servicio
+              + Nuevo paquete
             </button>
           ) : (
             <form
               onSubmit={handleSubmit}
-              className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-5 sm:flex-row sm:items-end sm:gap-4"
+              className="flex flex-col gap-4 rounded-xl border border-border bg-surface p-5"
             >
-              <div className="flex flex-1 flex-col gap-1.5">
-                <label className="text-xs font-medium text-muted">Nombre</label>
-                <input
-                  value={form.nombre}
-                  onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-medium text-muted">Nombre</label>
+                  <input
+                    value={form.nombre}
+                    onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
+                    className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+                    placeholder="Básico"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-medium text-muted">Descripción corta</label>
+                  <input
+                    value={form.descripcion}
+                    onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
+                    className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+                    placeholder="Lo necesario"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-muted">
+                  Características (una por línea)
+                </label>
+                <textarea
+                  value={form.caracteristicas}
+                  onChange={(e) => setForm((f) => ({ ...f, caracteristicas: e.target.value }))}
+                  rows={3}
                   className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
-                  placeholder="Lavado exterior"
+                  placeholder={"Lavado carrocería\nAspirado interior\nAbrillantador llantas"}
                 />
               </div>
-              <div className="flex w-32 flex-col gap-1.5">
-                <label className="text-xs font-medium text-muted">Precio (MXN)</label>
-                <input
-                  value={form.precio}
-                  onChange={(e) => setForm((f) => ({ ...f, precio: e.target.value }))}
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
-                  placeholder="150"
-                />
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-muted">
+                  Precio por tamaño de vehículo (MXN)
+                </label>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {TAMANOS_VEHICULO.map((t) => (
+                    <div key={t.value} className="flex flex-col gap-1">
+                      <span className="text-[11px] text-muted">{t.label}</span>
+                      <input
+                        value={form.precios[t.value]}
+                        onChange={(e) =>
+                          setForm((f) => ({ ...f, precios: { ...f.precios, [t.value]: e.target.value } }))
+                        }
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="flex w-36 flex-col gap-1.5">
-                <label className="text-xs font-medium text-muted">Tiempo est. (min)</label>
-                <input
-                  value={form.tiempoEstimadoMin}
-                  onChange={(e) => setForm((f) => ({ ...f, tiempoEstimadoMin: e.target.value }))}
-                  type="number"
-                  min="0"
-                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
-                  placeholder="20"
-                />
+
+              <div className="flex flex-wrap items-end gap-4">
+                <div className="flex w-28 flex-col gap-1.5">
+                  <label className="text-xs font-medium text-muted">Orden</label>
+                  <input
+                    value={form.orden}
+                    onChange={(e) => setForm((f) => ({ ...f, orden: e.target.value }))}
+                    type="number"
+                    className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+                  />
+                </div>
+                <div className="flex w-36 flex-col gap-1.5">
+                  <label className="text-xs font-medium text-muted">Tiempo est. (min)</label>
+                  <input
+                    value={form.tiempoEstimadoMin}
+                    onChange={(e) => setForm((f) => ({ ...f, tiempoEstimadoMin: e.target.value }))}
+                    type="number"
+                    min="0"
+                    className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+                  />
+                </div>
+                <label className="flex items-center gap-2 pb-2 text-sm text-foreground">
+                  <input
+                    type="checkbox"
+                    checked={form.destacado}
+                    onChange={(e) => setForm((f) => ({ ...f, destacado: e.target.checked }))}
+                  />
+                  Destacado (más vendido / recomendado)
+                </label>
               </div>
+
               <div className="flex gap-2">
                 <button
                   type="submit"
@@ -142,13 +241,16 @@ export function ServiciosClient({
         </div>
       )}
 
-      <div className="overflow-hidden rounded-xl border border-border bg-surface">
+      <div className="overflow-x-auto rounded-xl border border-border bg-surface">
         <table className="w-full text-left text-sm">
           <thead className="bg-surface-hover text-xs uppercase tracking-wide text-muted">
             <tr>
-              <th className="px-4 py-3">Nombre</th>
-              <th className="px-4 py-3">Precio</th>
-              <th className="px-4 py-3">Tiempo est.</th>
+              <th className="px-4 py-3">Paquete</th>
+              {TAMANOS_VEHICULO.map((t) => (
+                <th key={t.value} className="whitespace-nowrap px-4 py-3">
+                  {t.label}
+                </th>
+              ))}
               <th className="px-4 py-3">Estado</th>
               {esDueno && <th className="px-4 py-3 text-right">Acciones</th>}
             </tr>
@@ -156,11 +258,22 @@ export function ServiciosClient({
           <tbody>
             {servicios.map((servicio) => (
               <tr key={servicio.id} className="border-t border-border">
-                <td className="px-4 py-3 text-foreground">{servicio.nombre}</td>
-                <td className="px-4 py-3 text-foreground">${servicio.precio.toFixed(2)}</td>
-                <td className="px-4 py-3 text-muted">
-                  {servicio.tiempo_estimado_min ? `${servicio.tiempo_estimado_min} min` : "—"}
+                <td className="px-4 py-3 text-foreground">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">{servicio.nombre}</span>
+                    {servicio.destacado && (
+                      <span className="rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                        Destacado
+                      </span>
+                    )}
+                  </div>
+                  {servicio.descripcion && <p className="text-xs text-muted">{servicio.descripcion}</p>}
                 </td>
+                {TAMANOS_VEHICULO.map((t) => (
+                  <td key={t.value} className="whitespace-nowrap px-4 py-3 text-foreground">
+                    ${precioPorTamano(servicio.precios, t.value).toFixed(2)}
+                  </td>
+                ))}
                 <td className="px-4 py-3">
                   <span
                     className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${
@@ -195,8 +308,8 @@ export function ServiciosClient({
             ))}
             {servicios.length === 0 && (
               <tr>
-                <td colSpan={esDueno ? 5 : 4} className="px-4 py-6 text-center text-muted">
-                  Sin servicios registrados.
+                <td colSpan={esDueno ? 6 : 5} className="px-4 py-6 text-center text-muted">
+                  Sin paquetes registrados.
                 </td>
               </tr>
             )}

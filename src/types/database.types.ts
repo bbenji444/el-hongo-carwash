@@ -77,23 +77,53 @@ export interface Database {
         Row: {
           id: string;
           nombre: string;
-          precio: number;
+          descripcion: string | null;
+          caracteristicas: string[];
+          orden: number;
+          destacado: boolean;
           tiempo_estimado_min: number | null;
           activo: boolean;
         };
         Insert: {
           id?: string;
           nombre: string;
-          precio: number;
+          descripcion?: string | null;
+          caracteristicas?: string[];
+          orden?: number;
+          destacado?: boolean;
           tiempo_estimado_min?: number | null;
           activo?: boolean;
         };
         Update: {
           id?: string;
           nombre?: string;
-          precio?: number;
+          descripcion?: string | null;
+          caracteristicas?: string[];
+          orden?: number;
+          destacado?: boolean;
           tiempo_estimado_min?: number | null;
           activo?: boolean;
+        };
+        Relationships: [];
+      };
+      servicios_precios: {
+        Row: {
+          id: string;
+          servicio_id: string;
+          tamano_vehiculo: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande";
+          precio: number;
+        };
+        Insert: {
+          id?: string;
+          servicio_id: string;
+          tamano_vehiculo: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande";
+          precio: number;
+        };
+        Update: {
+          id?: string;
+          servicio_id?: string;
+          tamano_vehiculo?: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande";
+          precio?: number;
         };
         Relationships: [];
       };
@@ -145,6 +175,7 @@ export interface Database {
           vehiculo_id: string | null;
           cliente_id: string | null;
           servicio_id: string;
+          tamano_vehiculo: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande";
           empleado_id: string;
           turno_id: string;
           lavada_gratis: boolean;
@@ -162,6 +193,7 @@ export interface Database {
           vehiculo_id?: string | null;
           cliente_id?: string | null;
           servicio_id: string;
+          tamano_vehiculo: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande";
           empleado_id: string;
           turno_id: string;
           lavada_gratis?: boolean;
@@ -179,6 +211,7 @@ export interface Database {
           vehiculo_id?: string | null;
           cliente_id?: string | null;
           servicio_id?: string;
+          tamano_vehiculo?: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande";
           empleado_id?: string;
           turno_id?: string;
           lavada_gratis?: boolean;
@@ -277,6 +310,7 @@ export interface Database {
       turno_estado: "abierto" | "cerrado";
       ticket_estado: "en_espera" | "en_proceso" | "terminado" | "entregado";
       pago_metodo: "efectivo" | "tarjeta" | "transferencia" | "membresia";
+      tamano_vehiculo: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande";
     };
     CompositeTypes: Record<string, never>;
   };
@@ -287,10 +321,12 @@ export type RolUsuario = Database["public"]["Enums"]["rol_usuario"];
 export type TurnoEstado = Database["public"]["Enums"]["turno_estado"];
 export type TicketEstado = Database["public"]["Enums"]["ticket_estado"];
 export type PagoMetodo = Database["public"]["Enums"]["pago_metodo"];
+export type TamanoVehiculo = Database["public"]["Enums"]["tamano_vehiculo"];
 
 export type Usuario = Database["public"]["Tables"]["usuarios"]["Row"];
 export type Turno = Database["public"]["Tables"]["turnos"]["Row"];
 export type ServicioCatalogo = Database["public"]["Tables"]["servicios_catalogo"]["Row"];
+export type ServicioPrecio = Database["public"]["Tables"]["servicios_precios"]["Row"];
 export type Cliente = Database["public"]["Tables"]["clientes"]["Row"];
 export type Vehiculo = Database["public"]["Tables"]["vehiculos"]["Row"];
 export type Ticket = Database["public"]["Tables"]["tickets"]["Row"];

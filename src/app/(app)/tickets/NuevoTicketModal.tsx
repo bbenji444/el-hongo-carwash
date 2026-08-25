@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import type { ServicioCatalogo, RolUsuario } from "@/types/database.types";
+import type { RolUsuario, TamanoVehiculo } from "@/types/database.types";
+import { TAMANOS_VEHICULO, nombreTamano, precioPorTamano } from "@/lib/servicios";
+import type { ServicioConPrecios } from "./types";
 import {
   buscarClientes,
   crearCliente,
@@ -22,7 +24,7 @@ export function NuevoTicketModal({
   onClose,
 }: {
   turnoId: string;
-  servicios: ServicioCatalogo[];
+  servicios: ServicioConPrecios[];
   rolActual: RolUsuario;
   usuarioActualId: string;
   onClose: () => void;
@@ -38,7 +40,7 @@ export function NuevoTicketModal({
   const [creandoClienteNuevo, setCreandoClienteNuevo] = useState(false);
 
   const [placas, setPlacas] = useState("");
-  const [tipoVehiculo, setTipoVehiculo] = useState("");
+  const [tamanoVehiculo, setTamanoVehiculo] = useState<TamanoVehiculo>("automovil");
 
   const [servicioId, setServicioId] = useState(servicios[0]?.id ?? "");
 
@@ -114,8 +116,8 @@ export function NuevoTicketModal({
       }
 
       let vehiculoId: string | null = null;
-      if (clienteId && (placas.trim() || tipoVehiculo.trim())) {
-        const res = await crearVehiculo(clienteId, placas.trim() || null, tipoVehiculo.trim() || null);
+      if (clienteId && placas.trim()) {
+        const res = await crearVehiculo(clienteId, placas.trim() || null, nombreTamano(tamanoVehiculo));
         if (res.error) {
           setError(res.error);
           return;
@@ -127,6 +129,7 @@ export function NuevoTicketModal({
         clienteId,
         vehiculoId,
         servicioId,
+        tamanoVehiculo,
         empleadoId,
         turnoId,
       });
@@ -243,13 +246,18 @@ export function NuevoTicketModal({
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-muted">Tipo de vehículo</label>
-              <input
-                value={tipoVehiculo}
-                onChange={(e) => setTipoVehiculo(e.target.value)}
-                placeholder="Sedán, SUV..."
+              <label className="text-xs font-medium text-muted">Tamaño de vehículo</label>
+              <select
+                value={tamanoVehiculo}
+                onChange={(e) => setTamanoVehiculo(e.target.value as TamanoVehiculo)}
                 className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
-              />
+              >
+                {TAMANOS_VEHICULO.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -263,7 +271,7 @@ export function NuevoTicketModal({
             >
               {servicios.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.nombre} · ${s.precio.toFixed(2)}
+                  {s.nombre} · ${precioPorTamano(s.precios, tamanoVehiculo).toFixed(2)}
                 </option>
               ))}
             </select>

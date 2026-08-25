@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { TicketsBoard } from "./TicketsBoard";
-import type { RolUsuario } from "@/types/database.types";
+import type { RolUsuario, ServicioPrecio } from "@/types/database.types";
 
 export default async function TicketsPage() {
   const supabase = await createClient();
@@ -30,11 +30,29 @@ export default async function TicketsPage() {
     .eq("estado", "abierto")
     .maybeSingle();
 
-  const { data: servicios } = await supabase
+  const { data: serviciosBase } = await supabase
     .from("servicios_catalogo")
     .select("*")
     .eq("activo", true)
+    .order("orden")
     .order("nombre");
+
+  const servicioIdsActivos = (serviciosBase ?? []).map((s) => s.id);
+  const { data: preciosServicios } = servicioIdsActivos.length
+    ? await supabase.from("servicios_precios").select("*").in("servicio_id", servicioIdsActivos)
+    : { data: [] };
+
+  const preciosPorServicio = new Map<string, ServicioPrecio[]>();
+  for (const precio of preciosServicios ?? []) {
+    const lista = preciosPorServicio.get(precio.servicio_id) ?? [];
+    lista.push(precio);
+    preciosPorServicio.set(precio.servicio_id, lista);
+  }
+
+  const servicios = (serviciosBase ?? []).map((s) => ({
+    ...s,
+    precios: preciosPorServicio.get(s.id) ?? [],
+  }));
 
   const tickets = turno
     ? (

@@ -169,6 +169,40 @@ export interface Database {
         };
         Relationships: [];
       };
+      // No es una tabla real sino una vista (ver migración
+      // 20260831010000_usuarios_con_correo.sql), pero se declara aquí junto
+      // con las demás tablas — con tipos inline, no vía interface aparte —
+      // porque postgrest-js infiere mal el tipo de retorno y todo el árbol
+      // de `.from(...)` de la app termina en `never` si esto se mete bajo
+      // la clave `Views` en vez de `Tables` (bug ya visto una vez en este
+      // archivo, ver nota arriba). Solo se usa para SELECT.
+      usuarios_con_correo: {
+        Row: {
+          id: string;
+          nombre: string;
+          rol: "dueno" | "encargado" | "cajero";
+          activo: boolean;
+          creado_en: string;
+          email: string | null;
+        };
+        Insert: {
+          id?: string;
+          nombre?: string;
+          rol?: "dueno" | "encargado" | "cajero";
+          activo?: boolean;
+          creado_en?: string;
+          email?: string | null;
+        };
+        Update: {
+          id?: string;
+          nombre?: string;
+          rol?: "dueno" | "encargado" | "cajero";
+          activo?: boolean;
+          creado_en?: string;
+          email?: string | null;
+        };
+        Relationships: [];
+      };
       lavadores: {
         Row: {
           id: string;
@@ -423,6 +457,7 @@ export type PagoMetodo = Database["public"]["Enums"]["pago_metodo"];
 export type TamanoVehiculo = Database["public"]["Enums"]["tamano_vehiculo"];
 
 export type Usuario = Database["public"]["Tables"]["usuarios"]["Row"];
+export type UsuarioConCorreo = Database["public"]["Tables"]["usuarios_con_correo"]["Row"];
 export type Turno = Database["public"]["Tables"]["turnos"]["Row"];
 export type ServicioCatalogo = Database["public"]["Tables"]["servicios_catalogo"]["Row"];
 export type ServicioPrecio = Database["public"]["Tables"]["servicios_precios"]["Row"];

@@ -246,13 +246,16 @@ export default async function ReportesPage({
                 <th className="px-4 py-3">Esperado</th>
                 <th className="px-4 py-3">Contado</th>
                 <th className="px-4 py-3">Diferencia</th>
+                <th className="px-4 py-3"></th>
               </tr>
             </thead>
             <tbody>
               {turnos.map((t) => (
                 <tr key={t.id} className="border-t border-border">
-                  <td className="px-4 py-3 text-muted">
-                    {t.horaCierre ? new Date(t.horaCierre).toLocaleString("es-MX") : "—"}
+                  <td className="px-4 py-3">
+                    <Link href={`/reportes/turnos/${t.id}`} className="text-muted hover:text-accent hover:underline">
+                      {t.horaCierre ? new Date(t.horaCierre).toLocaleString("es-MX") : "—"}
+                    </Link>
                   </td>
                   <td className="px-4 py-3 text-foreground">{t.abrio}</td>
                   <td className="px-4 py-3 text-foreground">{t.cerro}</td>
@@ -262,11 +265,16 @@ export default async function ReportesPage({
                   <td className={`px-4 py-3 font-medium ${t.alertaDiferencia ? "text-primary" : "text-foreground"}`}>
                     {t.diferencia != null ? money(t.diferencia) : "—"}
                   </td>
+                  <td className="px-4 py-3 text-right">
+                    <Link href={`/reportes/turnos/${t.id}`} className="text-xs text-accent hover:underline">
+                      Ver desglose →
+                    </Link>
+                  </td>
                 </tr>
               ))}
               {turnos.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-6 text-center text-muted">
+                  <td colSpan={8} className="px-4 py-6 text-center text-muted">
                     Sin turnos cerrados en este período.
                   </td>
                 </tr>

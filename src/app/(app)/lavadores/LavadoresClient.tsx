@@ -13,10 +13,12 @@ export function LavadoresClient({
   lavadores,
   puedeEditar,
   queryString,
+  emojiLavador,
 }: {
   lavadores: LavadorStat[];
   puedeEditar: boolean;
   queryString: string;
+  emojiLavador: string;
 }) {
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [nombre, setNombre] = useState("");
@@ -141,7 +143,9 @@ export function LavadoresClient({
           <tbody>
             {lavadores.map((l) => (
               <tr key={l.id} className="border-t border-border">
-                <td className="px-4 py-3 font-medium text-foreground">{l.nombre}</td>
+                <td className="px-4 py-3 font-medium text-foreground">
+                  {emojiLavador} {l.nombre}
+                </td>
                 <td className="px-4 py-3">
                   <span
                     className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${

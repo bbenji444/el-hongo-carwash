@@ -1,20 +1,14 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import type { TamanoVehiculo, Lavador } from "@/types/database.types";
+import type { TamanoVehiculo, Lavador, ConfiguracionApp } from "@/types/database.types";
 import { TAMANOS_VEHICULO, nombreTamano, precioPorTamano } from "@/lib/servicios";
+import { emojiPorTamano } from "@/lib/configuracionDefaults";
 import type { ServicioConPrecios } from "./types";
 import { buscarClientes, crearCliente, crearVehiculo, crearTicket, progresoLealtadCliente } from "./actions";
 
 type ClienteResultado = { id: string; nombre: string; telefono: string | null };
 type LealtadInfo = { lavadasEnCiclo: number; proximaGratis: boolean; ultimaLavada: string | null };
-
-const ICONO_TAMANO: Record<TamanoVehiculo, string> = {
-  automovil: "🚗",
-  camioneta_chica: "🚙",
-  camioneta_grande: "🚐",
-  camioneta_extra_grande: "🚚",
-};
 
 function BotonSeleccion({
   seleccionado,
@@ -45,6 +39,7 @@ export function NuevoTicketModal({
   servicios,
   lavadores,
   enProcesoPorLavador,
+  config,
   usuarioActualId,
   onClose,
 }: {
@@ -52,6 +47,7 @@ export function NuevoTicketModal({
   servicios: ServicioConPrecios[];
   lavadores: Lavador[];
   enProcesoPorLavador: Record<string, number>;
+  config: ConfiguracionApp;
   usuarioActualId: string;
   onClose: () => void;
 }) {
@@ -274,7 +270,7 @@ export function NuevoTicketModal({
                   seleccionado={tamanoVehiculo === t.value}
                   onClick={() => setTamanoVehiculo(t.value)}
                 >
-                  <span className="text-xl">{ICONO_TAMANO[t.value]}</span>
+                  <span className="text-xl">{emojiPorTamano(config, t.value)}</span>
                   <span className="text-[11px] leading-tight">{t.label}</span>
                 </BotonSeleccion>
               ))}
@@ -308,7 +304,7 @@ export function NuevoTicketModal({
                 const enProceso = enProcesoPorLavador[l.id] ?? 0;
                 return (
                   <BotonSeleccion key={l.id} seleccionado={lavadorId === l.id} onClick={() => setLavadorId(l.id)}>
-                    <span className="text-xl">🧑‍🔧</span>
+                    <span className="text-xl">{config.emoji_lavador}</span>
                     <span className="text-xs font-medium leading-tight">{l.nombre}</span>
                     {enProceso > 0 && <span className="text-[10px] text-warning">{enProceso} en curso</span>}
                   </BotonSeleccion>

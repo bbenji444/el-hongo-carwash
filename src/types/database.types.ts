@@ -190,6 +190,78 @@ export interface Database {
         };
         Relationships: [];
       };
+      configuracion_app: {
+        Row: {
+          id: boolean;
+          nav_dashboard: string;
+          nav_tickets: string;
+          nav_servicios: string;
+          nav_lavadores: string;
+          nav_turnos: string;
+          nav_clientes: string;
+          nav_inventario: string;
+          nav_reportes: string;
+          emoji_saludo: string;
+          emoji_lavador: string;
+          emoji_automovil: string;
+          emoji_camioneta_chica: string;
+          emoji_camioneta_grande: string;
+          emoji_camioneta_extra_grande: string;
+          color_primario: string;
+          color_accent: string;
+          color_success: string;
+          color_warning: string;
+          semaforo_alerta_min: number;
+          semaforo_critico_min: number;
+        };
+        Insert: {
+          id?: boolean;
+          nav_dashboard?: string;
+          nav_tickets?: string;
+          nav_servicios?: string;
+          nav_lavadores?: string;
+          nav_turnos?: string;
+          nav_clientes?: string;
+          nav_inventario?: string;
+          nav_reportes?: string;
+          emoji_saludo?: string;
+          emoji_lavador?: string;
+          emoji_automovil?: string;
+          emoji_camioneta_chica?: string;
+          emoji_camioneta_grande?: string;
+          emoji_camioneta_extra_grande?: string;
+          color_primario?: string;
+          color_accent?: string;
+          color_success?: string;
+          color_warning?: string;
+          semaforo_alerta_min?: number;
+          semaforo_critico_min?: number;
+        };
+        Update: {
+          id?: boolean;
+          nav_dashboard?: string;
+          nav_tickets?: string;
+          nav_servicios?: string;
+          nav_lavadores?: string;
+          nav_turnos?: string;
+          nav_clientes?: string;
+          nav_inventario?: string;
+          nav_reportes?: string;
+          emoji_saludo?: string;
+          emoji_lavador?: string;
+          emoji_automovil?: string;
+          emoji_camioneta_chica?: string;
+          emoji_camioneta_grande?: string;
+          emoji_camioneta_extra_grande?: string;
+          color_primario?: string;
+          color_accent?: string;
+          color_success?: string;
+          color_warning?: string;
+          semaforo_alerta_min?: number;
+          semaforo_critico_min?: number;
+        };
+        Relationships: [];
+      };
       tickets: {
         Row: {
           id: string;
@@ -357,6 +429,7 @@ export type ServicioPrecio = Database["public"]["Tables"]["servicios_precios"]["
 export type Cliente = Database["public"]["Tables"]["clientes"]["Row"];
 export type Vehiculo = Database["public"]["Tables"]["vehiculos"]["Row"];
 export type Lavador = Database["public"]["Tables"]["lavadores"]["Row"];
+export type ConfiguracionApp = Database["public"]["Tables"]["configuracion_app"]["Row"];
 export type Ticket = Database["public"]["Tables"]["tickets"]["Row"];
 export type Pago = Database["public"]["Tables"]["pagos"]["Row"];
 export type Inventario = Database["public"]["Tables"]["inventario"]["Row"];

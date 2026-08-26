@@ -5,23 +5,42 @@ import Image from "next/image";
 import Link from "next/link";
 import { signOutAction } from "./actions";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import type { ConfiguracionApp } from "@/types/database.types";
 
-const NAV_ITEMS = [
-  { label: "Dashboard", href: "/" },
-  { label: "Tickets", href: "/tickets" },
-  { label: "Servicios", href: "/servicios" },
-  { label: "Lavadores", href: "/lavadores" },
-  { label: "Caja y turnos", href: "/turnos" },
-  { label: "Clientes", href: "/clientes" },
-  { label: "Inventario", href: "/inventario" },
-  { label: "Reportes", href: "/reportes" },
-];
-
-export function AppShell({ usuarioNombre, children }: { usuarioNombre: string; children: React.ReactNode }) {
+export function AppShell({
+  usuarioNombre,
+  esDueno,
+  config,
+  children,
+}: {
+  usuarioNombre: string;
+  esDueno: boolean;
+  config: ConfiguracionApp;
+  children: React.ReactNode;
+}) {
   const [menuAbierto, setMenuAbierto] = useState(false);
 
+  const navItems = [
+    { label: config.nav_dashboard, href: "/" },
+    { label: config.nav_tickets, href: "/tickets" },
+    { label: config.nav_servicios, href: "/servicios" },
+    { label: config.nav_lavadores, href: "/lavadores" },
+    { label: config.nav_turnos, href: "/turnos" },
+    { label: config.nav_clientes, href: "/clientes" },
+    { label: config.nav_inventario, href: "/inventario" },
+    { label: config.nav_reportes, href: "/reportes" },
+    ...(esDueno ? [{ label: "Ajustes", href: "/ajustes" }] : []),
+  ];
+
+  const variablesColor = {
+    "--primary": config.color_primario,
+    "--accent": config.color_accent,
+    "--success": config.color_success,
+    "--warning": config.color_warning,
+  } as React.CSSProperties;
+
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen" style={variablesColor}>
       {menuAbierto && (
         <div
           aria-hidden="true"
@@ -50,9 +69,9 @@ export function AppShell({ usuarioNombre, children }: { usuarioNombre: string; c
         </div>
 
         <nav className="flex-1 space-y-1 px-3 py-4">
-          {NAV_ITEMS.map((item) => (
+          {navItems.map((item) => (
             <Link
-              key={item.label}
+              key={item.href}
               href={item.href}
               onClick={() => setMenuAbierto(false)}
               className="flex items-center justify-between rounded-lg px-3 py-2.5 text-sm text-muted transition hover:bg-surface-hover hover:text-foreground"

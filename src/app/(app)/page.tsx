@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { diaMX, inicioDeDiaMX } from "@/lib/fecha";
+import { obtenerConfiguracion } from "@/lib/configuracion";
 import { VentasPorServicioChart, TendenciaVentasChart } from "./DashboardCharts";
 
 function money(n: number) {
@@ -28,6 +29,7 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
+  const config = await obtenerConfiguracion();
   const esCajero = usuario.rol === "cajero";
   const hoy = inicioDeDiaMX(0);
   const hace7dias = inicioDeDiaMX(6);
@@ -50,7 +52,7 @@ export default async function DashboardPage() {
     return (
       <div className="flex flex-col gap-6">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Hola, {usuario.nombre} 👋🏻</h1>
+          <h1 className="text-2xl font-bold text-foreground">Hola, {usuario.nombre} {config.emoji_saludo}</h1>
           <p className="text-sm capitalize text-muted">{fechaHoy}</p>
         </div>
 
@@ -117,7 +119,7 @@ export default async function DashboardPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Hola, {usuario.nombre} 👋🏻</h1>
+        <h1 className="text-2xl font-bold text-foreground">Hola, {usuario.nombre} {config.emoji_saludo}</h1>
         <p className="text-sm capitalize text-muted">{fechaHoy}</p>
       </div>
 

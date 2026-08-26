@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { PERIODOS, resolverRango, queryStringRango } from "@/lib/rangoFechas";
 import { nombreTamano } from "@/lib/servicios";
+import { obtenerConfiguracion } from "@/lib/configuracion";
 import type { TamanoVehiculo } from "@/types/database.types";
 
 function money(n: number) {
@@ -52,6 +53,7 @@ export default async function DesgloseLavadorPage({
     notFound();
   }
 
+  const config = await obtenerConfiguracion();
   const rango = resolverRango(searchParamsResueltos);
   const qs = queryStringRango(rango);
 
@@ -118,7 +120,9 @@ export default async function DesgloseLavadorPage({
         <Link href={`/lavadores${qs ? `?${qs}` : ""}`} className="text-sm text-accent hover:underline">
           ← Volver a Lavadores
         </Link>
-        <h1 className="mt-2 text-2xl font-bold text-foreground">{lavador.nombre}</h1>
+        <h1 className="mt-2 text-2xl font-bold text-foreground">
+          {config.emoji_lavador} {lavador.nombre}
+        </h1>
         <p className="text-sm text-muted">
           {lavador.activo ? "Activo" : "Inactivo"} · Registrado el {new Date(lavador.creado_en).toLocaleDateString("es-MX")}
         </p>

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { PERIODOS, resolverRango, queryStringRango } from "@/lib/rangoFechas";
+import { obtenerConfiguracion } from "@/lib/configuracion";
 import { obtenerDatosLavadores } from "./data";
 import { LavadoresClient } from "./LavadoresClient";
 import type { RolUsuario } from "@/types/database.types";
@@ -37,7 +38,7 @@ export default async function LavadoresPage({
   const puedeEditar = rol === "encargado" || rol === "dueno";
 
   const rango = resolverRango(params);
-  const { lavadores } = await obtenerDatosLavadores(rango);
+  const [{ lavadores }, config] = await Promise.all([obtenerDatosLavadores(rango), obtenerConfiguracion()]);
   const qs = queryStringRango(rango);
 
   return (
@@ -65,7 +66,12 @@ export default async function LavadoresPage({
         ))}
       </div>
 
-      <LavadoresClient lavadores={lavadores} puedeEditar={puedeEditar} queryString={qs ? `?${qs}` : ""} />
+      <LavadoresClient
+        lavadores={lavadores}
+        puedeEditar={puedeEditar}
+        queryString={qs ? `?${qs}` : ""}
+        emojiLavador={config.emoji_lavador}
+      />
     </div>
   );
 }

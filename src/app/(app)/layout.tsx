@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { obtenerConfiguracion } from "@/lib/configuracion";
 import { AppShell } from "./AppShell";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -15,7 +16,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const { data: usuario } = await supabase
     .from("usuarios")
-    .select("nombre, activo")
+    .select("nombre, rol, activo")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -23,5 +24,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     redirect("/login?motivo=cuenta_inactiva");
   }
 
-  return <AppShell usuarioNombre={usuario.nombre}>{children}</AppShell>;
+  const config = await obtenerConfiguracion();
+
+  return (
+    <AppShell usuarioNombre={usuario.nombre} esDueno={usuario.rol === "dueno"} config={config}>
+      {children}
+    </AppShell>
+  );
 }

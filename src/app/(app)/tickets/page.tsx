@@ -1,10 +1,12 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { obtenerConfiguracion } from "@/lib/configuracion";
 import { TicketsBoard } from "./TicketsBoard";
 import type { ServicioPrecio } from "@/types/database.types";
 
 export default async function TicketsPage() {
   const supabase = await createClient();
+  const config = await obtenerConfiguracion();
 
   const {
     data: { user },
@@ -183,6 +185,7 @@ export default async function TicketsPage() {
       usuarioActualId={usuario.id}
       resumenCaja={resumenCaja}
       serverAhora={new Date().toISOString()}
+      config={config}
     />
   );
 }

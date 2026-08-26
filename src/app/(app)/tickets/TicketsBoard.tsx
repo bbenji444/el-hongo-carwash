@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import type { Turno, Lavador } from "@/types/database.types";
+import type { Turno, Lavador, ConfiguracionApp } from "@/types/database.types";
 import type { TicketConDetalle, ServicioConPrecios } from "./types";
 import { nombreTamano, precioPorTamano } from "@/lib/servicios";
 import { AbrirTurnoForm } from "./AbrirTurnoForm";
@@ -33,10 +33,11 @@ type ResumenCaja = {
   tiempoPromedioMin: number | null;
 };
 
-// Semáforo de espera: verde en orden, amarillo a partir de 25 min, rojo a
-// partir de 35 min sin que el ticket llegue a "Entregado". El color se mide
-// sobre el tiempo total del ciclo (persiste aunque cambie de etapa) y el
-// fondo de toda la tarjeta cambia según el nivel, no solo un badge.
+// Semáforo de espera: verde en orden, amarillo/rojo a partir de los minutos
+// configurados en Ajustes (config.semaforo_*), sin que el ticket llegue a
+// "Entregado". El color se mide sobre el tiempo total del ciclo (persiste
+// aunque cambie de etapa) y el fondo de toda la tarjeta cambia según el
+// nivel, no solo un badge.
 type NivelEspera = "ok" | "alerta" | "critico";
 
 const TARJETA_ESTILO: Record<NivelEspera, string> = {
@@ -51,8 +52,8 @@ const CRONOMETRO_ESTILO: Record<NivelEspera, string> = {
   critico: "text-primary",
 };
 
-function calcularNivel(minutosTotal: number): NivelEspera {
-  return minutosTotal >= 35 ? "critico" : minutosTotal >= 25 ? "alerta" : "ok";
+function calcularNivel(minutosTotal: number, alertaMin: number, criticoMin: number): NivelEspera {
+  return minutosTotal >= criticoMin ? "critico" : minutosTotal >= alertaMin ? "alerta" : "ok";
 }
 
 function formatearDuracion(ms: number) {
@@ -88,6 +89,7 @@ export function TicketsBoard({
   usuarioActualId,
   resumenCaja,
   serverAhora,
+  config,
 }: {
   turno: Turno | null;
   servicios: ServicioConPrecios[];
@@ -96,6 +98,7 @@ export function TicketsBoard({
   usuarioActualId: string;
   resumenCaja: ResumenCaja | null;
   serverAhora: string;
+  config: ConfiguracionApp;
 }) {
   const [mostrarNuevo, setMostrarNuevo] = useState(false);
   const [cobroTicket, setCobroTicket] = useState<TicketConDetalle | null>(null);
@@ -241,7 +244,9 @@ export function TicketsBoard({
                   const entregado = col.estado === "entregado";
                   const totalMs = ahoraCorregido - new Date(ticket.hora_entrada).getTime();
                   const etapaMs = ahoraCorregido - new Date(ticket.hora_cambio_estado).getTime();
-                  const nivel = entregado ? "ok" : calcularNivel(Math.floor(totalMs / 60000));
+                  const nivel = entregado
+                    ? "ok"
+                    : calcularNivel(Math.floor(totalMs / 60000), config.semaforo_alerta_min, config.semaforo_critico_min);
                   return (
                   <div
                     key={ticket.id}
@@ -278,7 +283,9 @@ export function TicketsBoard({
                       )}
                     </p>
                     {ticket.lavador && (
-                      <p className="text-xs text-muted">🧑‍🔧 {ticket.lavador.nombre}</p>
+                      <p className="text-xs text-muted">
+                        {config.emoji_lavador} {ticket.lavador.nombre}
+                      </p>
                     )}
 
                     <div className="flex flex-wrap items-center gap-1.5">
@@ -374,6 +381,7 @@ export function TicketsBoard({
           servicios={servicios}
           lavadores={lavadores}
           enProcesoPorLavador={enProcesoPorLavador}
+          config={config}
           usuarioActualId={usuarioActualId}
           onClose={() => setMostrarNuevo(false)}
         />

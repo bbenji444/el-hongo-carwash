@@ -4,7 +4,6 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { signOutAction } from "./actions";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import type { RolUsuario } from "@/types/database.types";
 
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/" },
@@ -15,18 +14,6 @@ const NAV_ITEMS = [
   { label: "Inventario", href: "/inventario" },
   { label: "Reportes", href: "/reportes" },
 ];
-
-const ROL_LABEL: Record<RolUsuario, string> = {
-  dueno: "Dueño",
-  encargado: "Encargado de turno",
-  cajero: "Cajero / Operador",
-};
-
-const ROL_BADGE_CLASS: Record<RolUsuario, string> = {
-  dueno: "bg-primary/15 text-primary border-primary/40",
-  encargado: "bg-accent/15 text-accent border-accent/40",
-  cajero: "bg-muted/15 text-muted border-muted/40",
-};
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -41,7 +28,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const { data: usuario } = await supabase
     .from("usuarios")
-    .select("nombre, rol, activo")
+    .select("nombre, activo")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -56,8 +43,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <Image
             src="/logo.jpg"
             alt="El Hongo Car Wash"
-            width={44}
-            height={44}
+            width={52}
+            height={52}
             className="rounded-full border-2 border-primary shadow-[0_0_0_3px_rgba(227,30,36,0.15)]"
           />
           <div>
@@ -80,14 +67,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </aside>
 
       <div className="flex flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-border bg-surface px-6 py-4">
+        <header className="flex items-center justify-between border-b border-primary/20 bg-primary/10 px-6 py-4">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-foreground">{usuario.nombre}</span>
-            <span
-              className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${ROL_BADGE_CLASS[usuario.rol]}`}
-            >
-              {ROL_LABEL[usuario.rol]}
-            </span>
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />
@@ -102,7 +84,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
         </header>
 
-        <main className="flex-1 bg-background p-6">{children}</main>
+        <main className="relative flex-1 bg-background">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center overflow-hidden"
+          >
+            <div className="relative h-[480px] w-[480px] opacity-[0.07] [mask-image:radial-gradient(circle,black_0%,black_35%,transparent_75%)] [-webkit-mask-image:radial-gradient(circle,black_0%,black_35%,transparent_75%)]">
+              <Image src="/logo.jpg" alt="" fill className="object-contain" />
+            </div>
+          </div>
+          <div className="relative z-10 p-6">{children}</div>
+        </main>
       </div>
     </div>
   );

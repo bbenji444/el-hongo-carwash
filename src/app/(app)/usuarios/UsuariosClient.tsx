@@ -69,27 +69,22 @@ export function UsuariosClient({
       setError("El nombre es obligatorio.");
       return;
     }
+    if (!form.correo.trim() || !form.correo.includes("@")) {
+      setError("Ingresa un correo válido (puede ser cualquier texto tipo correo, funciona como usuario).");
+      return;
+    }
+    if (form.password && form.password.length < 6) {
+      setError("La contraseña debe tener al menos 6 caracteres.");
+      return;
+    }
 
     if (editandoId) {
-      startTransition(async () => {
-        const result = await actualizarUsuario(editandoId, { nombre: form.nombre.trim(), rol: form.rol });
-        if (result.error) {
-          setError(result.error);
-          return;
-        }
-        setMostrarForm(false);
-        setForm(emptyForm);
-        setEditandoId(null);
-      });
+      actualizar();
       return;
     }
 
-    if (!form.correo.trim() || !form.correo.includes("@")) {
-      setError("Ingresa un correo válido.");
-      return;
-    }
-    if (form.password.length < 6) {
-      setError("La contraseña debe tener al menos 6 caracteres.");
+    if (!form.password) {
+      setError("La contraseña es obligatoria.");
       return;
     }
 
@@ -106,10 +101,27 @@ export function UsuariosClient({
       }
       setMostrarForm(false);
       setForm(emptyForm);
-      setAviso(
-        `Cuenta creada para ${form.correo.trim()}. Si tu proyecto pide confirmar el correo, la persona debe revisar su bandeja antes de poder entrar.`
-      );
+      setAviso(`Cuenta creada para ${form.correo.trim()}, ya activa (no necesita confirmar nada).`);
     });
+
+    function actualizar() {
+      startTransition(async () => {
+        const result = await actualizarUsuario(editandoId!, {
+          nombre: form.nombre.trim(),
+          rol: form.rol,
+          correo: form.correo.trim(),
+          password: form.password || undefined,
+        });
+        if (result.error) {
+          setError(result.error);
+          return;
+        }
+        setMostrarForm(false);
+        setForm(emptyForm);
+        setEditandoId(null);
+        setAviso("Cambios guardados.");
+      });
+    }
   }
 
   function handleToggle(u: UsuarioConCorreo) {
@@ -146,28 +158,27 @@ export function UsuariosClient({
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-muted">Correo{editandoId && " (no editable)"}</label>
+                <label className="text-xs font-medium text-muted">Correo (funciona como usuario)</label>
                 <input
-                  type="email"
+                  type="text"
                   value={form.correo}
-                  disabled={Boolean(editandoId)}
                   onChange={(e) => setForm((f) => ({ ...f, correo: e.target.value }))}
-                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent disabled:opacity-60"
+                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
                   placeholder="maria@elhongo.com"
                 />
               </div>
-              {!editandoId && (
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-medium text-muted">Contraseña</label>
-                  <input
-                    type="password"
-                    value={form.password}
-                    onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                    className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
-                    placeholder="Mínimo 6 caracteres"
-                  />
-                </div>
-              )}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-muted">
+                  {editandoId ? "Nueva contraseña (opcional)" : "Contraseña"}
+                </label>
+                <input
+                  type="password"
+                  value={form.password}
+                  onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+                  placeholder={editandoId ? "Dejar vacío para no cambiarla" : "Mínimo 6 caracteres"}
+                />
+              </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-medium text-muted">Rol</label>
                 <select

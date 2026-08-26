@@ -3,12 +3,18 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
-export async function crearInsumo(input: { nombre: string; stockActual: number; costoUnitario: number }) {
+export async function crearInsumo(input: {
+  nombre: string;
+  stockActual: number;
+  stockMinimo: number;
+  costoUnitario: number;
+}) {
   const supabase = await createClient();
 
   const { error } = await supabase.from("inventario").insert({
     nombre_insumo: input.nombre,
     stock_actual: input.stockActual,
+    stock_minimo: input.stockMinimo,
     costo_unitario: input.costoUnitario,
   });
 
@@ -20,7 +26,7 @@ export async function crearInsumo(input: { nombre: string; stockActual: number; 
 
 export async function actualizarInsumo(
   id: string,
-  input: { nombre: string; stockActual: number; costoUnitario: number }
+  input: { nombre: string; stockActual: number; stockMinimo: number; costoUnitario: number }
 ) {
   const supabase = await createClient();
 
@@ -29,6 +35,7 @@ export async function actualizarInsumo(
     .update({
       nombre_insumo: input.nombre,
       stock_actual: input.stockActual,
+      stock_minimo: input.stockMinimo,
       costo_unitario: input.costoUnitario,
     })
     .eq("id", id);

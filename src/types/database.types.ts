@@ -265,18 +265,21 @@ export interface Database {
           id: string;
           nombre_insumo: string;
           stock_actual: number;
+          stock_minimo: number;
           costo_unitario: number;
         };
         Insert: {
           id?: string;
           nombre_insumo: string;
           stock_actual?: number;
+          stock_minimo?: number;
           costo_unitario?: number;
         };
         Update: {
           id?: string;
           nombre_insumo?: string;
           stock_actual?: number;
+          stock_minimo?: number;
           costo_unitario?: number;
         };
         Relationships: [];

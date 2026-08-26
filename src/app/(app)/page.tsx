@@ -50,7 +50,7 @@ export default async function DashboardPage() {
     return (
       <div className="flex flex-col gap-6">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Hola, {usuario.nombre} 👋</h1>
+          <h1 className="text-2xl font-bold text-foreground">Hola, {usuario.nombre} 👋🏻</h1>
           <p className="text-sm capitalize text-muted">{fechaHoy}</p>
         </div>
 
@@ -117,7 +117,7 @@ export default async function DashboardPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Hola, {usuario.nombre} 👋</h1>
+        <h1 className="text-2xl font-bold text-foreground">Hola, {usuario.nombre} 👋🏻</h1>
         <p className="text-sm capitalize text-muted">{fechaHoy}</p>
       </div>
 

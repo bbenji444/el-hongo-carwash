@@ -1,5 +1,6 @@
-import { Document, Page, Text, View, StyleSheet, Font } from "@react-pdf/renderer";
+import { Document, Page, Text, View, Image, StyleSheet, Font } from "@react-pdf/renderer";
 import type { DatosReporte } from "../../data";
+import { logoBuffer } from "@/lib/logoPdf";
 
 // Sin esto, react-pdf parte palabras largas a la mitad al justificar texto
 // dentro de cajas angostas (p. ej. "ENTREGA-DOS"); con el callback identidad
@@ -26,6 +27,16 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingBottom: 12,
     borderBottom: `2 solid ${ROJO}`,
+  },
+  headerMarca: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  logo: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
   },
   marca: {
     fontSize: 18,
@@ -165,9 +176,13 @@ export function ReportePdf({ datos }: { datos: DatosReporte }) {
     <Document title={`Reporte El Hongo Car Wash — ${datos.rango.etiqueta}`}>
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
-          <View>
-            <Text style={styles.marca}>EL HONGO CAR WASH</Text>
-            <Text style={styles.marcaSub}>Reporte de ventas y caja</Text>
+          <View style={styles.headerMarca}>
+            {/* eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf/renderer's Image, not an HTML img */}
+            <Image src={logoBuffer()} style={styles.logo} />
+            <View>
+              <Text style={styles.marca}>EL HONGO CAR WASH</Text>
+              <Text style={styles.marcaSub}>Reporte de ventas y caja</Text>
+            </View>
           </View>
           <View style={styles.metaBox}>
             <Text style={styles.metaTitulo}>Período: {datos.rango.etiqueta}</Text>

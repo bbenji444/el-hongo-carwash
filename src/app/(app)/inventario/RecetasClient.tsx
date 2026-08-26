@@ -167,7 +167,7 @@ export function RecetasClient({
           </thead>
           <tbody>
             {recetas.map((r) => (
-              <tr key={r.id} className="border-t border-border">
+              <tr key={r.id} className="border-t border-border transition-colors hover:bg-surface-hover">
                 <td className="px-4 py-3 text-foreground">{r.servicio?.nombre ?? "—"}</td>
                 <td className="px-4 py-3 text-foreground">{r.insumo?.nombre_insumo ?? "—"}</td>
                 <td className="px-4 py-3 text-muted">{r.cantidad_estimada}</td>

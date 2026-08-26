@@ -179,7 +179,7 @@ export function TicketsBoard({
         {encabezado}
         <button
           onClick={() => setMostrarNuevo(true)}
-          className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-hover"
+          className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-all duration-150 hover:-translate-y-0.5 hover:bg-primary-hover hover:shadow-lg hover:shadow-primary/25"
         >
           + Nuevo ticket
         </button>
@@ -250,7 +250,7 @@ export function TicketsBoard({
                   return (
                   <div
                     key={ticket.id}
-                    className={`flex flex-col gap-1.5 rounded-xl border p-3 ${TARJETA_ESTILO[nivel]}`}
+                    className={`hover-lift flex flex-col gap-1.5 rounded-xl border p-3 transition-colors duration-500 ${TARJETA_ESTILO[nivel]}`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div>

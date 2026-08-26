@@ -140,24 +140,25 @@ export default async function ReportesPage({
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-xl border border-border bg-surface p-5">
+        <div className="hover-lift animate-in rounded-xl border border-border bg-surface p-5" style={{ animationDelay: "0ms" }}>
           <p className="text-xs uppercase tracking-wide text-muted">Ventas totales</p>
           <p className="mt-1 text-2xl font-bold text-foreground">{money(ventasTotales)}</p>
           <p className="mt-1 text-xs text-muted">{numTickets} tickets entregados</p>
         </div>
-        <div className="rounded-xl border border-border bg-surface p-5">
+        <div className="hover-lift animate-in rounded-xl border border-border bg-surface p-5" style={{ animationDelay: "60ms" }}>
           <p className="text-xs uppercase tracking-wide text-muted">Ticket promedio</p>
           <p className="mt-1 text-2xl font-bold text-foreground">{money(ticketPromedio)}</p>
         </div>
-        <div className="rounded-xl border border-border bg-surface p-5">
+        <div className="hover-lift animate-in rounded-xl border border-border bg-surface p-5" style={{ animationDelay: "120ms" }}>
           <p className="text-xs uppercase tracking-wide text-muted">Descuentos otorgados</p>
           <p className="mt-1 text-2xl font-bold text-foreground">{money(totalDescuentos)}</p>
           <p className="mt-1 text-xs text-muted">{descuentos.length} tickets con descuento</p>
         </div>
         <div
-          className={`rounded-xl border p-5 ${
+          className={`hover-lift animate-in rounded-xl border p-5 ${
             diferenciaAcumulada !== 0 ? "border-primary/40 bg-primary/5" : "border-border bg-surface"
           }`}
+          style={{ animationDelay: "180ms" }}
         >
           <p className="text-xs uppercase tracking-wide text-muted">Diferencia acumulada de caja</p>
           <p className={`mt-1 text-2xl font-bold ${diferenciaAcumulada !== 0 ? "text-primary" : "text-foreground"}`}>
@@ -180,7 +181,7 @@ export default async function ReportesPage({
             </thead>
             <tbody>
               {ventasPorServicio.map((v) => (
-                <tr key={v.nombre} className="border-t border-border">
+                <tr key={v.nombre} className="border-t border-border transition-colors hover:bg-surface-hover">
                   <td className="px-4 py-3 text-foreground">{v.nombre}</td>
                   <td className="px-4 py-3 text-muted">{v.tickets}</td>
                   <td className="px-4 py-3 text-foreground">{money(v.total)}</td>
@@ -213,7 +214,7 @@ export default async function ReportesPage({
             </thead>
             <tbody>
               {descuentos.map((d) => (
-                <tr key={d.id} className="border-t border-border">
+                <tr key={d.id} className="border-t border-border transition-colors hover:bg-surface-hover">
                   <td className="px-4 py-3 text-muted">{new Date(d.fecha).toLocaleString("es-MX")}</td>
                   <td className="px-4 py-3 text-foreground">{d.servicio}</td>
                   <td className="px-4 py-3 text-foreground">{d.empleado}</td>
@@ -251,7 +252,7 @@ export default async function ReportesPage({
             </thead>
             <tbody>
               {turnos.map((t) => (
-                <tr key={t.id} className="border-t border-border">
+                <tr key={t.id} className="border-t border-border transition-colors hover:bg-surface-hover">
                   <td className="px-4 py-3">
                     <Link href={`/reportes/turnos/${t.id}`} className="text-muted hover:text-accent hover:underline">
                       {t.horaCierre ? new Date(t.horaCierre).toLocaleString("es-MX") : "—"}

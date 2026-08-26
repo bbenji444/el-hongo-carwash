@@ -57,3 +57,86 @@ body {
   color: var(--foreground);
   transition: background-color 0.2s ease, color 0.2s ease;
 }
+
+/* ------------------------------------------------------------------------
+   Modernización: transiciones suaves y feedback táctil en todo lo
+   interactivo, sin tener que tocar cada botón/link uno por uno. El
+   active:scale funciona igual con mouse que con dedo (tablet/celular).
+   ------------------------------------------------------------------------ */
+a,
+button,
+input,
+select,
+textarea {
+  transition-property: color, background-color, border-color, box-shadow, transform, opacity;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
+}
+
+button:not(:disabled):active,
+a:active,
+[role="button"]:active {
+  transform: scale(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-in {
+  animation: fade-in-up 0.4s ease-out both;
+}
+
+.hover-lift {
+  transition: transform 200ms ease-out, box-shadow 200ms ease-out, border-color 200ms ease-out;
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px -12px rgba(0, 0, 0, 0.25);
+}
+
+@keyframes backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-backdrop {
+  animation: backdrop-in 0.15s ease-out both;
+}
+
+.animate-modal {
+  animation: modal-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}

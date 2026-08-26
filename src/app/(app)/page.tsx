@@ -57,7 +57,7 @@ export default async function DashboardPage() {
         </div>
 
         {turnoAbierto ? (
-          <div className="rounded-xl border border-success/40 bg-success/5 p-5">
+          <div className="hover-lift animate-in rounded-xl border border-success/40 bg-success/5 p-5">
             <p className="text-xs uppercase tracking-wide text-muted">Turno</p>
             <p className="mt-1 font-semibold text-foreground">Abierto</p>
             <p className="mt-1 text-sm text-muted">
@@ -70,7 +70,7 @@ export default async function DashboardPage() {
           </p>
         )}
 
-        <div className="rounded-xl border border-border bg-surface p-5">
+        <div className="hover-lift animate-in rounded-xl border border-border bg-surface p-5" style={{ animationDelay: "60ms" }}>
           <p className="text-xs uppercase tracking-wide text-muted">Tickets pendientes hoy</p>
           <p className="mt-1 text-2xl font-bold text-foreground">{pendientesHoy}</p>
         </div>
@@ -130,33 +130,51 @@ export default async function DashboardPage() {
       )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-xl border border-border bg-surface p-5">
+        <div
+          className="hover-lift animate-in rounded-xl border border-border bg-surface p-5"
+          style={{ animationDelay: "0ms" }}
+        >
           <p className="text-xs uppercase tracking-wide text-muted">Ventas de hoy</p>
           <p className="mt-1 text-2xl font-bold text-foreground">{money(ventasHoy)}</p>
           <p className="mt-1 text-xs text-muted">{numEntregadosHoy} tickets entregados</p>
         </div>
-        <div className="rounded-xl border border-border bg-surface p-5">
+        <div
+          className="hover-lift animate-in rounded-xl border border-border bg-surface p-5"
+          style={{ animationDelay: "60ms" }}
+        >
           <p className="text-xs uppercase tracking-wide text-muted">Ticket promedio</p>
           <p className="mt-1 text-2xl font-bold text-foreground">{money(ticketPromedioHoy)}</p>
         </div>
-        <div className="rounded-xl border border-border bg-surface p-5">
+        <div
+          className="hover-lift animate-in rounded-xl border border-border bg-surface p-5"
+          style={{ animationDelay: "120ms" }}
+        >
           <p className="text-xs uppercase tracking-wide text-muted">Descuentos hoy</p>
           <p className="mt-1 text-2xl font-bold text-foreground">{money(descuentosHoy)}</p>
         </div>
-        <div className="rounded-xl border border-border bg-surface p-5">
+        <div
+          className="hover-lift animate-in rounded-xl border border-border bg-surface p-5"
+          style={{ animationDelay: "180ms" }}
+        >
           <p className="text-xs uppercase tracking-wide text-muted">Pendientes hoy</p>
           <p className="mt-1 text-2xl font-bold text-foreground">{pendientesHoy}</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="rounded-xl border border-border bg-surface p-5">
+        <div
+          className="hover-lift animate-in rounded-xl border border-border bg-surface p-5"
+          style={{ animationDelay: "240ms" }}
+        >
           <h2 className="font-semibold text-foreground">Ventas por servicio (hoy)</h2>
           <div className="mt-3">
             <VentasPorServicioChart data={ventasPorServicio} />
           </div>
         </div>
-        <div className="rounded-xl border border-border bg-surface p-5">
+        <div
+          className="hover-lift animate-in rounded-xl border border-border bg-surface p-5"
+          style={{ animationDelay: "300ms" }}
+        >
           <h2 className="font-semibold text-foreground">Tendencia de ventas (últimos 7 días)</h2>
           <div className="mt-3">
             <TendenciaVentasChart data={tendenciaVentas} />

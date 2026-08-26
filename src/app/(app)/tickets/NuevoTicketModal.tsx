@@ -23,10 +23,10 @@ function BotonSeleccion({
     <button
       type="button"
       onClick={onClick}
-      className={`flex flex-col items-center justify-center gap-1 rounded-lg border-2 px-2 py-2.5 text-center transition ${
+      className={`flex flex-col items-center justify-center gap-1 rounded-lg border-2 px-2 py-2.5 text-center transition-all duration-150 ${
         seleccionado
-          ? "border-primary bg-primary/10 text-foreground"
-          : "border-border bg-background text-muted hover:border-primary/40 hover:text-foreground"
+          ? "border-primary bg-primary/10 text-foreground shadow-md shadow-primary/10 scale-[1.03]"
+          : "border-border bg-background text-muted hover:-translate-y-0.5 hover:border-primary/40 hover:text-foreground hover:shadow-sm"
       }`}
     >
       {children}
@@ -159,8 +159,8 @@ export function NuevoTicketModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-border bg-surface p-6">
+    <div className="animate-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+      <div className="animate-modal max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-border bg-surface p-6">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-bold text-foreground">Nuevo ticket</h2>
           <button onClick={onClose} className="text-muted hover:text-foreground">

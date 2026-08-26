@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { signOutAction } from "./actions";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import type { ConfiguracionApp } from "@/types/database.types";
@@ -19,6 +20,7 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const [menuAbierto, setMenuAbierto] = useState(false);
+  const pathname = usePathname();
 
   const navItems = [
     { label: config.nav_dashboard, href: "/" },
@@ -69,16 +71,26 @@ export function AppShell({
         </div>
 
         <nav className="flex-1 space-y-1 px-3 py-4">
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setMenuAbierto(false)}
-              className="flex items-center justify-between rounded-lg px-3 py-2.5 text-sm text-muted transition hover:bg-surface-hover hover:text-foreground"
-            >
-              <span>{item.label}</span>
-            </Link>
-          ))}
+          {navItems.map((item) => {
+            const activo = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setMenuAbierto(false)}
+                className={`relative flex items-center justify-between rounded-lg px-3 py-2.5 text-sm transition-all duration-150 ${
+                  activo
+                    ? "bg-primary/10 font-medium text-primary"
+                    : "text-muted hover:translate-x-0.5 hover:bg-surface-hover hover:text-foreground"
+                }`}
+              >
+                {activo && (
+                  <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary" />
+                )}
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
         </nav>
       </aside>
 

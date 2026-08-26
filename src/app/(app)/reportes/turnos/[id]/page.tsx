@@ -291,7 +291,7 @@ export default async function DesgloseTurnoPage({
           </thead>
           <tbody>
             {filaFiltrada.map((t) => (
-              <tr key={t.id} className="border-t border-border">
+              <tr key={t.id} className="border-t border-border transition-colors hover:bg-surface-hover">
                 <td className="px-4 py-3 text-muted">
                   {new Date(t.horaEntrada).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}
                 </td>

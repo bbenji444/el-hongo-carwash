@@ -105,7 +105,7 @@ export function InventarioClient({ insumos, puedeEditar }: { insumos: Inventario
         {puedeEditar && !mostrarForm && (
           <button
             onClick={abrirNuevo}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-hover"
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-all duration-150 hover:-translate-y-0.5 hover:bg-primary-hover hover:shadow-lg hover:shadow-primary/25"
           >
             + Nuevo insumo
           </button>
@@ -214,7 +214,7 @@ export function InventarioClient({ insumos, puedeEditar }: { insumos: Inventario
               const agotado = insumo.stock_actual <= 0;
               const bajo = !agotado && insumo.stock_actual <= insumo.stock_minimo;
               return (
-                <tr key={insumo.id} className="border-t border-border">
+                <tr key={insumo.id} className="border-t border-border transition-colors hover:bg-surface-hover">
                   <td className="px-4 py-3 text-foreground">{insumo.nombre_insumo}</td>
                   <td className="px-4 py-3">
                     <span

@@ -184,7 +184,7 @@ export default async function DesgloseLavadorPage({
           </thead>
           <tbody>
             {filaTickets.map((t) => (
-              <tr key={t.id} className="border-t border-border">
+              <tr key={t.id} className="border-t border-border transition-colors hover:bg-surface-hover">
                 <td className="px-4 py-3 text-muted">{new Date(t.horaEntrada).toLocaleString("es-MX")}</td>
                 <td className="px-4 py-3 text-foreground">{t.cliente}</td>
                 <td className="px-4 py-3 text-muted">{t.placas ?? "—"}</td>

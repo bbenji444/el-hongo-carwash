@@ -52,7 +52,7 @@ export function ClientesClient({ clientes }: { clientes: ClienteConDetalle[] }) 
         {!mostrarForm ? (
           <button
             onClick={() => setMostrarForm(true)}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-hover"
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-all duration-150 hover:-translate-y-0.5 hover:bg-primary-hover hover:shadow-lg hover:shadow-primary/25"
           >
             + Nuevo cliente
           </button>
@@ -116,7 +116,7 @@ export function ClientesClient({ clientes }: { clientes: ClienteConDetalle[] }) 
           </thead>
           <tbody>
             {clientes.map((cliente) => (
-              <tr key={cliente.id} className="border-t border-border">
+              <tr key={cliente.id} className="border-t border-border transition-colors hover:bg-surface-hover">
                 <td className="px-4 py-3">
                   <Link href={`/clientes/${cliente.id}`} className="text-foreground hover:text-accent hover:underline">
                     {cliente.nombre}

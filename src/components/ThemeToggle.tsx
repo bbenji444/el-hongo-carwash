@@ -36,7 +36,7 @@ export function ThemeToggle() {
       onClick={alternar}
       aria-label={claro ? "Cambiar a modo oscuro" : "Cambiar a modo claro"}
       title={claro ? "Cambiar a modo oscuro" : "Cambiar a modo claro"}
-      className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-muted transition hover:border-primary hover:text-primary"
+      className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/50 text-white transition hover:border-white hover:bg-white/15"
     >
       {claro ? (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">

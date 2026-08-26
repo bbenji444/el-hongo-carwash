@@ -63,24 +63,24 @@ export function AppShell({ usuarioNombre, children }: { usuarioNombre: string; c
       </aside>
 
       <div className="flex flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-primary/30 bg-primary/20 px-4 py-4 md:px-6">
+        <header className="flex items-center justify-between border-b border-black/15 bg-primary px-4 py-4 shadow-[0_2px_10px_-2px_rgba(227,30,36,0.5)] md:px-6">
           <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={() => setMenuAbierto((v) => !v)}
               aria-label={menuAbierto ? "Cerrar menú" : "Abrir menú"}
-              className="rounded-lg px-2 py-1 text-lg leading-none text-foreground transition hover:bg-primary/10 md:hidden"
+              className="rounded-lg px-2 py-1 text-lg leading-none text-white transition hover:bg-white/15 md:hidden"
             >
               {menuAbierto ? "✕" : "☰"}
             </button>
-            <span className="text-sm font-medium text-foreground">{usuarioNombre}</span>
+            <span className="text-sm font-semibold text-white">{usuarioNombre}</span>
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />
             <form action={signOutAction}>
               <button
                 type="submit"
-                className="rounded-lg border border-border px-3 py-1.5 text-sm text-muted transition hover:border-primary hover:text-primary"
+                className="rounded-lg border border-white/50 px-3 py-1.5 text-sm font-medium text-white transition hover:border-white hover:bg-white/15"
               >
                 Cerrar sesión
               </button>

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { diaMX, inicioDeDiaMX } from "@/lib/fecha";
 import { obtenerConfiguracion } from "@/lib/configuracion";
+import { AnimatedNumber } from "@/components/AnimatedNumber";
 import { VentasPorServicioChart, TendenciaVentasChart } from "./DashboardCharts";
 
 function money(n: number) {
@@ -52,14 +53,22 @@ export default async function DashboardPage() {
     return (
       <div className="flex flex-col gap-6">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Hola, {usuario.nombre} {config.emoji_saludo}</h1>
+          <h1 className="text-gradient-brand text-2xl font-bold sm:text-3xl">
+          Hola, {usuario.nombre} {config.emoji_saludo}
+        </h1>
           <p className="text-sm capitalize text-muted">{fechaHoy}</p>
         </div>
 
         {turnoAbierto ? (
           <div className="hover-lift animate-in rounded-xl border border-success/40 bg-success/5 p-5">
             <p className="text-xs uppercase tracking-wide text-muted">Turno</p>
-            <p className="mt-1 font-semibold text-foreground">Abierto</p>
+            <p className="mt-1 flex items-center gap-2 font-semibold text-foreground">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-75" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-success" />
+              </span>
+              Abierto
+            </p>
             <p className="mt-1 text-sm text-muted">
               Desde las {new Date(turnoAbierto.hora_apertura).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}
             </p>
@@ -72,7 +81,9 @@ export default async function DashboardPage() {
 
         <div className="hover-lift animate-in rounded-xl border border-border bg-surface p-5" style={{ animationDelay: "60ms" }}>
           <p className="text-xs uppercase tracking-wide text-muted">Tickets pendientes hoy</p>
-          <p className="mt-1 text-2xl font-bold text-foreground">{pendientesHoy}</p>
+          <p className="mt-1 text-2xl font-bold text-foreground">
+            <AnimatedNumber value={pendientesHoy} />
+          </p>
         </div>
       </div>
     );
@@ -119,7 +130,9 @@ export default async function DashboardPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Hola, {usuario.nombre} {config.emoji_saludo}</h1>
+        <h1 className="text-gradient-brand text-2xl font-bold sm:text-3xl">
+          Hola, {usuario.nombre} {config.emoji_saludo}
+        </h1>
         <p className="text-sm capitalize text-muted">{fechaHoy}</p>
       </div>
 
@@ -135,7 +148,9 @@ export default async function DashboardPage() {
           style={{ animationDelay: "0ms" }}
         >
           <p className="text-xs uppercase tracking-wide text-muted">Ventas de hoy</p>
-          <p className="mt-1 text-2xl font-bold text-foreground">{money(ventasHoy)}</p>
+          <p className="mt-1 text-2xl font-bold text-foreground">
+            <AnimatedNumber value={ventasHoy} formatter={money} />
+          </p>
           <p className="mt-1 text-xs text-muted">{numEntregadosHoy} tickets entregados</p>
         </div>
         <div
@@ -143,21 +158,27 @@ export default async function DashboardPage() {
           style={{ animationDelay: "60ms" }}
         >
           <p className="text-xs uppercase tracking-wide text-muted">Ticket promedio</p>
-          <p className="mt-1 text-2xl font-bold text-foreground">{money(ticketPromedioHoy)}</p>
+          <p className="mt-1 text-2xl font-bold text-foreground">
+            <AnimatedNumber value={ticketPromedioHoy} formatter={money} />
+          </p>
         </div>
         <div
           className="hover-lift animate-in rounded-xl border border-border bg-surface p-5"
           style={{ animationDelay: "120ms" }}
         >
           <p className="text-xs uppercase tracking-wide text-muted">Descuentos hoy</p>
-          <p className="mt-1 text-2xl font-bold text-foreground">{money(descuentosHoy)}</p>
+          <p className="mt-1 text-2xl font-bold text-foreground">
+            <AnimatedNumber value={descuentosHoy} formatter={money} />
+          </p>
         </div>
         <div
           className="hover-lift animate-in rounded-xl border border-border bg-surface p-5"
           style={{ animationDelay: "180ms" }}
         >
           <p className="text-xs uppercase tracking-wide text-muted">Pendientes hoy</p>
-          <p className="mt-1 text-2xl font-bold text-foreground">{pendientesHoy}</p>
+          <p className="mt-1 text-2xl font-bold text-foreground">
+            <AnimatedNumber value={pendientesHoy} />
+          </p>
         </div>
       </div>
 

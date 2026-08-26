@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { PERIODOS, resolverRango, queryStringRango, obtenerDatosReporte } from "./data";
+import { AnimatedNumber } from "@/components/AnimatedNumber";
 
 function money(n: number) {
   return `$${n.toFixed(2)}`;
@@ -142,16 +143,22 @@ export default async function ReportesPage({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="hover-lift animate-in rounded-xl border border-border bg-surface p-5" style={{ animationDelay: "0ms" }}>
           <p className="text-xs uppercase tracking-wide text-muted">Ventas totales</p>
-          <p className="mt-1 text-2xl font-bold text-foreground">{money(ventasTotales)}</p>
+          <p className="mt-1 text-2xl font-bold text-foreground">
+            <AnimatedNumber value={ventasTotales} formatter={money} />
+          </p>
           <p className="mt-1 text-xs text-muted">{numTickets} tickets entregados</p>
         </div>
         <div className="hover-lift animate-in rounded-xl border border-border bg-surface p-5" style={{ animationDelay: "60ms" }}>
           <p className="text-xs uppercase tracking-wide text-muted">Ticket promedio</p>
-          <p className="mt-1 text-2xl font-bold text-foreground">{money(ticketPromedio)}</p>
+          <p className="mt-1 text-2xl font-bold text-foreground">
+            <AnimatedNumber value={ticketPromedio} formatter={money} />
+          </p>
         </div>
         <div className="hover-lift animate-in rounded-xl border border-border bg-surface p-5" style={{ animationDelay: "120ms" }}>
           <p className="text-xs uppercase tracking-wide text-muted">Descuentos otorgados</p>
-          <p className="mt-1 text-2xl font-bold text-foreground">{money(totalDescuentos)}</p>
+          <p className="mt-1 text-2xl font-bold text-foreground">
+            <AnimatedNumber value={totalDescuentos} formatter={money} />
+          </p>
           <p className="mt-1 text-xs text-muted">{descuentos.length} tickets con descuento</p>
         </div>
         <div
@@ -162,7 +169,7 @@ export default async function ReportesPage({
         >
           <p className="text-xs uppercase tracking-wide text-muted">Diferencia acumulada de caja</p>
           <p className={`mt-1 text-2xl font-bold ${diferenciaAcumulada !== 0 ? "text-primary" : "text-foreground"}`}>
-            {money(diferenciaAcumulada)}
+            <AnimatedNumber value={diferenciaAcumulada} formatter={money} />
           </p>
           <p className="mt-1 text-xs text-muted">{turnosConAlerta} turnos con diferencia</p>
         </div>

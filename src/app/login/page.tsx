@@ -62,9 +62,19 @@ function LoginForm() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 flex flex-col items-center gap-3">
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4">
+      <div
+        aria-hidden="true"
+        className="animate-blob pointer-events-none absolute -left-24 -top-24 h-96 w-96 rounded-full bg-primary/25 blur-3xl"
+      />
+      <div
+        aria-hidden="true"
+        className="animate-blob pointer-events-none absolute -bottom-24 -right-24 h-96 w-96 rounded-full bg-accent/20 blur-3xl"
+        style={{ animationDelay: "-7s" }}
+      />
+
+      <div className="relative w-full max-w-sm">
+        <div className="animate-in mb-8 flex flex-col items-center gap-3">
           <Image
             src="/logo.jpg"
             alt="El Hongo Car Wash"
@@ -75,7 +85,7 @@ function LoginForm() {
           />
           <div className="text-center">
             <h1 className="text-xl font-bold tracking-tight text-foreground">
-              EL HONGO <span className="text-primary">CAR WASH</span>
+              EL HONGO <span className="text-gradient-brand">CAR WASH</span>
             </h1>
             <p className="text-xs uppercase tracking-[0.2em] text-muted">Panel de administración</p>
           </div>
@@ -83,7 +93,8 @@ function LoginForm() {
 
         <form
           onSubmit={handleSubmit}
-          className="flex flex-col gap-4 rounded-xl border border-border bg-surface p-6 shadow-xl"
+          className="animate-in flex flex-col gap-4 rounded-xl border border-border bg-surface p-6 shadow-xl"
+          style={{ animationDelay: "80ms" }}
         >
           <div className="flex flex-col gap-1.5">
             <label htmlFor="email" className="text-sm font-medium text-muted">
@@ -132,7 +143,7 @@ function LoginForm() {
           </button>
         </form>
 
-        <p className="mt-6 text-center text-xs text-muted">
+        <p className="animate-in mt-6 text-center text-xs text-muted" style={{ animationDelay: "160ms" }}>
           Acceso restringido. Las cuentas son creadas por el dueño.
         </p>
       </div>

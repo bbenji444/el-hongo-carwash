@@ -306,7 +306,13 @@ export function TicketsBoard({
                       </p>
                     ) : (
                       <div className="flex flex-col gap-0.5 text-[11px]">
-                        <span className={`font-semibold ${CRONOMETRO_ESTILO[nivel]}`}>
+                        <span className={`flex items-center gap-1.5 font-semibold ${CRONOMETRO_ESTILO[nivel]}`}>
+                          {nivel === "critico" && (
+                            <span className="relative flex h-2 w-2">
+                              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
+                              <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+                            </span>
+                          )}
                           ⏱ Total: {formatearDuracion(totalMs)}
                         </span>
                         <span className="text-muted">⏳ En esta etapa: {formatearDuracion(etapaMs)}</span>

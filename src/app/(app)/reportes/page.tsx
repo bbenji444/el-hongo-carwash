@@ -1,32 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { inicioDeDiaMX } from "@/lib/fecha";
-
-type Periodo = "hoy" | "7d" | "30d" | "todo";
-
-const PERIODOS: { value: Periodo; label: string }[] = [
-  { value: "hoy", label: "Hoy" },
-  { value: "7d", label: "Últimos 7 días" },
-  { value: "30d", label: "Últimos 30 días" },
-  { value: "todo", label: "Todo" },
-];
-
-function desdeFecha(periodo: Periodo): string | null {
-  if (periodo === "hoy") {
-    return inicioDeDiaMX(0).toISOString();
-  }
-  const ahora = new Date();
-  if (periodo === "7d") {
-    ahora.setDate(ahora.getDate() - 7);
-    return ahora.toISOString();
-  }
-  if (periodo === "30d") {
-    ahora.setDate(ahora.getDate() - 30);
-    return ahora.toISOString();
-  }
-  return null;
-}
+import { PERIODOS, resolverRango, queryStringRango, obtenerDatosReporte } from "./data";
 
 function money(n: number) {
   return `$${n.toFixed(2)}`;
@@ -35,12 +10,9 @@ function money(n: number) {
 export default async function ReportesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ periodo?: string }>;
+  searchParams: Promise<{ periodo?: string; desde?: string; hasta?: string }>;
 }) {
-  const { periodo: periodoParam } = await searchParams;
-  const periodo: Periodo = PERIODOS.some((p) => p.value === periodoParam)
-    ? (periodoParam as Periodo)
-    : "hoy";
+  const params = await searchParams;
 
   const supabase = await createClient();
 
@@ -66,94 +38,105 @@ export default async function ReportesPage({
     redirect("/");
   }
 
-  const desde = desdeFecha(periodo);
+  const rango = resolverRango(params);
+  const {
+    ventasTotales,
+    numTickets,
+    ticketPromedio,
+    totalDescuentos,
+    diferenciaAcumulada,
+    turnosConAlerta,
+    ventasPorServicio,
+    descuentos,
+    turnos,
+  } = await obtenerDatosReporte(rango);
 
-  const turnosQuery = supabase
-    .from("turnos")
-    .select("*")
-    .eq("estado", "cerrado")
-    .order("hora_cierre", { ascending: false });
-  if (desde) turnosQuery.gte("hora_cierre", desde);
-
-  const ticketsQuery = supabase
-    .from("tickets")
-    .select("id, servicio_id, empleado_id, creado_por, descuento_monto, descuento_autorizado_por, estado, hora_entrada")
-    .eq("estado", "entregado")
-    .order("hora_entrada", { ascending: false });
-  if (desde) ticketsQuery.gte("hora_entrada", desde);
-
-  const pagosQuery = supabase
-    .from("pagos")
-    .select("ticket_id, monto, metodo, creado_en")
-    .order("creado_en", { ascending: false });
-  if (desde) pagosQuery.gte("creado_en", desde);
-
-  const [{ data: turnos }, { data: tickets }, { data: pagos }, { data: servicios }, { data: usuarios }] =
-    await Promise.all([
-      turnosQuery,
-      ticketsQuery,
-      pagosQuery,
-      supabase.from("servicios_catalogo").select("id, nombre"),
-      supabase.from("usuarios").select("id, nombre"),
-    ]);
-
-  const nombrePorUsuario = new Map((usuarios ?? []).map((u) => [u.id, u.nombre]));
-  const nombrePorServicio = new Map((servicios ?? []).map((s) => [s.id, s.nombre]));
-
-  const montoPorTicket = new Map<string, number>();
-  for (const pago of pagos ?? []) {
-    montoPorTicket.set(pago.ticket_id, (montoPorTicket.get(pago.ticket_id) ?? 0) + pago.monto);
-  }
-
-  const ventasTotales = (pagos ?? []).reduce((acc, p) => acc + p.monto, 0);
-  const numTickets = (tickets ?? []).length;
-  const ticketPromedio = numTickets > 0 ? ventasTotales / numTickets : 0;
-  const totalDescuentos = (tickets ?? []).reduce((acc, t) => acc + t.descuento_monto, 0);
-  const diferenciaAcumulada = (turnos ?? []).reduce((acc, t) => acc + (t.diferencia ?? 0), 0);
-  const turnosConAlerta = (turnos ?? []).filter((t) => t.alerta_diferencia).length;
-
-  const ventasPorServicioMap = new Map<string, { nombre: string; tickets: number; total: number }>();
-  for (const t of tickets ?? []) {
-    const nombre = nombrePorServicio.get(t.servicio_id) ?? "—";
-    const entry = ventasPorServicioMap.get(t.servicio_id) ?? { nombre, tickets: 0, total: 0 };
-    entry.tickets += 1;
-    entry.total += montoPorTicket.get(t.id) ?? 0;
-    ventasPorServicioMap.set(t.servicio_id, entry);
-  }
-  const ventasPorServicio = Array.from(ventasPorServicioMap.values()).sort((a, b) => b.total - a.total);
-
-  const descuentos = (tickets ?? [])
-    .filter((t) => t.descuento_monto > 0)
-    .map((t) => ({
-      id: t.id,
-      fecha: t.hora_entrada,
-      servicio: nombrePorServicio.get(t.servicio_id) ?? "—",
-      empleado: nombrePorUsuario.get(t.creado_por) ?? "—",
-      autorizadoPor: t.descuento_autorizado_por ? nombrePorUsuario.get(t.descuento_autorizado_por) ?? "—" : "—",
-      monto: t.descuento_monto,
-    }));
+  const qs = queryStringRango(rango);
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Reportes</h1>
-        <p className="text-sm text-muted">Ventas, descuentos y diferencias de caja para control del negocio.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Reportes</h1>
+          <p className="text-sm text-muted">Ventas, descuentos y diferencias de caja para control del negocio.</p>
+        </div>
+        <div className="flex gap-2">
+          <a
+            href={`/reportes/exportar/pdf?${qs}`}
+            className="rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary transition hover:bg-primary/20"
+          >
+            Descargar PDF
+          </a>
+          <a
+            href={`/reportes/exportar/excel?${qs}`}
+            className="rounded-lg border border-success/40 bg-success/10 px-3 py-1.5 text-sm font-medium text-success transition hover:bg-success/20"
+          >
+            Descargar Excel
+          </a>
+        </div>
       </div>
 
-      <div className="flex gap-2">
-        {PERIODOS.map((p) => (
-          <Link
-            key={p.value}
-            href={`/reportes?periodo=${p.value}`}
-            className={`rounded-lg border px-3 py-1.5 text-sm transition ${
-              p.value === periodo
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex gap-2">
+          {PERIODOS.map((p) => (
+            <Link
+              key={p.value}
+              href={`/reportes?periodo=${p.value}`}
+              className={`rounded-lg border px-3 py-1.5 text-sm transition ${
+                !rango.personalizado && p.value === rango.periodo
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border text-muted hover:text-foreground"
+              }`}
+            >
+              {p.label}
+            </Link>
+          ))}
+        </div>
+
+        <form className="flex flex-wrap items-end gap-2 rounded-lg border border-border bg-surface px-3 py-2">
+          <div className="flex flex-col gap-1">
+            <label htmlFor="desde" className="text-[11px] text-muted">
+              Desde
+            </label>
+            <input
+              id="desde"
+              type="date"
+              name="desde"
+              defaultValue={rango.desdeInput}
+              className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none focus:border-accent"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label htmlFor="hasta" className="text-[11px] text-muted">
+              Hasta
+            </label>
+            <input
+              id="hasta"
+              type="date"
+              name="hasta"
+              defaultValue={rango.hastaInput}
+              className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none focus:border-accent"
+            />
+          </div>
+          <button
+            type="submit"
+            className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
+              rango.personalizado
                 ? "border-primary bg-primary/10 text-primary"
                 : "border-border text-muted hover:text-foreground"
             }`}
           >
-            {p.label}
-          </Link>
-        ))}
+            Filtrar
+          </button>
+          {rango.personalizado && (
+            <Link
+              href="/reportes"
+              className="rounded-lg border border-border px-3 py-1.5 text-sm text-muted hover:text-foreground"
+            >
+              Quitar filtro
+            </Link>
+          )}
+        </form>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -266,24 +249,22 @@ export default async function ReportesPage({
               </tr>
             </thead>
             <tbody>
-              {(turnos ?? []).map((t) => (
+              {turnos.map((t) => (
                 <tr key={t.id} className="border-t border-border">
                   <td className="px-4 py-3 text-muted">
-                    {t.hora_cierre ? new Date(t.hora_cierre).toLocaleString("es-MX") : "—"}
+                    {t.horaCierre ? new Date(t.horaCierre).toLocaleString("es-MX") : "—"}
                   </td>
-                  <td className="px-4 py-3 text-foreground">{nombrePorUsuario.get(t.usuario_apertura_id) ?? "—"}</td>
-                  <td className="px-4 py-3 text-foreground">
-                    {t.usuario_cierre_id ? nombrePorUsuario.get(t.usuario_cierre_id) ?? "—" : "—"}
-                  </td>
-                  <td className="px-4 py-3 text-muted">{money(t.efectivo_inicial)}</td>
-                  <td className="px-4 py-3 text-muted">{t.efectivo_esperado != null ? money(t.efectivo_esperado) : "—"}</td>
-                  <td className="px-4 py-3 text-muted">{t.efectivo_contado != null ? money(t.efectivo_contado) : "—"}</td>
-                  <td className={`px-4 py-3 font-medium ${t.alerta_diferencia ? "text-primary" : "text-foreground"}`}>
+                  <td className="px-4 py-3 text-foreground">{t.abrio}</td>
+                  <td className="px-4 py-3 text-foreground">{t.cerro}</td>
+                  <td className="px-4 py-3 text-muted">{money(t.inicial)}</td>
+                  <td className="px-4 py-3 text-muted">{t.esperado != null ? money(t.esperado) : "—"}</td>
+                  <td className="px-4 py-3 text-muted">{t.contado != null ? money(t.contado) : "—"}</td>
+                  <td className={`px-4 py-3 font-medium ${t.alertaDiferencia ? "text-primary" : "text-foreground"}`}>
                     {t.diferencia != null ? money(t.diferencia) : "—"}
                   </td>
                 </tr>
               ))}
-              {(turnos ?? []).length === 0 && (
+              {turnos.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-4 py-6 text-center text-muted">
                     Sin turnos cerrados en este período.

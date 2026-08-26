@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
-import type { Turno } from "@/types/database.types";
-import type { TicketConDetalle, ServicioConPrecios, RolUsuario } from "./types";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import type { Turno, Lavador } from "@/types/database.types";
+import type { TicketConDetalle, ServicioConPrecios } from "./types";
 import { nombreTamano, precioPorTamano } from "@/lib/servicios";
 import { AbrirTurnoForm } from "./AbrirTurnoForm";
 import { NuevoTicketModal } from "./NuevoTicketModal";
@@ -83,16 +83,16 @@ function ordenar(tickets: TicketConDetalle[]) {
 export function TicketsBoard({
   turno,
   servicios,
+  lavadores,
   tickets,
-  rolActual,
   usuarioActualId,
   resumenCaja,
   serverAhora,
 }: {
   turno: Turno | null;
   servicios: ServicioConPrecios[];
+  lavadores: Lavador[];
   tickets: TicketConDetalle[];
-  rolActual: RolUsuario;
   usuarioActualId: string;
   resumenCaja: ResumenCaja | null;
   serverAhora: string;
@@ -126,6 +126,18 @@ export function TicketsBoard({
     setOffsetMs(new Date(serverAhora).getTime() - Date.now());
   }, [serverAhora]);
   const ahoraCorregido = ahora + offsetMs;
+
+  // Cuántos tickets no entregados lleva cada lavador ahora mismo, para
+  // mostrarlo como referencia (no como bloqueo) al asignar uno nuevo.
+  const enProcesoPorLavador = useMemo(() => {
+    const mapa: Record<string, number> = {};
+    for (const t of tickets) {
+      if (t.estado !== "entregado" && t.lavador?.id) {
+        mapa[t.lavador.id] = (mapa[t.lavador.id] ?? 0) + 1;
+      }
+    }
+    return mapa;
+  }, [tickets]);
 
   const encabezado = (
     <div>
@@ -265,6 +277,9 @@ export function TicketsBoard({
                         <span className="text-warning"> · -${ticket.descuento_monto.toFixed(2)} desc.</span>
                       )}
                     </p>
+                    {ticket.lavador && (
+                      <p className="text-xs text-muted">🧑‍🔧 {ticket.lavador.nombre}</p>
+                    )}
 
                     <div className="flex flex-wrap items-center gap-1.5">
                       {ticket.tienePago && (
@@ -357,7 +372,8 @@ export function TicketsBoard({
         <NuevoTicketModal
           turnoId={turno.id}
           servicios={servicios}
-          rolActual={rolActual}
+          lavadores={lavadores}
+          enProcesoPorLavador={enProcesoPorLavador}
           usuarioActualId={usuarioActualId}
           onClose={() => setMostrarNuevo(false)}
         />
@@ -403,6 +419,7 @@ export function TicketsBoard({
           ticketActual={{
             servicioNombre: clienteDetalleTicket.servicio?.nombre ?? null,
             empleadoNombre: clienteDetalleTicket.empleado?.nombre ?? null,
+            lavadorNombre: clienteDetalleTicket.lavador?.nombre ?? null,
             placas: clienteDetalleTicket.vehiculo?.placas ?? null,
           }}
           onClose={() => setClienteDetalleTicket(null)}

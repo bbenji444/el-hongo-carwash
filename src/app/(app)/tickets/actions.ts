@@ -150,25 +150,13 @@ export async function detalleCliente(clienteId: string) {
   };
 }
 
-export async function usuariosActivos() {
-  const supabase = await createClient();
-
-  const { data, error } = await supabase
-    .from("usuarios")
-    .select("id, nombre, rol")
-    .eq("activo", true)
-    .order("nombre");
-
-  if (error) return { data: [], error: error.message };
-  return { data: data ?? [], error: null };
-}
-
 export async function crearTicket(input: {
   clienteId: string | null;
   vehiculoId: string | null;
   servicioId: string;
   tamanoVehiculo: TamanoVehiculo;
   empleadoId: string;
+  lavadorId: string | null;
   turnoId: string;
 }) {
   const supabase = await createClient();
@@ -189,6 +177,7 @@ export async function crearTicket(input: {
     servicio_id: input.servicioId,
     tamano_vehiculo: input.tamanoVehiculo,
     empleado_id: input.empleadoId,
+    lavador_id: input.lavadorId,
     turno_id: input.turnoId,
     creado_por: user.id,
   });

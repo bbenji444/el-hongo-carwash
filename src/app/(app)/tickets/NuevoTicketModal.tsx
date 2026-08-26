@@ -1,31 +1,57 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import type { RolUsuario, TamanoVehiculo } from "@/types/database.types";
+import type { TamanoVehiculo, Lavador } from "@/types/database.types";
 import { TAMANOS_VEHICULO, nombreTamano, precioPorTamano } from "@/lib/servicios";
 import type { ServicioConPrecios } from "./types";
-import {
-  buscarClientes,
-  crearCliente,
-  crearVehiculo,
-  crearTicket,
-  progresoLealtadCliente,
-  usuariosActivos,
-} from "./actions";
+import { buscarClientes, crearCliente, crearVehiculo, crearTicket, progresoLealtadCliente } from "./actions";
 
 type ClienteResultado = { id: string; nombre: string; telefono: string | null };
 type LealtadInfo = { lavadasEnCiclo: number; proximaGratis: boolean; ultimaLavada: string | null };
 
+const ICONO_TAMANO: Record<TamanoVehiculo, string> = {
+  automovil: "🚗",
+  camioneta_chica: "🚙",
+  camioneta_grande: "🚐",
+  camioneta_extra_grande: "🚚",
+};
+
+function BotonSeleccion({
+  seleccionado,
+  onClick,
+  children,
+}: {
+  seleccionado: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex flex-col items-center justify-center gap-1 rounded-lg border-2 px-2 py-2.5 text-center transition ${
+        seleccionado
+          ? "border-primary bg-primary/10 text-foreground"
+          : "border-border bg-background text-muted hover:border-primary/40 hover:text-foreground"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
 export function NuevoTicketModal({
   turnoId,
   servicios,
-  rolActual,
+  lavadores,
+  enProcesoPorLavador,
   usuarioActualId,
   onClose,
 }: {
   turnoId: string;
   servicios: ServicioConPrecios[];
-  rolActual: RolUsuario;
+  lavadores: Lavador[];
+  enProcesoPorLavador: Record<string, number>;
   usuarioActualId: string;
   onClose: () => void;
 }) {
@@ -43,17 +69,9 @@ export function NuevoTicketModal({
   const [tamanoVehiculo, setTamanoVehiculo] = useState<TamanoVehiculo>("automovil");
 
   const [servicioId, setServicioId] = useState(servicios[0]?.id ?? "");
-
-  const [empleados, setEmpleados] = useState<{ id: string; nombre: string; rol: RolUsuario }[]>([]);
-  const [empleadoId, setEmpleadoId] = useState(usuarioActualId);
+  const [lavadorId, setLavadorId] = useState("");
 
   const [lealtad, setLealtad] = useState<LealtadInfo | null>(null);
-
-  useEffect(() => {
-    if (rolActual === "encargado" || rolActual === "dueno") {
-      usuariosActivos().then((res) => setEmpleados(res.data as { id: string; nombre: string; rol: RolUsuario }[]));
-    }
-  }, [rolActual]);
 
   useEffect(() => {
     if (!clienteQuery.trim() || clienteSeleccionado) return;
@@ -91,11 +109,11 @@ export function NuevoTicketModal({
     setError(null);
 
     if (!servicioId) {
-      setError("Selecciona un servicio.");
+      setError("Selecciona un paquete.");
       return;
     }
-    if (!empleadoId) {
-      setError("Selecciona el empleado que realizará el servicio.");
+    if (!lavadorId) {
+      setError("Selecciona quién va a lavar el auto.");
       return;
     }
     if (creandoClienteNuevo && !nuevoClienteNombre.trim()) {
@@ -130,7 +148,8 @@ export function NuevoTicketModal({
         vehiculoId,
         servicioId,
         tamanoVehiculo,
-        empleadoId,
+        empleadoId: usuarioActualId,
+        lavadorId,
         turnoId,
       });
 
@@ -235,68 +254,72 @@ export function NuevoTicketModal({
             </div>
           )}
 
-          {/* Vehículo */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-muted">Placas (opcional)</label>
-              <input
-                value={placas}
-                onChange={(e) => setPlacas(e.target.value)}
-                className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-muted">Tamaño de vehículo</label>
-              <select
-                value={tamanoVehiculo}
-                onChange={(e) => setTamanoVehiculo(e.target.value as TamanoVehiculo)}
-                className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
-              >
-                {TAMANOS_VEHICULO.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
+          {/* Placas */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-muted">Placas (opcional)</label>
+            <input
+              value={placas}
+              onChange={(e) => setPlacas(e.target.value)}
+              className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+            />
+          </div>
+
+          {/* Tamaño de vehículo */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-muted">Tamaño de vehículo</label>
+            <div className="grid grid-cols-4 gap-2">
+              {TAMANOS_VEHICULO.map((t) => (
+                <BotonSeleccion
+                  key={t.value}
+                  seleccionado={tamanoVehiculo === t.value}
+                  onClick={() => setTamanoVehiculo(t.value)}
+                >
+                  <span className="text-xl">{ICONO_TAMANO[t.value]}</span>
+                  <span className="text-[11px] leading-tight">{t.label}</span>
+                </BotonSeleccion>
+              ))}
             </div>
           </div>
 
           {/* Servicio */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-muted">Servicio</label>
-            <select
-              value={servicioId}
-              onChange={(e) => setServicioId(e.target.value)}
-              className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
-            >
+            <label className="text-xs font-medium text-muted">Paquete</label>
+            <div className="grid grid-cols-2 gap-2">
               {servicios.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.nombre} · ${precioPorTamano(s.precios, tamanoVehiculo).toFixed(2)}
-                </option>
+                <BotonSeleccion key={s.id} seleccionado={servicioId === s.id} onClick={() => setServicioId(s.id)}>
+                  <span className="flex items-center gap-1 text-sm font-medium">
+                    {s.destacado && <span title="Destacado">⭐</span>}
+                    {s.nombre}
+                  </span>
+                  <span className="text-xs">${precioPorTamano(s.precios, tamanoVehiculo).toFixed(2)}</span>
+                </BotonSeleccion>
               ))}
-            </select>
+              {servicios.length === 0 && (
+                <p className="col-span-2 text-sm text-muted">No hay paquetes activos en el catálogo.</p>
+              )}
+            </div>
           </div>
 
-          {/* Empleado */}
+          {/* Lavador */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-muted">Empleado asignado</label>
-            {rolActual === "cajero" ? (
-              <p className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-muted">
-                Tú (se asigna automáticamente)
-              </p>
-            ) : (
-              <select
-                value={empleadoId}
-                onChange={(e) => setEmpleadoId(e.target.value)}
-                className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
-              >
-                {empleados.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.nombre}
-                  </option>
-                ))}
-              </select>
-            )}
+            <label className="text-xs font-medium text-muted">Lavador</label>
+            <div className="grid grid-cols-3 gap-2">
+              {lavadores.map((l) => {
+                const enProceso = enProcesoPorLavador[l.id] ?? 0;
+                return (
+                  <BotonSeleccion key={l.id} seleccionado={lavadorId === l.id} onClick={() => setLavadorId(l.id)}>
+                    <span className="text-xl">🧑‍🔧</span>
+                    <span className="text-xs font-medium leading-tight">{l.nombre}</span>
+                    {enProceso > 0 && <span className="text-[10px] text-warning">{enProceso} en curso</span>}
+                  </BotonSeleccion>
+                );
+              })}
+              {lavadores.length === 0 && (
+                <p className="col-span-3 text-sm text-muted">
+                  No hay lavadores registrados. Agrega uno en la sección Lavadores.
+                </p>
+              )}
+            </div>
           </div>
 
           {error && (

@@ -71,28 +71,39 @@ export default async function DesgloseTurnoPage({
   const clienteIds = [...new Set((tickets ?? []).map((t) => t.cliente_id).filter(Boolean))] as string[];
   const vehiculoIds = [...new Set((tickets ?? []).map((t) => t.vehiculo_id).filter(Boolean))] as string[];
   const empleadoIds = [...new Set((tickets ?? []).map((t) => t.empleado_id).filter(Boolean))] as string[];
+  const lavadorIds = [...new Set((tickets ?? []).map((t) => t.lavador_id).filter(Boolean))] as string[];
 
-  const [{ data: servicios }, { data: clientes }, { data: vehiculos }, { data: empleados }, { data: usuariosNombres }] =
-    await Promise.all([
-      servicioIds.length
-        ? supabase.from("servicios_catalogo").select("id, nombre").in("id", servicioIds)
-        : Promise.resolve({ data: [] }),
-      clienteIds.length
-        ? supabase.from("clientes").select("id, nombre").in("id", clienteIds)
-        : Promise.resolve({ data: [] }),
-      vehiculoIds.length
-        ? supabase.from("vehiculos").select("id, placas").in("id", vehiculoIds)
-        : Promise.resolve({ data: [] }),
-      empleadoIds.length
-        ? supabase.from("usuarios").select("id, nombre").in("id", empleadoIds)
-        : Promise.resolve({ data: [] }),
-      supabase.from("usuarios").select("id, nombre").in("id", [turno.usuario_apertura_id, turno.usuario_cierre_id].filter(Boolean) as string[]),
-    ]);
+  const [
+    { data: servicios },
+    { data: clientes },
+    { data: vehiculos },
+    { data: empleados },
+    { data: lavadoresTurno },
+    { data: usuariosNombres },
+  ] = await Promise.all([
+    servicioIds.length
+      ? supabase.from("servicios_catalogo").select("id, nombre").in("id", servicioIds)
+      : Promise.resolve({ data: [] }),
+    clienteIds.length
+      ? supabase.from("clientes").select("id, nombre").in("id", clienteIds)
+      : Promise.resolve({ data: [] }),
+    vehiculoIds.length
+      ? supabase.from("vehiculos").select("id, placas").in("id", vehiculoIds)
+      : Promise.resolve({ data: [] }),
+    empleadoIds.length
+      ? supabase.from("usuarios").select("id, nombre").in("id", empleadoIds)
+      : Promise.resolve({ data: [] }),
+    lavadorIds.length
+      ? supabase.from("lavadores").select("id, nombre").in("id", lavadorIds)
+      : Promise.resolve({ data: [] }),
+    supabase.from("usuarios").select("id, nombre").in("id", [turno.usuario_apertura_id, turno.usuario_cierre_id].filter(Boolean) as string[]),
+  ]);
 
   const nombrePorServicio = new Map((servicios ?? []).map((s) => [s.id, s.nombre]));
   const nombrePorCliente = new Map((clientes ?? []).map((c) => [c.id, c.nombre]));
   const placasPorVehiculo = new Map((vehiculos ?? []).map((v) => [v.id, v.placas]));
   const nombrePorEmpleado = new Map((empleados ?? []).map((e) => [e.id, e.nombre]));
+  const nombrePorLavador = new Map((lavadoresTurno ?? []).map((l) => [l.id, l.nombre]));
   const nombrePorUsuario = new Map((usuariosNombres ?? []).map((u) => [u.id, u.nombre]));
 
   const pagosPorTicket = new Map<string, { monto: number; metodo: PagoMetodo }[]>();
@@ -113,6 +124,7 @@ export default async function DesgloseTurnoPage({
       servicio: nombrePorServicio.get(t.servicio_id) ?? "—",
       tamanoVehiculo: t.tamano_vehiculo,
       empleado: nombrePorEmpleado.get(t.empleado_id) ?? "—",
+      lavador: t.lavador_id ? nombrePorLavador.get(t.lavador_id) ?? "—" : "—",
       estado: t.estado,
       descuentoMonto: t.descuento_monto,
       lavadaGratis: t.lavada_gratis,
@@ -271,6 +283,7 @@ export default async function DesgloseTurnoPage({
               <th className="px-4 py-3">Paquete</th>
               <th className="px-4 py-3">Tamaño</th>
               <th className="px-4 py-3">Empleado</th>
+              <th className="px-4 py-3">Lavador</th>
               <th className="px-4 py-3">Estado</th>
               <th className="px-4 py-3">Método</th>
               <th className="px-4 py-3">Monto</th>
@@ -292,6 +305,7 @@ export default async function DesgloseTurnoPage({
                 </td>
                 <td className="px-4 py-3 text-muted">{nombreTamano(t.tamanoVehiculo)}</td>
                 <td className="px-4 py-3 text-foreground">{t.empleado}</td>
+                <td className="px-4 py-3 text-muted">{t.lavador}</td>
                 <td className="px-4 py-3 text-muted">{ESTADO_LABEL[t.estado] ?? t.estado}</td>
                 <td className="px-4 py-3 text-muted">
                   {t.lavadaGratis
@@ -305,7 +319,7 @@ export default async function DesgloseTurnoPage({
             ))}
             {filaFiltrada.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-4 py-6 text-center text-muted">
+                <td colSpan={10} className="px-4 py-6 text-center text-muted">
                   {hayFiltro ? "Ningún ticket coincide con este filtro." : "Sin tickets en este turno."}
                 </td>
               </tr>

@@ -169,6 +169,27 @@ export interface Database {
         };
         Relationships: [];
       };
+      lavadores: {
+        Row: {
+          id: string;
+          nombre: string;
+          activo: boolean;
+          creado_en: string;
+        };
+        Insert: {
+          id?: string;
+          nombre: string;
+          activo?: boolean;
+          creado_en?: string;
+        };
+        Update: {
+          id?: string;
+          nombre?: string;
+          activo?: boolean;
+          creado_en?: string;
+        };
+        Relationships: [];
+      };
       tickets: {
         Row: {
           id: string;
@@ -177,6 +198,7 @@ export interface Database {
           servicio_id: string;
           tamano_vehiculo: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande";
           empleado_id: string;
+          lavador_id: string | null;
           turno_id: string;
           lavada_gratis: boolean;
           prioridad: boolean;
@@ -195,6 +217,7 @@ export interface Database {
           servicio_id: string;
           tamano_vehiculo: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande";
           empleado_id: string;
+          lavador_id?: string | null;
           turno_id: string;
           lavada_gratis?: boolean;
           prioridad?: boolean;
@@ -213,6 +236,7 @@ export interface Database {
           servicio_id?: string;
           tamano_vehiculo?: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande";
           empleado_id?: string;
+          lavador_id?: string | null;
           turno_id?: string;
           lavada_gratis?: boolean;
           prioridad?: boolean;
@@ -332,6 +356,7 @@ export type ServicioCatalogo = Database["public"]["Tables"]["servicios_catalogo"
 export type ServicioPrecio = Database["public"]["Tables"]["servicios_precios"]["Row"];
 export type Cliente = Database["public"]["Tables"]["clientes"]["Row"];
 export type Vehiculo = Database["public"]["Tables"]["vehiculos"]["Row"];
+export type Lavador = Database["public"]["Tables"]["lavadores"]["Row"];
 export type Ticket = Database["public"]["Tables"]["tickets"]["Row"];
 export type Pago = Database["public"]["Tables"]["pagos"]["Row"];
 export type Inventario = Database["public"]["Tables"]["inventario"]["Row"];

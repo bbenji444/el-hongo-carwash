@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { label: "Dashboard", href: "/" },
   { label: "Tickets", href: "/tickets" },
   { label: "Servicios", href: "/servicios" },
+  { label: "Lavadores", href: "/lavadores" },
   { label: "Caja y turnos", href: "/turnos" },
   { label: "Clientes", href: "/clientes" },
   { label: "Inventario", href: "/inventario" },

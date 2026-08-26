@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { TicketsBoard } from "./TicketsBoard";
-import type { RolUsuario, ServicioPrecio } from "@/types/database.types";
+import type { ServicioPrecio } from "@/types/database.types";
 
 export default async function TicketsPage() {
   const supabase = await createClient();
@@ -54,6 +54,12 @@ export default async function TicketsPage() {
     precios: preciosPorServicio.get(s.id) ?? [],
   }));
 
+  const { data: lavadoresActivos } = await supabase
+    .from("lavadores")
+    .select("*")
+    .eq("activo", true)
+    .order("nombre");
+
   const tickets = turno
     ? (
         await supabase
@@ -72,25 +78,31 @@ export default async function TicketsPage() {
   const clienteIds = [...new Set((tickets ?? []).map((t) => t.cliente_id).filter(Boolean))] as string[];
   const vehiculoIds = [...new Set((tickets ?? []).map((t) => t.vehiculo_id).filter(Boolean))] as string[];
   const empleadoIds = [...new Set((tickets ?? []).map((t) => t.empleado_id).filter(Boolean))] as string[];
+  const lavadorIds = [...new Set((tickets ?? []).map((t) => t.lavador_id).filter(Boolean))] as string[];
 
-  const [{ data: clientes }, { data: vehiculos }, { data: empleados }, { data: pagos }] = await Promise.all([
-    clienteIds.length
-      ? supabase.from("clientes").select("id, nombre, telefono").in("id", clienteIds)
-      : Promise.resolve({ data: [] }),
-    vehiculoIds.length
-      ? supabase.from("vehiculos").select("id, placas, tipo_vehiculo").in("id", vehiculoIds)
-      : Promise.resolve({ data: [] }),
-    empleadoIds.length
-      ? supabase.from("usuarios").select("id, nombre").in("id", empleadoIds)
-      : Promise.resolve({ data: [] }),
-    turno
-      ? supabase.from("pagos").select("ticket_id, monto, metodo").eq("turno_id", turno.id)
-      : Promise.resolve({ data: [] }),
-  ]);
+  const [{ data: clientes }, { data: vehiculos }, { data: empleados }, { data: lavadoresTickets }, { data: pagos }] =
+    await Promise.all([
+      clienteIds.length
+        ? supabase.from("clientes").select("id, nombre, telefono").in("id", clienteIds)
+        : Promise.resolve({ data: [] }),
+      vehiculoIds.length
+        ? supabase.from("vehiculos").select("id, placas, tipo_vehiculo").in("id", vehiculoIds)
+        : Promise.resolve({ data: [] }),
+      empleadoIds.length
+        ? supabase.from("usuarios").select("id, nombre").in("id", empleadoIds)
+        : Promise.resolve({ data: [] }),
+      lavadorIds.length
+        ? supabase.from("lavadores").select("id, nombre").in("id", lavadorIds)
+        : Promise.resolve({ data: [] }),
+      turno
+        ? supabase.from("pagos").select("ticket_id, monto, metodo").eq("turno_id", turno.id)
+        : Promise.resolve({ data: [] }),
+    ]);
 
   const clienteMap = new Map((clientes ?? []).map((c) => [c.id, c]));
   const vehiculoMap = new Map((vehiculos ?? []).map((v) => [v.id, v]));
   const empleadoMap = new Map((empleados ?? []).map((e) => [e.id, e]));
+  const lavadorMap = new Map((lavadoresTickets ?? []).map((l) => [l.id, l]));
   const pagosPorTicket = new Map<string, { monto: number; metodo: string }[]>();
   for (const pago of pagos ?? []) {
     const lista = pagosPorTicket.get(pago.ticket_id) ?? [];
@@ -104,6 +116,7 @@ export default async function TicketsPage() {
     cliente: t.cliente_id ? clienteMap.get(t.cliente_id) ?? null : null,
     vehiculo: t.vehiculo_id ? vehiculoMap.get(t.vehiculo_id) ?? null : null,
     empleado: t.empleado_id ? empleadoMap.get(t.empleado_id) ?? null : null,
+    lavador: t.lavador_id ? lavadorMap.get(t.lavador_id) ?? null : null,
     tienePago: (pagosPorTicket.get(t.id) ?? []).length > 0 || t.lavada_gratis,
   }));
 
@@ -165,8 +178,8 @@ export default async function TicketsPage() {
     <TicketsBoard
       turno={turno ?? null}
       servicios={servicios ?? []}
+      lavadores={lavadoresActivos ?? []}
       tickets={ticketsConDetalle}
-      rolActual={usuario.rol as RolUsuario}
       usuarioActualId={usuario.id}
       resumenCaja={resumenCaja}
       serverAhora={new Date().toISOString()}

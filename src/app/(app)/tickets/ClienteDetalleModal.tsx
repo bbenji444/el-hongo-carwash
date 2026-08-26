@@ -11,7 +11,12 @@ export function ClienteDetalleModal({
   onClose,
 }: {
   clienteId: string;
-  ticketActual: { servicioNombre: string | null; empleadoNombre: string | null; placas: string | null };
+  ticketActual: {
+    servicioNombre: string | null;
+    empleadoNombre: string | null;
+    lavadorNombre: string | null;
+    placas: string | null;
+  };
   onClose: () => void;
 }) {
   const [detalle, setDetalle] = useState<Detalle | null>(null);
@@ -64,6 +69,9 @@ export function ClienteDetalleModal({
               )}
               {ticketActual.empleadoNombre && (
                 <p className="text-muted">Atendido por: {ticketActual.empleadoNombre}</p>
+              )}
+              {ticketActual.lavadorNombre && (
+                <p className="text-muted">Lavador: {ticketActual.lavadorNombre}</p>
               )}
               {ticketActual.placas && <p className="text-muted">Placas: {ticketActual.placas}</p>}
             </div>

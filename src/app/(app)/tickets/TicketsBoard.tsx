@@ -75,7 +75,14 @@ function formatearMinutos(minutos: number) {
   return resto > 0 ? `${horas}h ${resto}min` : `${horas}h`;
 }
 
-function ordenar(tickets: TicketConDetalle[]) {
+function ordenar(tickets: TicketConDetalle[], estado: string) {
+  if (estado === "entregado") {
+    // Entregados: el más reciente arriba, para no tener que bajar en la
+    // lista a buscar el ticket que se acaba de entregar.
+    return [...tickets].sort(
+      (a, b) => new Date(b.hora_salida ?? b.hora_entrada).getTime() - new Date(a.hora_salida ?? a.hora_entrada).getTime()
+    );
+  }
   return [...tickets].sort((a, b) => {
     if (a.prioridad !== b.prioridad) return a.prioridad ? -1 : 1;
     return new Date(a.hora_entrada).getTime() - new Date(b.hora_entrada).getTime();
@@ -237,7 +244,7 @@ export function TicketsBoard({
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
         {COLUMNAS.map((col) => {
-          const ticketsCol = ordenar(tickets.filter((t) => t.estado === col.estado));
+          const ticketsCol = ordenar(tickets.filter((t) => t.estado === col.estado), col.estado);
           return (
             <div key={col.estado} className="flex flex-col gap-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted">

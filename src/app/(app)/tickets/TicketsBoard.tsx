@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import type { Turno, Lavador, ConfiguracionApp } from "@/types/database.types";
+import type { Turno, Lavador, ConfiguracionApp, ExtraCatalogo } from "@/types/database.types";
 import type { TicketConDetalle, ServicioConPrecios } from "./types";
+import { sumaExtras } from "./types";
 import { nombreTamano, precioPorTamano } from "@/lib/servicios";
 import { AbrirTurnoForm } from "./AbrirTurnoForm";
 import { NuevoTicketModal } from "./NuevoTicketModal";
@@ -93,6 +94,7 @@ export function TicketsBoard({
   turno,
   servicios,
   lavadores,
+  extras,
   tickets,
   usuarioActualId,
   resumenCaja,
@@ -103,6 +105,7 @@ export function TicketsBoard({
   turno: Turno | null;
   servicios: ServicioConPrecios[];
   lavadores: Lavador[];
+  extras: ExtraCatalogo[];
   tickets: TicketConDetalle[];
   usuarioActualId: string;
   resumenCaja: ResumenCaja | null;
@@ -293,6 +296,11 @@ export function TicketsBoard({
                         <span className="text-warning"> · -${ticket.descuento_monto.toFixed(2)} desc.</span>
                       )}
                     </p>
+                    {ticket.extras.length > 0 && (
+                      <p className="text-xs text-accent">
+                        + {ticket.extras.map((e) => e.nombre).join(", ")} · ${sumaExtras(ticket.extras).toFixed(2)}
+                      </p>
+                    )}
                     {ticket.lavador && (
                       <p className="text-xs text-muted">
                         {config.emoji_lavador} {ticket.lavador.nombre}
@@ -405,6 +413,7 @@ export function TicketsBoard({
           turnoId={turno.id}
           servicios={servicios}
           lavadores={lavadores}
+          extras={extras}
           enProcesoPorLavador={enProcesoPorLavador}
           config={config}
           usuarioActualId={usuarioActualId}
@@ -443,6 +452,7 @@ export function TicketsBoard({
           ticket={editarTicket}
           servicios={servicios}
           lavadores={lavadores}
+          extras={extras}
           enProcesoPorLavador={enProcesoPorLavador}
           config={config}
           onClose={() => setEditarTicket(null)}

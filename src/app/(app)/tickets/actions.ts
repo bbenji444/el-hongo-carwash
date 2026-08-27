@@ -158,6 +158,7 @@ export async function crearTicket(input: {
   empleadoId: string;
   lavadorId: string | null;
   turnoId: string;
+  extraIds?: string[];
 }) {
   const supabase = await createClient();
 
@@ -171,21 +172,58 @@ export async function crearTicket(input: {
   // trigger tr_ticket_descuento_autorizado del lado del servidor (cuenta las
   // lavadas previas del cliente) — aquí no se manda ni se confía en ningún
   // monto de descuento.
-  const { error } = await supabase.from("tickets").insert({
-    cliente_id: input.clienteId,
-    vehiculo_id: input.vehiculoId,
-    servicio_id: input.servicioId,
-    tamano_vehiculo: input.tamanoVehiculo,
-    empleado_id: input.empleadoId,
-    lavador_id: input.lavadorId,
-    turno_id: input.turnoId,
-    creado_por: user.id,
-  });
+  const { data: ticket, error } = await supabase
+    .from("tickets")
+    .insert({
+      cliente_id: input.clienteId,
+      vehiculo_id: input.vehiculoId,
+      servicio_id: input.servicioId,
+      tamano_vehiculo: input.tamanoVehiculo,
+      empleado_id: input.empleadoId,
+      lavador_id: input.lavadorId,
+      turno_id: input.turnoId,
+      creado_por: user.id,
+    })
+    .select("id")
+    .single();
 
   if (error) return { error: error.message };
 
+  if (input.extraIds && input.extraIds.length > 0) {
+    const errorExtras = await sincronizarExtrasTicket(supabase, ticket.id, input.extraIds);
+    if (errorExtras) return { error: errorExtras };
+  }
+
   revalidatePath("/tickets");
   return { error: null };
+}
+
+// Copia nombre y precio del extra tal como están en el catálogo al momento
+// de agregarlo al ticket (ver nota de la migración): si después se edita el
+// catálogo, lo ya agregado a tickets no cambia solo.
+async function sincronizarExtrasTicket(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  ticketId: string,
+  extraIds: string[]
+): Promise<string | null> {
+  const { data: extras, error: extrasError } = await supabase
+    .from("extras_catalogo")
+    .select("id, nombre, precio")
+    .in("id", extraIds);
+
+  if (extrasError) return extrasError.message;
+
+  const { error: insertError } = await supabase.from("ticket_extras").insert(
+    (extras ?? []).map((e) => ({
+      ticket_id: ticketId,
+      extra_id: e.id,
+      nombre: e.nombre,
+      precio: e.precio,
+    }))
+  );
+
+  if (insertError) return insertError.message;
+  return null;
 }
 
 export async function actualizarEstadoTicket(ticketId: string, estado: TicketEstado) {
@@ -330,7 +368,7 @@ async function requierePermisoEditarTickets() {
 
 export async function actualizarTicket(
   ticketId: string,
-  input: { servicioId: string; tamanoVehiculo: TamanoVehiculo; lavadorId: string | null }
+  input: { servicioId: string; tamanoVehiculo: TamanoVehiculo; lavadorId: string | null; extraIds: string[] }
 ) {
   const { supabase, error: permisoError } = await requierePermisoEditarTickets();
   if (permisoError) return { error: permisoError };
@@ -346,6 +384,17 @@ export async function actualizarTicket(
     .neq("estado", "entregado");
 
   if (error) return { error: error.message };
+
+  // Se reemplazan todos los extras del ticket por la selección actual (en
+  // vez de calcular un diff) — es una lista corta y así siempre queda en
+  // el precio vigente del catálogo al momento de guardar la edición.
+  const { error: borrarError } = await supabase.from("ticket_extras").delete().eq("ticket_id", ticketId);
+  if (borrarError) return { error: borrarError.message };
+
+  if (input.extraIds.length > 0) {
+    const errorExtras = await sincronizarExtrasTicket(supabase, ticketId, input.extraIds);
+    if (errorExtras) return { error: errorExtras };
+  }
 
   revalidatePath("/tickets");
   return { error: null };

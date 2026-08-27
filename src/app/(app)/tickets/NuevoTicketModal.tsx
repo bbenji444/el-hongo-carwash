@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import type { TamanoVehiculo, Lavador, ConfiguracionApp } from "@/types/database.types";
+import type { TamanoVehiculo, Lavador, ConfiguracionApp, ExtraCatalogo } from "@/types/database.types";
 import { TAMANOS_VEHICULO, nombreTamano, precioPorTamano } from "@/lib/servicios";
 import { emojiPorTamano } from "@/lib/configuracionDefaults";
 import type { ServicioConPrecios } from "./types";
@@ -15,6 +15,7 @@ export function NuevoTicketModal({
   turnoId,
   servicios,
   lavadores,
+  extras,
   enProcesoPorLavador,
   config,
   usuarioActualId,
@@ -23,6 +24,7 @@ export function NuevoTicketModal({
   turnoId: string;
   servicios: ServicioConPrecios[];
   lavadores: Lavador[];
+  extras: ExtraCatalogo[];
   enProcesoPorLavador: Record<string, number>;
   config: ConfiguracionApp;
   usuarioActualId: string;
@@ -43,6 +45,11 @@ export function NuevoTicketModal({
 
   const [servicioId, setServicioId] = useState(servicios[0]?.id ?? "");
   const [lavadorId, setLavadorId] = useState("");
+  const [extraIds, setExtraIds] = useState<string[]>([]);
+
+  function toggleExtra(id: string) {
+    setExtraIds((prev) => (prev.includes(id) ? prev.filter((e) => e !== id) : [...prev, id]));
+  }
 
   const [lealtad, setLealtad] = useState<LealtadInfo | null>(null);
 
@@ -124,6 +131,7 @@ export function NuevoTicketModal({
         empleadoId: usuarioActualId,
         lavadorId,
         turnoId,
+        extraIds,
       });
 
       if (result.error) {
@@ -272,6 +280,25 @@ export function NuevoTicketModal({
               )}
             </div>
           </div>
+
+          {/* Extras */}
+          {extras.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-medium text-muted">+ Extra (opcional)</label>
+              <div className="grid grid-cols-2 gap-2">
+                {extras.map((extra) => (
+                  <BotonSeleccion
+                    key={extra.id}
+                    seleccionado={extraIds.includes(extra.id)}
+                    onClick={() => toggleExtra(extra.id)}
+                  >
+                    <span className="text-sm font-medium">{extra.nombre}</span>
+                    <span className="text-xs">${extra.precio.toFixed(2)}</span>
+                  </BotonSeleccion>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Lavador */}
           <div className="flex flex-col gap-1.5">

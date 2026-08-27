@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import type { TamanoVehiculo, Lavador, ConfiguracionApp } from "@/types/database.types";
+import type { TamanoVehiculo, Lavador, ConfiguracionApp, ExtraCatalogo } from "@/types/database.types";
 import { TAMANOS_VEHICULO, precioPorTamano } from "@/lib/servicios";
 import { emojiPorTamano } from "@/lib/configuracionDefaults";
 import type { ServicioConPrecios, TicketConDetalle } from "./types";
@@ -12,6 +12,7 @@ export function EditarTicketModal({
   ticket,
   servicios,
   lavadores,
+  extras,
   enProcesoPorLavador,
   config,
   onClose,
@@ -19,6 +20,7 @@ export function EditarTicketModal({
   ticket: TicketConDetalle;
   servicios: ServicioConPrecios[];
   lavadores: Lavador[];
+  extras: ExtraCatalogo[];
   enProcesoPorLavador: Record<string, number>;
   config: ConfiguracionApp;
   onClose: () => void;
@@ -29,6 +31,11 @@ export function EditarTicketModal({
   const [tamanoVehiculo, setTamanoVehiculo] = useState<TamanoVehiculo>(ticket.tamano_vehiculo);
   const [servicioId, setServicioId] = useState(ticket.servicio_id);
   const [lavadorId, setLavadorId] = useState(ticket.lavador?.id ?? "");
+  const [extraIds, setExtraIds] = useState<string[]>(ticket.extras.map((e) => e.extra_id));
+
+  function toggleExtra(id: string) {
+    setExtraIds((prev) => (prev.includes(id) ? prev.filter((e) => e !== id) : [...prev, id]));
+  }
 
   function handleGuardar() {
     setError(null);
@@ -43,6 +50,7 @@ export function EditarTicketModal({
         servicioId,
         tamanoVehiculo,
         lavadorId: lavadorId || null,
+        extraIds,
       });
 
       if (result.error) {
@@ -117,6 +125,25 @@ export function EditarTicketModal({
               ))}
             </div>
           </div>
+
+          {/* Extras */}
+          {extras.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-medium text-muted">+ Extra (opcional)</label>
+              <div className="grid grid-cols-2 gap-2">
+                {extras.map((extra) => (
+                  <BotonSeleccion
+                    key={extra.id}
+                    seleccionado={extraIds.includes(extra.id)}
+                    onClick={() => toggleExtra(extra.id)}
+                  >
+                    <span className="text-sm font-medium">{extra.nombre}</span>
+                    <span className="text-xs">${extra.precio.toFixed(2)}</span>
+                  </BotonSeleccion>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Lavador */}
           <div className="flex flex-col gap-1.5">

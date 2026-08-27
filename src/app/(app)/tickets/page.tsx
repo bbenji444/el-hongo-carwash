@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { obtenerConfiguracion } from "@/lib/configuracion";
 import { TicketsBoard } from "./TicketsBoard";
-import type { ServicioPrecio } from "@/types/database.types";
+import type { ServicioPrecio, TicketExtra } from "@/types/database.types";
 
 export default async function TicketsPage() {
   const supabase = await createClient();
@@ -64,6 +64,13 @@ export default async function TicketsPage() {
     .eq("activo", true)
     .order("nombre");
 
+  const { data: extrasActivos } = await supabase
+    .from("extras_catalogo")
+    .select("*")
+    .eq("activo", true)
+    .order("orden")
+    .order("nombre");
+
   const tickets = turno
     ? (
         await supabase
@@ -84,24 +91,35 @@ export default async function TicketsPage() {
   const empleadoIds = [...new Set((tickets ?? []).map((t) => t.empleado_id).filter(Boolean))] as string[];
   const lavadorIds = [...new Set((tickets ?? []).map((t) => t.lavador_id).filter(Boolean))] as string[];
 
-  const [{ data: clientes }, { data: vehiculos }, { data: empleados }, { data: lavadoresTickets }, { data: pagos }] =
-    await Promise.all([
-      clienteIds.length
-        ? supabase.from("clientes").select("id, nombre, telefono").in("id", clienteIds)
-        : Promise.resolve({ data: [] }),
-      vehiculoIds.length
-        ? supabase.from("vehiculos").select("id, placas, tipo_vehiculo").in("id", vehiculoIds)
-        : Promise.resolve({ data: [] }),
-      empleadoIds.length
-        ? supabase.from("usuarios").select("id, nombre").in("id", empleadoIds)
-        : Promise.resolve({ data: [] }),
-      lavadorIds.length
-        ? supabase.from("lavadores").select("id, nombre").in("id", lavadorIds)
-        : Promise.resolve({ data: [] }),
-      turno
-        ? supabase.from("pagos").select("ticket_id, monto, metodo").eq("turno_id", turno.id)
-        : Promise.resolve({ data: [] }),
-    ]);
+  const ticketIds = (tickets ?? []).map((t) => t.id);
+
+  const [
+    { data: clientes },
+    { data: vehiculos },
+    { data: empleados },
+    { data: lavadoresTickets },
+    { data: pagos },
+    { data: ticketExtras },
+  ] = await Promise.all([
+    clienteIds.length
+      ? supabase.from("clientes").select("id, nombre, telefono").in("id", clienteIds)
+      : Promise.resolve({ data: [] }),
+    vehiculoIds.length
+      ? supabase.from("vehiculos").select("id, placas, tipo_vehiculo").in("id", vehiculoIds)
+      : Promise.resolve({ data: [] }),
+    empleadoIds.length
+      ? supabase.from("usuarios").select("id, nombre").in("id", empleadoIds)
+      : Promise.resolve({ data: [] }),
+    lavadorIds.length
+      ? supabase.from("lavadores").select("id, nombre").in("id", lavadorIds)
+      : Promise.resolve({ data: [] }),
+    turno
+      ? supabase.from("pagos").select("ticket_id, monto, metodo").eq("turno_id", turno.id)
+      : Promise.resolve({ data: [] }),
+    ticketIds.length
+      ? supabase.from("ticket_extras").select("*").in("ticket_id", ticketIds)
+      : Promise.resolve({ data: [] }),
+  ]);
 
   const clienteMap = new Map((clientes ?? []).map((c) => [c.id, c]));
   const vehiculoMap = new Map((vehiculos ?? []).map((v) => [v.id, v]));
@@ -113,6 +131,12 @@ export default async function TicketsPage() {
     lista.push({ monto: pago.monto, metodo: pago.metodo });
     pagosPorTicket.set(pago.ticket_id, lista);
   }
+  const extrasPorTicket = new Map<string, TicketExtra[]>();
+  for (const extra of ticketExtras ?? []) {
+    const lista = extrasPorTicket.get(extra.ticket_id) ?? [];
+    lista.push(extra);
+    extrasPorTicket.set(extra.ticket_id, lista);
+  }
 
   const ticketsConDetalle = (tickets ?? []).map((t) => ({
     ...t,
@@ -122,6 +146,7 @@ export default async function TicketsPage() {
     empleado: t.empleado_id ? empleadoMap.get(t.empleado_id) ?? null : null,
     lavador: t.lavador_id ? lavadorMap.get(t.lavador_id) ?? null : null,
     tienePago: (pagosPorTicket.get(t.id) ?? []).length > 0 || t.lavada_gratis,
+    extras: extrasPorTicket.get(t.id) ?? [],
   }));
 
   // Resumen de caja del turno en curso, para que el cajero vea el dinero
@@ -183,6 +208,7 @@ export default async function TicketsPage() {
       turno={turno ?? null}
       servicios={servicios ?? []}
       lavadores={lavadoresActivos ?? []}
+      extras={extrasActivos ?? []}
       tickets={ticketsConDetalle}
       usuarioActualId={usuario.id}
       resumenCaja={resumenCaja}

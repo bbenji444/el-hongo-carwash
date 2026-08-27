@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import type { PagoMetodo } from "@/types/database.types";
 import { registrarPago } from "./actions";
+import { sumaExtras } from "./types";
 import type { TicketConDetalle } from "./types";
 import { precioPorTamano } from "@/lib/servicios";
 
@@ -24,7 +25,8 @@ export function CobroModal({
   onPagado: () => void;
 }) {
   const precioBase = precioPorTamano(ticket.servicio?.precios, ticket.tamano_vehiculo);
-  const totalSugerido = Math.max(precioBase - ticket.descuento_monto, 0);
+  const precioExtras = sumaExtras(ticket.extras);
+  const totalSugerido = Math.max(precioBase + precioExtras - ticket.descuento_monto, 0);
   const esGratis = totalSugerido === 0;
 
   const [metodo, setMetodo] = useState<PagoMetodo>("efectivo");
@@ -93,6 +95,11 @@ export function CobroModal({
             Precio: ${precioBase.toFixed(2)}
             {ticket.descuento_monto > 0 && ` · Descuento: -$${ticket.descuento_monto.toFixed(2)}`}
           </p>
+          {ticket.extras.length > 0 && (
+            <p className="text-muted">
+              {ticket.extras.map((e) => e.nombre).join(", ")}: +${precioExtras.toFixed(2)}
+            </p>
+          )}
         </div>
 
         <div className="flex flex-col gap-3">

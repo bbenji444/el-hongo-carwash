@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { obtenerConfiguracion } from "@/lib/configuracion";
 import { AjustesClient } from "./AjustesClient";
+import { ExtrasManager } from "./ExtrasManager";
 
 export default async function AjustesPage() {
   const supabase = await createClient();
@@ -29,6 +30,7 @@ export default async function AjustesPage() {
   }
 
   const configuracion = await obtenerConfiguracion();
+  const { data: extras } = await supabase.from("extras_catalogo").select("*").order("orden").order("nombre");
 
   return (
     <div className="flex flex-col gap-6">
@@ -41,6 +43,17 @@ export default async function AjustesPage() {
       </div>
 
       <AjustesClient configuracion={configuracion} />
+
+      <section className="flex flex-col gap-3 border-t border-border pt-6">
+        <div>
+          <h2 className="font-semibold text-foreground">Extras</h2>
+          <p className="text-xs text-muted">
+            Complementos opcionales que se pueden agregar a un ticket además del paquete (por ejemplo, Encerado
+            premium). Aparecen como opción al crear o editar un ticket.
+          </p>
+        </div>
+        <ExtrasManager extras={extras ?? []} />
+      </section>
     </div>
   );
 }

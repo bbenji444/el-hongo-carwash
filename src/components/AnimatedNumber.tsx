@@ -2,13 +2,24 @@
 
 import { useEffect, useRef, useState } from "react";
 
+// El formateador se elige por nombre (string) en vez de recibir una función
+// como prop: una función no se puede mandar de un Server Component a un
+// Client Component (no es serializable) — eso rompía esta pantalla en
+// producción con un error 500 que el build local nunca detectaba, porque
+// esta ruta dinámica solo se ejecuta con datos reales en un request real,
+// no durante `next build`.
+const FORMATOS = {
+  entero: (n: number) => Math.round(n).toString(),
+  dinero: (n: number) => `$${n.toFixed(2)}`,
+} as const;
+
 export function AnimatedNumber({
   value,
-  formatter = (n: number) => Math.round(n).toString(),
+  format = "entero",
   duration = 900,
 }: {
   value: number;
-  formatter?: (n: number) => string;
+  format?: keyof typeof FORMATOS;
   duration?: number;
 }) {
   const [display, setDisplay] = useState(0);
@@ -46,5 +57,5 @@ export function AnimatedNumber({
     return () => cancelAnimationFrame(frame);
   }, [value, duration]);
 
-  return <>{formatter(display)}</>;
+  return <>{FORMATOS[format](display)}</>;
 }

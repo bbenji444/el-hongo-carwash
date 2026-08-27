@@ -144,20 +144,20 @@ export default async function ReportesPage({
         <div className="hover-lift animate-in rounded-xl border border-border bg-surface p-5" style={{ animationDelay: "0ms" }}>
           <p className="text-xs uppercase tracking-wide text-muted">Ventas totales</p>
           <p className="mt-1 text-2xl font-bold text-foreground">
-            <AnimatedNumber value={ventasTotales} formatter={money} />
+            <AnimatedNumber value={ventasTotales} format="dinero" />
           </p>
           <p className="mt-1 text-xs text-muted">{numTickets} tickets entregados</p>
         </div>
         <div className="hover-lift animate-in rounded-xl border border-border bg-surface p-5" style={{ animationDelay: "60ms" }}>
           <p className="text-xs uppercase tracking-wide text-muted">Ticket promedio</p>
           <p className="mt-1 text-2xl font-bold text-foreground">
-            <AnimatedNumber value={ticketPromedio} formatter={money} />
+            <AnimatedNumber value={ticketPromedio} format="dinero" />
           </p>
         </div>
         <div className="hover-lift animate-in rounded-xl border border-border bg-surface p-5" style={{ animationDelay: "120ms" }}>
           <p className="text-xs uppercase tracking-wide text-muted">Descuentos otorgados</p>
           <p className="mt-1 text-2xl font-bold text-foreground">
-            <AnimatedNumber value={totalDescuentos} formatter={money} />
+            <AnimatedNumber value={totalDescuentos} format="dinero" />
           </p>
           <p className="mt-1 text-xs text-muted">{descuentos.length} tickets con descuento</p>
         </div>
@@ -169,7 +169,7 @@ export default async function ReportesPage({
         >
           <p className="text-xs uppercase tracking-wide text-muted">Diferencia acumulada de caja</p>
           <p className={`mt-1 text-2xl font-bold ${diferenciaAcumulada !== 0 ? "text-primary" : "text-foreground"}`}>
-            <AnimatedNumber value={diferenciaAcumulada} formatter={money} />
+            <AnimatedNumber value={diferenciaAcumulada} format="dinero" />
           </p>
           <p className="mt-1 text-xs text-muted">{turnosConAlerta} turnos con diferencia</p>
         </div>

@@ -149,7 +149,7 @@ export default async function DashboardPage() {
         >
           <p className="text-xs uppercase tracking-wide text-muted">Ventas de hoy</p>
           <p className="mt-1 text-2xl font-bold text-foreground">
-            <AnimatedNumber value={ventasHoy} formatter={money} />
+            <AnimatedNumber value={ventasHoy} format="dinero" />
           </p>
           <p className="mt-1 text-xs text-muted">{numEntregadosHoy} tickets entregados</p>
         </div>
@@ -159,7 +159,7 @@ export default async function DashboardPage() {
         >
           <p className="text-xs uppercase tracking-wide text-muted">Ticket promedio</p>
           <p className="mt-1 text-2xl font-bold text-foreground">
-            <AnimatedNumber value={ticketPromedioHoy} formatter={money} />
+            <AnimatedNumber value={ticketPromedioHoy} format="dinero" />
           </p>
         </div>
         <div
@@ -168,7 +168,7 @@ export default async function DashboardPage() {
         >
           <p className="text-xs uppercase tracking-wide text-muted">Descuentos hoy</p>
           <p className="mt-1 text-2xl font-bold text-foreground">
-            <AnimatedNumber value={descuentosHoy} formatter={money} />
+            <AnimatedNumber value={descuentosHoy} format="dinero" />
           </p>
         </div>
         <div

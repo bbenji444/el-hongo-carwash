@@ -37,10 +37,17 @@ as $$
 $$;
 
 drop policy if exists tickets_delete_dueno on public.tickets;
+drop policy if exists tickets_delete_autorizado on public.tickets;
 create policy tickets_delete_autorizado on public.tickets
 for delete using (public.puede_editar_tickets());
 
-create or replace view public.usuarios_con_correo as
+-- CREATE OR REPLACE VIEW no deja reordenar/insertar columnas en medio de
+-- una vista existente (solo agregar al final) — como puede_editar_tickets
+-- va antes de email en este SELECT, hay que tirar la vista y recrearla en
+-- vez de reemplazarla.
+drop view if exists public.usuarios_con_correo;
+
+create view public.usuarios_con_correo as
 select
   u.id,
   u.nombre,

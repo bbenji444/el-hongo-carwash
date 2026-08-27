@@ -27,12 +27,26 @@ async function requiereDueno() {
 // directamente (correo, contraseña, confirmación) sin pasar por el flujo
 // normal de signUp. Nunca se expone al navegador — solo vive en server
 // actions, protegidas además por requiereDueno().
-function crearClienteAdmin() {
-  return createSupabaseJsClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false, autoRefreshToken: false } }
-  );
+//
+// Si falta la variable de entorno (p. ej. se agregó solo en local y no en
+// el hosting de producción), antes esto tronaba con un error sin manejar
+// que rompía toda la pantalla — ahora se detecta antes y se regresa un
+// mensaje claro en vez de reventar la acción del servidor.
+function crearClienteAdmin(): { admin: ReturnType<typeof createSupabaseJsClient<Database>> | null; error: string | null } {
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceRoleKey) {
+    return {
+      admin: null,
+      error:
+        "Falta configurar SUPABASE_SERVICE_ROLE_KEY en las variables de entorno del servidor donde corre la app.",
+    };
+  }
+  return {
+    admin: createSupabaseJsClient<Database>(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    }),
+    error: null,
+  };
 }
 
 export async function crearUsuario(input: {
@@ -45,7 +59,8 @@ export async function crearUsuario(input: {
   const { supabase, error: permisoError } = await requiereDueno();
   if (permisoError) return { error: permisoError };
 
-  const admin = crearClienteAdmin();
+  const { admin, error: adminError } = crearClienteAdmin();
+  if (adminError || !admin) return { error: adminError ?? "No se pudo preparar la creación de la cuenta." };
 
   // email_confirm: true crea la cuenta ya confirmada — el correo aquí
   // funciona como nombre de usuario, no hace falta que sea una dirección
@@ -96,7 +111,8 @@ export async function actualizarUsuario(
   }
 
   if (input.correo || input.password) {
-    const admin = crearClienteAdmin();
+    const { admin, error: adminError } = crearClienteAdmin();
+    if (adminError || !admin) return { error: adminError ?? "No se pudo preparar la actualización de la cuenta." };
     const cambios: { email?: string; password?: string; email_confirm?: boolean } = {};
     if (input.correo) {
       cambios.email = input.correo;

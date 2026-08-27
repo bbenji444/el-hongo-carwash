@@ -297,3 +297,81 @@ export async function solicitarDescuento(input: {
   revalidatePath("/tickets");
   return { error: null };
 }
+
+// Verifica el permiso "puede_editar_tickets" (dueño siempre lo tiene; a los
+// demás roles el dueño se los puede delegar por usuario desde /usuarios).
+// Se revisa aquí además de en RLS porque UPDATE en tickets es permisivo a
+// nivel de base de datos para cualquier rol autenticado (lo usan los
+// avances normales de estado); esta acción específica de editar contenido
+// del ticket sí debe quedar reservada a quien tiene el permiso.
+async function requierePermisoEditarTickets() {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return { supabase, error: "Sesión no válida." };
+
+  const { data: actor } = await supabase
+    .from("usuarios")
+    .select("rol, puede_editar_tickets")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const autorizado = Boolean(actor && (actor.rol === "dueno" || actor.puede_editar_tickets));
+
+  if (!autorizado) {
+    return { supabase, error: "No tienes permiso para editar o eliminar tickets." };
+  }
+
+  return { supabase, error: null };
+}
+
+export async function actualizarTicket(
+  ticketId: string,
+  input: { servicioId: string; tamanoVehiculo: TamanoVehiculo; lavadorId: string | null }
+) {
+  const { supabase, error: permisoError } = await requierePermisoEditarTickets();
+  if (permisoError) return { error: permisoError };
+
+  const { error } = await supabase
+    .from("tickets")
+    .update({
+      servicio_id: input.servicioId,
+      tamano_vehiculo: input.tamanoVehiculo,
+      lavador_id: input.lavadorId,
+    })
+    .eq("id", ticketId)
+    .neq("estado", "entregado");
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/tickets");
+  return { error: null };
+}
+
+export async function eliminarTicket(ticketId: string) {
+  const { supabase, error: permisoError } = await requierePermisoEditarTickets();
+  if (permisoError) return { error: permisoError };
+
+  const { data: ticket } = await supabase.from("tickets").select("estado").eq("id", ticketId).maybeSingle();
+
+  if (!ticket) return { error: "El ticket ya no existe." };
+  if (ticket.estado === "entregado") {
+    return { error: "No se puede eliminar un ticket ya entregado (afectaría la caja cerrada)." };
+  }
+
+  // Un ticket puede ya tener pagos registrados (se puede cobrar antes de
+  // entregar) — hay que borrarlos primero, si no la llave foránea bloquea
+  // el borrado del ticket.
+  const { error: pagosError } = await supabase.from("pagos").delete().eq("ticket_id", ticketId);
+  if (pagosError) return { error: pagosError.message };
+
+  const { error } = await supabase.from("tickets").delete().eq("id", ticketId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/tickets");
+  return { error: null };
+}

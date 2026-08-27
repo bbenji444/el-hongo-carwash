@@ -15,6 +15,7 @@ export interface Database {
           nombre: string;
           rol: "dueno" | "encargado" | "cajero";
           activo: boolean;
+          puede_editar_tickets: boolean;
           creado_en: string;
         };
         Insert: {
@@ -22,6 +23,7 @@ export interface Database {
           nombre: string;
           rol: "dueno" | "encargado" | "cajero";
           activo?: boolean;
+          puede_editar_tickets?: boolean;
           creado_en?: string;
         };
         Update: {
@@ -29,6 +31,7 @@ export interface Database {
           nombre?: string;
           rol?: "dueno" | "encargado" | "cajero";
           activo?: boolean;
+          puede_editar_tickets?: boolean;
           creado_en?: string;
         };
         Relationships: [];
@@ -182,6 +185,7 @@ export interface Database {
           nombre: string;
           rol: "dueno" | "encargado" | "cajero";
           activo: boolean;
+          puede_editar_tickets: boolean;
           creado_en: string;
           email: string | null;
         };
@@ -190,6 +194,7 @@ export interface Database {
           nombre?: string;
           rol?: "dueno" | "encargado" | "cajero";
           activo?: boolean;
+          puede_editar_tickets?: boolean;
           creado_en?: string;
           email?: string | null;
         };
@@ -198,6 +203,7 @@ export interface Database {
           nombre?: string;
           rol?: "dueno" | "encargado" | "cajero";
           activo?: boolean;
+          puede_editar_tickets?: boolean;
           creado_en?: string;
           email?: string | null;
         };

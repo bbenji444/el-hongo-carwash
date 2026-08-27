@@ -35,7 +35,13 @@ function crearClienteAdmin() {
   );
 }
 
-export async function crearUsuario(input: { nombre: string; correo: string; password: string; rol: RolUsuario }) {
+export async function crearUsuario(input: {
+  nombre: string;
+  correo: string;
+  password: string;
+  rol: RolUsuario;
+  puedeEditarTickets: boolean;
+}) {
   const { supabase, error: permisoError } = await requiereDueno();
   if (permisoError) return { error: permisoError };
 
@@ -58,6 +64,7 @@ export async function crearUsuario(input: { nombre: string; correo: string; pass
     id: authData.user.id,
     nombre: input.nombre,
     rol: input.rol,
+    puede_editar_tickets: input.puedeEditarTickets,
   });
 
   if (insertError) {
@@ -73,7 +80,13 @@ export async function crearUsuario(input: { nombre: string; correo: string; pass
 
 export async function actualizarUsuario(
   id: string,
-  input: { nombre: string; rol: RolUsuario; correo?: string; password?: string }
+  input: {
+    nombre: string;
+    rol: RolUsuario;
+    puedeEditarTickets: boolean;
+    correo?: string;
+    password?: string;
+  }
 ) {
   const { supabase, actorId, error: permisoError } = await requiereDueno();
   if (permisoError) return { error: permisoError };
@@ -95,7 +108,10 @@ export async function actualizarUsuario(
     if (authError) return { error: authError.message };
   }
 
-  const { error } = await supabase.from("usuarios").update({ nombre: input.nombre, rol: input.rol }).eq("id", id);
+  const { error } = await supabase
+    .from("usuarios")
+    .update({ nombre: input.nombre, rol: input.rol, puede_editar_tickets: input.puedeEditarTickets })
+    .eq("id", id);
 
   if (error) return { error: error.message };
 

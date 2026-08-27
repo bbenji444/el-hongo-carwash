@@ -28,7 +28,13 @@ const ROL_BADGE_CLASS: Record<RolUsuario, string> = {
   cajero: "border-muted/40 bg-muted/10 text-muted",
 };
 
-const emptyForm = { nombre: "", correo: "", password: "", rol: "cajero" as RolUsuario };
+const emptyForm = {
+  nombre: "",
+  correo: "",
+  password: "",
+  rol: "cajero" as RolUsuario,
+  puedeEditarTickets: false,
+};
 
 export function UsuariosClient({
   usuarios,
@@ -46,7 +52,13 @@ export function UsuariosClient({
 
   function abrirEdicion(u: UsuarioConCorreo) {
     setEditandoId(u.id);
-    setForm({ nombre: u.nombre, correo: u.email ?? "", password: "", rol: u.rol });
+    setForm({
+      nombre: u.nombre,
+      correo: u.email ?? "",
+      password: "",
+      rol: u.rol,
+      puedeEditarTickets: u.puede_editar_tickets,
+    });
     setError(null);
     setAviso(null);
     setMostrarForm(true);
@@ -94,6 +106,7 @@ export function UsuariosClient({
         correo: form.correo.trim(),
         password: form.password,
         rol: form.rol,
+        puedeEditarTickets: form.puedeEditarTickets,
       });
       if (result.error) {
         setError(result.error);
@@ -109,6 +122,7 @@ export function UsuariosClient({
         const result = await actualizarUsuario(editandoId!, {
           nombre: form.nombre.trim(),
           rol: form.rol,
+          puedeEditarTickets: form.puedeEditarTickets,
           correo: form.correo.trim(),
           password: form.password || undefined,
         });
@@ -197,6 +211,26 @@ export function UsuariosClient({
 
             <p className="text-xs text-muted">{ROLES.find((r) => r.value === form.rol)?.descripcion}</p>
 
+            {form.rol === "dueno" ? (
+              <p className="text-xs text-muted">El dueño ya puede editar/eliminar tickets siempre, sin necesidad de esta casilla.</p>
+            ) : (
+              <label className="flex items-start gap-2 text-sm text-foreground">
+                <input
+                  type="checkbox"
+                  checked={form.puedeEditarTickets}
+                  onChange={(e) => setForm((f) => ({ ...f, puedeEditarTickets: e.target.checked }))}
+                  className="mt-0.5"
+                />
+                <span>
+                  Puede editar o eliminar tickets ya en proceso
+                  <span className="block text-xs text-muted">
+                    Permiso aparte del rol: deja corregir o borrar un ticket (paquete, tamaño, lavador) aunque ya
+                    no esté &quot;en espera&quot;.
+                  </span>
+                </span>
+              </label>
+            )}
+
             <div className="flex gap-2">
               <button
                 type="submit"
@@ -260,6 +294,14 @@ export function UsuariosClient({
                   <span className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${ROL_BADGE_CLASS[u.rol]}`}>
                     {ROLES.find((r) => r.value === u.rol)?.label ?? u.rol}
                   </span>
+                  {u.rol !== "dueno" && u.puede_editar_tickets && (
+                    <span
+                      className="ml-1.5 rounded-full border border-warning/40 bg-warning/10 px-2 py-0.5 text-[10px] font-medium text-warning"
+                      title="Puede editar/eliminar tickets ya en proceso"
+                    >
+                      + tickets
+                    </span>
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   <span

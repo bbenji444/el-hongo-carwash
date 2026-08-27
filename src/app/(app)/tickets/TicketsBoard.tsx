@@ -6,6 +6,7 @@ import type { TicketConDetalle, ServicioConPrecios } from "./types";
 import { nombreTamano, precioPorTamano } from "@/lib/servicios";
 import { AbrirTurnoForm } from "./AbrirTurnoForm";
 import { NuevoTicketModal } from "./NuevoTicketModal";
+import { EditarTicketModal } from "./EditarTicketModal";
 import { CobroModal } from "./CobroModal";
 import { DescuentoModal } from "./DescuentoModal";
 import { ClienteDetalleModal } from "./ClienteDetalleModal";
@@ -90,6 +91,7 @@ export function TicketsBoard({
   resumenCaja,
   serverAhora,
   config,
+  puedeEditarTickets,
 }: {
   turno: Turno | null;
   servicios: ServicioConPrecios[];
@@ -99,9 +101,11 @@ export function TicketsBoard({
   resumenCaja: ResumenCaja | null;
   serverAhora: string;
   config: ConfiguracionApp;
+  puedeEditarTickets: boolean;
 }) {
   const [mostrarNuevo, setMostrarNuevo] = useState(false);
   const [cobroTicket, setCobroTicket] = useState<TicketConDetalle | null>(null);
+  const [editarTicket, setEditarTicket] = useState<TicketConDetalle | null>(null);
   // Si el cobro se disparó al intentar entregar (columna "Terminado"), pagar debe
   // avanzar el ticket a Entregado. Si se disparó desde el botón suelto "Cobrar"
   // en una columna anterior, solo debe registrar el pago sin saltarse pasos.
@@ -366,6 +370,14 @@ export function TicketsBoard({
                           Cobrar
                         </button>
                       )}
+                      {puedeEditarTickets && col.estado !== "entregado" && (
+                        <button
+                          onClick={() => setEditarTicket(ticket)}
+                          className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted hover:text-foreground"
+                        >
+                          Editar
+                        </button>
+                      )}
                     </div>
                   </div>
                   );
@@ -416,6 +428,17 @@ export function TicketsBoard({
               });
             }
           }}
+        />
+      )}
+
+      {editarTicket && (
+        <EditarTicketModal
+          ticket={editarTicket}
+          servicios={servicios}
+          lavadores={lavadores}
+          enProcesoPorLavador={enProcesoPorLavador}
+          config={config}
+          onClose={() => setEditarTicket(null)}
         />
       )}
 

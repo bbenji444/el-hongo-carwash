@@ -5,34 +5,11 @@ import type { TamanoVehiculo, Lavador, ConfiguracionApp } from "@/types/database
 import { TAMANOS_VEHICULO, nombreTamano, precioPorTamano } from "@/lib/servicios";
 import { emojiPorTamano } from "@/lib/configuracionDefaults";
 import type { ServicioConPrecios } from "./types";
+import { BotonSeleccion } from "./BotonSeleccion";
 import { buscarClientes, crearCliente, crearVehiculo, crearTicket, progresoLealtadCliente } from "./actions";
 
 type ClienteResultado = { id: string; nombre: string; telefono: string | null };
 type LealtadInfo = { lavadasEnCiclo: number; proximaGratis: boolean; ultimaLavada: string | null };
-
-function BotonSeleccion({
-  seleccionado,
-  onClick,
-  children,
-}: {
-  seleccionado: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex flex-col items-center justify-center gap-1 rounded-lg border-2 px-2 py-2.5 text-center transition-all duration-150 ${
-        seleccionado
-          ? "border-primary bg-primary/10 text-foreground shadow-md shadow-primary/10 scale-[1.03]"
-          : "border-border bg-background text-muted hover:-translate-y-0.5 hover:border-primary/40 hover:text-foreground hover:shadow-sm"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
 
 export function NuevoTicketModal({
   turnoId,

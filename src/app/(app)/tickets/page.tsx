@@ -18,13 +18,15 @@ export default async function TicketsPage() {
 
   const { data: usuario } = await supabase
     .from("usuarios")
-    .select("id, nombre, rol")
+    .select("id, nombre, rol, puede_editar_tickets")
     .eq("id", user.id)
     .maybeSingle();
 
   if (!usuario) {
     redirect("/login");
   }
+
+  const puedeEditarTickets = usuario.rol === "dueno" || usuario.puede_editar_tickets;
 
   const { data: turno } = await supabase
     .from("turnos")
@@ -186,6 +188,7 @@ export default async function TicketsPage() {
       resumenCaja={resumenCaja}
       serverAhora={new Date().toISOString()}
       config={config}
+      puedeEditarTickets={puedeEditarTickets}
     />
   );
 }

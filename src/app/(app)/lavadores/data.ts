@@ -5,7 +5,14 @@ import type { RangoResuelto } from "@/lib/rangoFechas";
 export type ConteoPorTamano = Record<TamanoVehiculo, number>;
 
 function conteoVacio(): ConteoPorTamano {
-  return { automovil: 0, camioneta_chica: 0, camioneta_grande: 0, camioneta_extra_grande: 0 };
+  return {
+    automovil: 0,
+    camioneta_chica: 0,
+    camioneta_grande: 0,
+    camioneta_extra_grande: 0,
+    moto_chica: 0,
+    moto_grande: 0,
+  };
 }
 
 export type LavadorStat = {

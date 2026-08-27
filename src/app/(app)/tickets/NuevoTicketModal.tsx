@@ -240,7 +240,7 @@ export function NuevoTicketModal({
           {/* Tamaño de vehículo */}
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-medium text-muted">Tamaño de vehículo</label>
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
               {TAMANOS_VEHICULO.map((t) => (
                 <BotonSeleccion
                   key={t.value}

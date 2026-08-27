@@ -38,6 +38,8 @@ export function AjustesClient({ configuracion }: { configuracion: ConfiguracionA
     emoji_camioneta_chica: configuracion.emoji_camioneta_chica,
     emoji_camioneta_grande: configuracion.emoji_camioneta_grande,
     emoji_camioneta_extra_grande: configuracion.emoji_camioneta_extra_grande,
+    emoji_moto_chica: configuracion.emoji_moto_chica,
+    emoji_moto_grande: configuracion.emoji_moto_grande,
     color_primario: configuracion.color_primario,
     color_accent: configuracion.color_accent,
     color_success: configuracion.color_success,
@@ -124,7 +126,7 @@ export function AjustesClient({ configuracion }: { configuracion: ConfiguracionA
           Pega o escribe el emoji que quieras usar en cada uno (por ejemplo, desde el teclado de emojis de tu
           celular o computadora).
         </p>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-8">
           <Campo label="Saludo del dashboard">
             <input
               className={`${inputClass} text-center text-lg`}
@@ -165,6 +167,20 @@ export function AjustesClient({ configuracion }: { configuracion: ConfiguracionA
               className={`${inputClass} text-center text-lg`}
               value={form.emoji_camioneta_extra_grande}
               onChange={(e) => set("emoji_camioneta_extra_grande", e.target.value)}
+            />
+          </Campo>
+          <Campo label="Moto chica">
+            <input
+              className={`${inputClass} text-center text-lg`}
+              value={form.emoji_moto_chica}
+              onChange={(e) => set("emoji_moto_chica", e.target.value)}
+            />
+          </Campo>
+          <Campo label="Moto grande">
+            <input
+              className={`${inputClass} text-center text-lg`}
+              value={form.emoji_moto_grande}
+              onChange={(e) => set("emoji_moto_grande", e.target.value)}
             />
           </Campo>
         </div>

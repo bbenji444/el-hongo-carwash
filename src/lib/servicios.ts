@@ -5,6 +5,8 @@ export const TAMANOS_VEHICULO: { value: TamanoVehiculo; label: string }[] = [
   { value: "camioneta_chica", label: "Camioneta Chica" },
   { value: "camioneta_grande", label: "Camioneta Grande" },
   { value: "camioneta_extra_grande", label: "Camioneta Extra Grande" },
+  { value: "moto_chica", label: "Moto Chica" },
+  { value: "moto_grande", label: "Moto Grande" },
 ];
 
 export function nombreTamano(tamano: TamanoVehiculo): string {

@@ -113,19 +113,19 @@ export interface Database {
         Row: {
           id: string;
           servicio_id: string;
-          tamano_vehiculo: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande";
+          tamano_vehiculo: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande" | "moto_chica" | "moto_grande";
           precio: number;
         };
         Insert: {
           id?: string;
           servicio_id: string;
-          tamano_vehiculo: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande";
+          tamano_vehiculo: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande" | "moto_chica" | "moto_grande";
           precio: number;
         };
         Update: {
           id?: string;
           servicio_id?: string;
-          tamano_vehiculo?: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande";
+          tamano_vehiculo?: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande" | "moto_chica" | "moto_grande";
           precio?: number;
         };
         Relationships: [];
@@ -247,6 +247,8 @@ export interface Database {
           emoji_camioneta_chica: string;
           emoji_camioneta_grande: string;
           emoji_camioneta_extra_grande: string;
+          emoji_moto_chica: string;
+          emoji_moto_grande: string;
           color_primario: string;
           color_accent: string;
           color_success: string;
@@ -270,6 +272,8 @@ export interface Database {
           emoji_camioneta_chica?: string;
           emoji_camioneta_grande?: string;
           emoji_camioneta_extra_grande?: string;
+          emoji_moto_chica?: string;
+          emoji_moto_grande?: string;
           color_primario?: string;
           color_accent?: string;
           color_success?: string;
@@ -293,6 +297,8 @@ export interface Database {
           emoji_camioneta_chica?: string;
           emoji_camioneta_grande?: string;
           emoji_camioneta_extra_grande?: string;
+          emoji_moto_chica?: string;
+          emoji_moto_grande?: string;
           color_primario?: string;
           color_accent?: string;
           color_success?: string;
@@ -308,7 +314,7 @@ export interface Database {
           vehiculo_id: string | null;
           cliente_id: string | null;
           servicio_id: string;
-          tamano_vehiculo: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande";
+          tamano_vehiculo: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande" | "moto_chica" | "moto_grande";
           empleado_id: string;
           lavador_id: string | null;
           turno_id: string;
@@ -327,7 +333,7 @@ export interface Database {
           vehiculo_id?: string | null;
           cliente_id?: string | null;
           servicio_id: string;
-          tamano_vehiculo: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande";
+          tamano_vehiculo: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande" | "moto_chica" | "moto_grande";
           empleado_id: string;
           lavador_id?: string | null;
           turno_id: string;
@@ -346,7 +352,7 @@ export interface Database {
           vehiculo_id?: string | null;
           cliente_id?: string | null;
           servicio_id?: string;
-          tamano_vehiculo?: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande";
+          tamano_vehiculo?: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande" | "moto_chica" | "moto_grande";
           empleado_id?: string;
           lavador_id?: string | null;
           turno_id?: string;
@@ -449,7 +455,7 @@ export interface Database {
       turno_estado: "abierto" | "cerrado";
       ticket_estado: "en_espera" | "en_proceso" | "terminado" | "entregado";
       pago_metodo: "efectivo" | "tarjeta" | "transferencia" | "membresia";
-      tamano_vehiculo: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande";
+      tamano_vehiculo: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande" | "moto_chica" | "moto_grande";
     };
     CompositeTypes: Record<string, never>;
   };

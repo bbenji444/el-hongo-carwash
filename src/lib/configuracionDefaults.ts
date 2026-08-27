@@ -23,6 +23,8 @@ export const CONFIGURACION_DEFAULT: ConfiguracionApp = {
   emoji_camioneta_chica: "🚙",
   emoji_camioneta_grande: "🚐",
   emoji_camioneta_extra_grande: "🚚",
+  emoji_moto_chica: "🛵",
+  emoji_moto_grande: "🏍️",
   color_primario: "#e31e24",
   color_accent: "#0077cc",
   color_success: "#16a34a",
@@ -41,6 +43,10 @@ export function emojiPorTamano(config: ConfiguracionApp, tamano: string): string
       return config.emoji_camioneta_grande;
     case "camioneta_extra_grande":
       return config.emoji_camioneta_extra_grande;
+    case "moto_chica":
+      return config.emoji_moto_chica;
+    case "moto_grande":
+      return config.emoji_moto_grande;
     default:
       return "🚗";
   }

@@ -43,6 +43,8 @@ export async function restablecerConfiguracion() {
     emoji_camioneta_chica: CONFIGURACION_DEFAULT.emoji_camioneta_chica,
     emoji_camioneta_grande: CONFIGURACION_DEFAULT.emoji_camioneta_grande,
     emoji_camioneta_extra_grande: CONFIGURACION_DEFAULT.emoji_camioneta_extra_grande,
+    emoji_moto_chica: CONFIGURACION_DEFAULT.emoji_moto_chica,
+    emoji_moto_grande: CONFIGURACION_DEFAULT.emoji_moto_grande,
     color_primario: CONFIGURACION_DEFAULT.color_primario,
     color_accent: CONFIGURACION_DEFAULT.color_accent,
     color_success: CONFIGURACION_DEFAULT.color_success,

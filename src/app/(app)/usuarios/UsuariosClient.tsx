@@ -34,6 +34,7 @@ const emptyForm = {
   password: "",
   rol: "cajero" as RolUsuario,
   puedeEditarTickets: false,
+  puedeEditarTurnos: false,
 };
 
 export function UsuariosClient({
@@ -58,6 +59,7 @@ export function UsuariosClient({
       password: "",
       rol: u.rol,
       puedeEditarTickets: u.puede_editar_tickets,
+      puedeEditarTurnos: u.puede_editar_turnos,
     });
     setError(null);
     setAviso(null);
@@ -107,6 +109,7 @@ export function UsuariosClient({
         password: form.password,
         rol: form.rol,
         puedeEditarTickets: form.puedeEditarTickets,
+        puedeEditarTurnos: form.puedeEditarTurnos,
       });
       if (result.error) {
         setError(result.error);
@@ -123,6 +126,7 @@ export function UsuariosClient({
           nombre: form.nombre.trim(),
           rol: form.rol,
           puedeEditarTickets: form.puedeEditarTickets,
+          puedeEditarTurnos: form.puedeEditarTurnos,
           correo: form.correo.trim(),
           password: form.password || undefined,
         });
@@ -212,23 +216,42 @@ export function UsuariosClient({
             <p className="text-xs text-muted">{ROLES.find((r) => r.value === form.rol)?.descripcion}</p>
 
             {form.rol === "dueno" ? (
-              <p className="text-xs text-muted">El dueño ya puede editar/eliminar tickets siempre, sin necesidad de esta casilla.</p>
+              <p className="text-xs text-muted">
+                El dueño ya puede editar/eliminar tickets y turnos siempre, sin necesidad de estas casillas.
+              </p>
             ) : (
-              <label className="flex items-start gap-2 text-sm text-foreground">
-                <input
-                  type="checkbox"
-                  checked={form.puedeEditarTickets}
-                  onChange={(e) => setForm((f) => ({ ...f, puedeEditarTickets: e.target.checked }))}
-                  className="mt-0.5"
-                />
-                <span>
-                  Puede editar o eliminar tickets ya en proceso
-                  <span className="block text-xs text-muted">
-                    Permiso aparte del rol: deja corregir o borrar un ticket (paquete, tamaño, lavador) aunque ya
-                    no esté &quot;en espera&quot;.
+              <>
+                <label className="flex items-start gap-2 text-sm text-foreground">
+                  <input
+                    type="checkbox"
+                    checked={form.puedeEditarTickets}
+                    onChange={(e) => setForm((f) => ({ ...f, puedeEditarTickets: e.target.checked }))}
+                    className="mt-0.5"
+                  />
+                  <span>
+                    Puede editar o eliminar tickets ya en proceso
+                    <span className="block text-xs text-muted">
+                      Permiso aparte del rol: deja corregir o borrar un ticket (paquete, tamaño, lavador) aunque ya
+                      no esté &quot;en espera&quot;.
+                    </span>
                   </span>
-                </span>
-              </label>
+                </label>
+                <label className="flex items-start gap-2 text-sm text-foreground">
+                  <input
+                    type="checkbox"
+                    checked={form.puedeEditarTurnos}
+                    onChange={(e) => setForm((f) => ({ ...f, puedeEditarTurnos: e.target.checked }))}
+                    className="mt-0.5"
+                  />
+                  <span>
+                    Puede editar turnos ya cerrados
+                    <span className="block text-xs text-muted">
+                      Deja corregir el efectivo inicial o el efectivo contado de un cierre de caja pasado (la
+                      diferencia se recalcula sola).
+                    </span>
+                  </span>
+                </label>
+              </>
             )}
 
             <div className="flex gap-2">
@@ -300,6 +323,14 @@ export function UsuariosClient({
                       title="Puede editar/eliminar tickets ya en proceso"
                     >
                       + tickets
+                    </span>
+                  )}
+                  {u.rol !== "dueno" && u.puede_editar_turnos && (
+                    <span
+                      className="ml-1.5 rounded-full border border-warning/40 bg-warning/10 px-2 py-0.5 text-[10px] font-medium text-warning"
+                      title="Puede editar turnos ya cerrados"
+                    >
+                      + turnos
                     </span>
                   )}
                 </td>

@@ -55,6 +55,7 @@ export async function crearUsuario(input: {
   password: string;
   rol: RolUsuario;
   puedeEditarTickets: boolean;
+  puedeEditarTurnos: boolean;
 }) {
   const { supabase, error: permisoError } = await requiereDueno();
   if (permisoError) return { error: permisoError };
@@ -80,6 +81,7 @@ export async function crearUsuario(input: {
     nombre: input.nombre,
     rol: input.rol,
     puede_editar_tickets: input.puedeEditarTickets,
+    puede_editar_turnos: input.puedeEditarTurnos,
   });
 
   if (insertError) {
@@ -99,6 +101,7 @@ export async function actualizarUsuario(
     nombre: string;
     rol: RolUsuario;
     puedeEditarTickets: boolean;
+    puedeEditarTurnos: boolean;
     correo?: string;
     password?: string;
   }
@@ -126,7 +129,12 @@ export async function actualizarUsuario(
 
   const { error } = await supabase
     .from("usuarios")
-    .update({ nombre: input.nombre, rol: input.rol, puede_editar_tickets: input.puedeEditarTickets })
+    .update({
+      nombre: input.nombre,
+      rol: input.rol,
+      puede_editar_tickets: input.puedeEditarTickets,
+      puede_editar_turnos: input.puedeEditarTurnos,
+    })
     .eq("id", id);
 
   if (error) return { error: error.message };

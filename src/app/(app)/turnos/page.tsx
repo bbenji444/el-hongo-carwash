@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { TurnoActivoCard } from "./TurnoActivoCard";
+import { HistorialTurnos } from "./HistorialTurnos";
 
 export default async function TurnosPage() {
   const supabase = await createClient();
@@ -15,13 +16,15 @@ export default async function TurnosPage() {
 
   const { data: usuario } = await supabase
     .from("usuarios")
-    .select("id, nombre, rol")
+    .select("id, nombre, rol, puede_editar_turnos")
     .eq("id", user.id)
     .maybeSingle();
 
   if (!usuario) {
     redirect("/login");
   }
+
+  const puedeEditarTurnos = usuario.rol === "dueno" || usuario.puede_editar_turnos;
 
   const { data: turnoAbierto } = await supabase
     .from("turnos")
@@ -102,55 +105,7 @@ export default async function TurnosPage() {
 
       <div className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">Historial de turnos</h2>
-        <div className="overflow-x-auto rounded-xl border border-border">
-          <table className="w-full text-sm">
-            <thead className="bg-surface text-left text-xs uppercase text-muted">
-              <tr>
-                <th className="px-3 py-2">Apertura</th>
-                <th className="px-3 py-2">Cierre</th>
-                <th className="px-3 py-2">Abrió</th>
-                <th className="px-3 py-2">Cerró</th>
-                <th className="px-3 py-2 text-right">Inicial</th>
-                <th className="px-3 py-2 text-right">Esperado</th>
-                <th className="px-3 py-2 text-right">Contado</th>
-                <th className="px-3 py-2 text-right">Diferencia</th>
-              </tr>
-            </thead>
-            <tbody>
-              {historial.map((t) => (
-                <tr key={t.id} className={`border-t border-border ${t.alerta_diferencia ? "bg-primary/5" : ""}`}>
-                  <td className="px-3 py-2 text-muted">{new Date(t.hora_apertura).toLocaleString("es-MX")}</td>
-                  <td className="px-3 py-2 text-muted">
-                    {t.hora_cierre ? new Date(t.hora_cierre).toLocaleString("es-MX") : "—"}
-                  </td>
-                  <td className="px-3 py-2 text-foreground">{t.nombreApertura}</td>
-                  <td className="px-3 py-2 text-foreground">{t.nombreCierre}</td>
-                  <td className="px-3 py-2 text-right text-foreground">${t.efectivo_inicial.toFixed(2)}</td>
-                  <td className="px-3 py-2 text-right text-foreground">
-                    {t.efectivo_esperado != null ? `$${t.efectivo_esperado.toFixed(2)}` : "—"}
-                  </td>
-                  <td className="px-3 py-2 text-right text-foreground">
-                    {t.efectivo_contado != null ? `$${t.efectivo_contado.toFixed(2)}` : "—"}
-                  </td>
-                  <td
-                    className={`px-3 py-2 text-right font-medium ${
-                      t.alerta_diferencia ? "text-primary" : "text-success"
-                    }`}
-                  >
-                    {t.diferencia != null ? `$${t.diferencia.toFixed(2)}` : "—"}
-                  </td>
-                </tr>
-              ))}
-              {historial.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="px-3 py-6 text-center text-muted">
-                    Sin turnos cerrados aún.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <HistorialTurnos historial={historial} puedeEditar={puedeEditarTurnos} />
       </div>
     </div>
   );

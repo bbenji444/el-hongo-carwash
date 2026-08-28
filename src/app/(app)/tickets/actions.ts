@@ -14,12 +14,32 @@ export async function abrirTurno(efectivoInicial: number) {
 
   if (!user) return { error: "Sesión no válida." };
 
+  // Antes no se validaba esto: si la página tardaba en reflejar el turno ya
+  // abierto (o alguien le daba varias veces a "Abrir turno" en pestañas o
+  // recargas distintas), se creaban varios turnos con estado "abierto" a la
+  // vez. Eso rompe la consulta .maybeSingle() de /tickets y /turnos (espera
+  // como máximo una fila), así que la página se quedaba mostrando "no hay
+  // turno abierto" aunque sí lo hubiera. Ahora se valida aquí, y además hay
+  // un índice único parcial en la base de datos que lo garantiza siempre,
+  // incluso ante dos solicitudes simultáneas.
+  const { data: yaAbierto } = await supabase.from("turnos").select("id").eq("estado", "abierto").maybeSingle();
+  if (yaAbierto) {
+    revalidatePath("/tickets");
+    return { error: "Ya hay un turno abierto." };
+  }
+
   const { error } = await supabase.from("turnos").insert({
     usuario_apertura_id: user.id,
     efectivo_inicial: efectivoInicial,
   });
 
-  if (error) return { error: error.message };
+  if (error) {
+    if (error.code === "23505") {
+      revalidatePath("/tickets");
+      return { error: "Ya hay un turno abierto." };
+    }
+    return { error: error.message };
+  }
 
   revalidatePath("/tickets");
   return { error: null };

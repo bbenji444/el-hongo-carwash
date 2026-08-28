@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { TurnoActivoCard } from "./TurnoActivoCard";
 import { HistorialTurnos } from "./HistorialTurnos";
+import { RealtimeSync } from "@/components/RealtimeSync";
 
 export default async function TurnosPage() {
   const supabase = await createClient();
@@ -91,6 +92,7 @@ export default async function TurnosPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      <RealtimeSync tablas={["turnos", "pagos"]} />
       <div>
         <h1 className="text-2xl font-bold text-foreground">Caja y turnos</h1>
         <p className="text-sm text-muted">Cierre de turno y conciliación de efectivo.</p>

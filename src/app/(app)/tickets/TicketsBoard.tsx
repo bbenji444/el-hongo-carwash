@@ -12,6 +12,7 @@ import { CobroModal } from "./CobroModal";
 import { DescuentoModal } from "./DescuentoModal";
 import { ClienteDetalleModal } from "./ClienteDetalleModal";
 import { actualizarEstadoTicket } from "./actions";
+import { useRealtimeRefresh } from "@/lib/useRealtimeRefresh";
 
 const COLUMNAS: { estado: TicketConDetalle["estado"]; titulo: string }[] = [
   { estado: "en_espera", titulo: "En espera" },
@@ -124,6 +125,8 @@ export function TicketsBoard({
   const [clienteDetalleTicket, setClienteDetalleTicket] = useState<TicketConDetalle | null>(null);
   const [errorAvance, setErrorAvance] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  useRealtimeRefresh(["tickets", "pagos", "turnos", "ticket_extras"]);
 
   const [ahora, setAhora] = useState(() => Date.now());
   useEffect(() => {

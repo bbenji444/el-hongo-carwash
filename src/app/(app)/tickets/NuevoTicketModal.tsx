@@ -2,11 +2,11 @@
 
 import { useEffect, useState, useTransition } from "react";
 import type { TamanoVehiculo, Lavador, ConfiguracionApp, ExtraCatalogo } from "@/types/database.types";
-import { TAMANOS_VEHICULO, nombreTamano, precioPorTamano } from "@/lib/servicios";
+import { TAMANOS_VEHICULO, precioPorTamano } from "@/lib/servicios";
 import { emojiPorTamano } from "@/lib/configuracionDefaults";
 import type { ServicioConPrecios } from "./types";
 import { BotonSeleccion } from "./BotonSeleccion";
-import { buscarClientes, crearCliente, crearVehiculo, crearTicket, progresoLealtadCliente } from "./actions";
+import { buscarClientes, crearCliente, crearTicket, progresoLealtadCliente } from "./actions";
 
 type ClienteResultado = { id: string; nombre: string; telefono: string | null };
 type LealtadInfo = { lavadasEnCiclo: number; proximaGratis: boolean; ultimaLavada: string | null };
@@ -40,7 +40,7 @@ export function NuevoTicketModal({
   const [nuevoClienteTelefono, setNuevoClienteTelefono] = useState("");
   const [creandoClienteNuevo, setCreandoClienteNuevo] = useState(false);
 
-  const [placas, setPlacas] = useState("");
+  const [distintivo, setDistintivo] = useState("");
   const [tamanoVehiculo, setTamanoVehiculo] = useState<TamanoVehiculo>("automovil");
 
   const [servicioId, setServicioId] = useState(servicios[0]?.id ?? "");
@@ -113,19 +113,9 @@ export function NuevoTicketModal({
         clienteId = res.data.id;
       }
 
-      let vehiculoId: string | null = null;
-      if (clienteId && placas.trim()) {
-        const res = await crearVehiculo(clienteId, placas.trim() || null, nombreTamano(tamanoVehiculo));
-        if (res.error) {
-          setError(res.error);
-          return;
-        }
-        vehiculoId = res.data?.id ?? null;
-      }
-
       const result = await crearTicket({
         clienteId,
-        vehiculoId,
+        distintivo: distintivo.trim() || null,
         servicioId,
         tamanoVehiculo,
         empleadoId: usuarioActualId,
@@ -235,14 +225,18 @@ export function NuevoTicketModal({
             </div>
           )}
 
-          {/* Placas */}
+          {/* Distintivo */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-muted">Placas (opcional)</label>
+            <label className="text-xs font-medium text-muted">Distintivo (opcional)</label>
             <input
-              value={placas}
-              onChange={(e) => setPlacas(e.target.value)}
+              value={distintivo}
+              onChange={(e) => setDistintivo(e.target.value)}
+              placeholder="Ej. Mazda gris, BMW negro"
               className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
             />
+            <p className="text-[11px] text-muted">
+              Para identificarlo a simple vista — no queda ligado a ningún registro de cliente.
+            </p>
           </div>
 
           {/* Tamaño de vehículo */}

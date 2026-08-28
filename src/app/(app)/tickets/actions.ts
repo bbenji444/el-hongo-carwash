@@ -58,23 +58,6 @@ export async function crearCliente(nombre: string, telefono: string | null) {
   return { data, error: null };
 }
 
-export async function crearVehiculo(
-  clienteId: string,
-  placas: string | null,
-  tipoVehiculo: string | null
-) {
-  const supabase = await createClient();
-
-  const { data, error } = await supabase
-    .from("vehiculos")
-    .insert({ cliente_id: clienteId, placas, tipo_vehiculo: tipoVehiculo })
-    .select("id, placas, tipo_vehiculo")
-    .single();
-
-  if (error) return { data: null, error: error.message };
-  return { data, error: null };
-}
-
 export async function buscarClientes(query: string) {
   const supabase = await createClient();
 
@@ -172,7 +155,7 @@ export async function detalleCliente(clienteId: string) {
 
 export async function crearTicket(input: {
   clienteId: string | null;
-  vehiculoId: string | null;
+  distintivo: string | null;
   servicioId: string;
   tamanoVehiculo: TamanoVehiculo;
   empleadoId: string;
@@ -196,7 +179,7 @@ export async function crearTicket(input: {
     .from("tickets")
     .insert({
       cliente_id: input.clienteId,
-      vehiculo_id: input.vehiculoId,
+      distintivo: input.distintivo,
       servicio_id: input.servicioId,
       tamano_vehiculo: input.tamanoVehiculo,
       empleado_id: input.empleadoId,
@@ -388,7 +371,13 @@ async function requierePermisoEditarTickets() {
 
 export async function actualizarTicket(
   ticketId: string,
-  input: { servicioId: string; tamanoVehiculo: TamanoVehiculo; lavadorId: string | null; extraIds: string[] }
+  input: {
+    servicioId: string;
+    tamanoVehiculo: TamanoVehiculo;
+    lavadorId: string | null;
+    distintivo: string | null;
+    extraIds: string[];
+  }
 ) {
   const { supabase, error: permisoError } = await requierePermisoEditarTickets();
   if (permisoError) return { error: permisoError };
@@ -399,6 +388,7 @@ export async function actualizarTicket(
       servicio_id: input.servicioId,
       tamano_vehiculo: input.tamanoVehiculo,
       lavador_id: input.lavadorId,
+      distintivo: input.distintivo,
     })
     .eq("id", ticketId)
     .neq("estado", "entregado");

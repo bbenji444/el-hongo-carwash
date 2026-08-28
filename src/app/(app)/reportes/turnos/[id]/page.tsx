@@ -119,7 +119,7 @@ export default async function DesgloseTurnoPage({
       id: t.id,
       horaEntrada: t.hora_entrada,
       cliente: t.cliente_id ? nombrePorCliente.get(t.cliente_id) ?? "—" : "Mostrador",
-      placas: t.vehiculo_id ? placasPorVehiculo.get(t.vehiculo_id) ?? null : null,
+      placas: t.distintivo ?? (t.vehiculo_id ? placasPorVehiculo.get(t.vehiculo_id) ?? null : null),
       servicioId: t.servicio_id,
       servicio: nombrePorServicio.get(t.servicio_id) ?? "—",
       tamanoVehiculo: t.tamano_vehiculo,
@@ -279,7 +279,7 @@ export default async function DesgloseTurnoPage({
             <tr>
               <th className="px-4 py-3">Hora</th>
               <th className="px-4 py-3">Cliente</th>
-              <th className="px-4 py-3">Placas</th>
+              <th className="px-4 py-3">Distintivo</th>
               <th className="px-4 py-3">Paquete</th>
               <th className="px-4 py-3">Tamaño</th>
               <th className="px-4 py-3">Empleado</th>

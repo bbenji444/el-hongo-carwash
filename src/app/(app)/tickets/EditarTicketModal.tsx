@@ -31,6 +31,7 @@ export function EditarTicketModal({
   const [tamanoVehiculo, setTamanoVehiculo] = useState<TamanoVehiculo>(ticket.tamano_vehiculo);
   const [servicioId, setServicioId] = useState(ticket.servicio_id);
   const [lavadorId, setLavadorId] = useState(ticket.lavador?.id ?? "");
+  const [distintivo, setDistintivo] = useState(ticket.distintivo ?? "");
   const [extraIds, setExtraIds] = useState<string[]>(ticket.extras.map((e) => e.extra_id));
 
   function toggleExtra(id: string) {
@@ -50,6 +51,7 @@ export function EditarTicketModal({
         servicioId,
         tamanoVehiculo,
         lavadorId: lavadorId || null,
+        distintivo: distintivo.trim() || null,
         extraIds,
       });
 
@@ -90,7 +92,18 @@ export function EditarTicketModal({
         <div className="flex flex-col gap-4">
           <div className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-muted">
             {ticket.cliente?.nombre ?? "Cliente de mostrador"}
-            {ticket.vehiculo?.placas && ` · ${ticket.vehiculo.placas}`}
+            {(ticket.distintivo ?? ticket.vehiculo?.placas) && ` · ${ticket.distintivo ?? ticket.vehiculo?.placas}`}
+          </div>
+
+          {/* Distintivo */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-muted">Distintivo (opcional)</label>
+            <input
+              value={distintivo}
+              onChange={(e) => setDistintivo(e.target.value)}
+              placeholder="Ej. Mazda gris, BMW negro"
+              className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+            />
           </div>
 
           {/* Tamaño de vehículo */}

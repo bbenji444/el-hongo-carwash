@@ -73,7 +73,7 @@ export function ClienteDetalleModal({
               {ticketActual.lavadorNombre && (
                 <p className="text-muted">Lavador: {ticketActual.lavadorNombre}</p>
               )}
-              {ticketActual.placas && <p className="text-muted">Placas: {ticketActual.placas}</p>}
+              {ticketActual.placas && <p className="text-muted">Distintivo: {ticketActual.placas}</p>}
             </div>
 
             <div className="grid grid-cols-2 gap-2">

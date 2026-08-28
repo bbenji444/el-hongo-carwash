@@ -59,7 +59,7 @@ export default async function DesgloseLavadorPage({
 
   const ticketsQuery = supabase
     .from("tickets")
-    .select("id, cliente_id, vehiculo_id, servicio_id, tamano_vehiculo, estado, hora_entrada")
+    .select("id, cliente_id, vehiculo_id, distintivo, servicio_id, tamano_vehiculo, estado, hora_entrada")
     .eq("lavador_id", id)
     .order("hora_entrada", { ascending: false });
   if (rango.desdeIso) ticketsQuery.gte("hora_entrada", rango.desdeIso);
@@ -99,7 +99,7 @@ export default async function DesgloseLavadorPage({
     id: t.id,
     horaEntrada: t.hora_entrada,
     cliente: t.cliente_id ? nombrePorCliente.get(t.cliente_id) ?? "—" : "Mostrador",
-    placas: t.vehiculo_id ? placasPorVehiculo.get(t.vehiculo_id) ?? null : null,
+    placas: t.distintivo ?? (t.vehiculo_id ? placasPorVehiculo.get(t.vehiculo_id) ?? null : null),
     servicio: nombrePorServicio.get(t.servicio_id) ?? "—",
     tamanoVehiculo: t.tamano_vehiculo,
     estado: t.estado,
@@ -175,7 +175,7 @@ export default async function DesgloseLavadorPage({
             <tr>
               <th className="px-4 py-3">Fecha</th>
               <th className="px-4 py-3">Cliente</th>
-              <th className="px-4 py-3">Placas</th>
+              <th className="px-4 py-3">Distintivo</th>
               <th className="px-4 py-3">Paquete</th>
               <th className="px-4 py-3">Tamaño</th>
               <th className="px-4 py-3">Estado</th>

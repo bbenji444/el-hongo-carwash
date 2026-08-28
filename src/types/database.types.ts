@@ -393,6 +393,8 @@ export interface Database {
           hora_entrada: string;
           hora_salida: string | null;
           hora_cambio_estado: string;
+          hora_inicio_lavado: string | null;
+          hora_fin_lavado: string | null;
           creado_por: string;
         };
         Insert: {
@@ -413,6 +415,8 @@ export interface Database {
           hora_entrada?: string;
           hora_salida?: string | null;
           hora_cambio_estado?: string;
+          hora_inicio_lavado?: string | null;
+          hora_fin_lavado?: string | null;
           creado_por?: string;
         };
         Update: {
@@ -433,6 +437,8 @@ export interface Database {
           hora_entrada?: string;
           hora_salida?: string | null;
           hora_cambio_estado?: string;
+          hora_inicio_lavado?: string | null;
+          hora_fin_lavado?: string | null;
           creado_por?: string;
         };
         Relationships: [];

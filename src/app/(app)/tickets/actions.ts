@@ -235,14 +235,29 @@ export async function actualizarEstadoTicket(ticketId: string, estado: TicketEst
   // DB) para que el cronómetro de "tiempo en esta etapa" reinicie siempre que
   // esta acción cambia el estado, sin depender de que la migración del
   // trigger haya quedado aplicada correctamente en el entorno del usuario.
-  const { error } = await supabase
-    .from("tickets")
-    .update({
-      estado,
-      hora_cambio_estado: new Date().toISOString(),
-      hora_salida: estado === "entregado" ? new Date().toISOString() : null,
-    })
-    .eq("id", ticketId);
+  //
+  // hora_inicio_lavado y hora_fin_lavado son distintas de hora_cambio_estado:
+  // esa se sobreescribe en cada cambio de estado, así que para cuando el
+  // ticket llega a "entregado" ya se perdió el instante exacto en que
+  // empezó a lavarse. Estas dos solo se llenan una vez, al pasar por
+  // "en_proceso" y "terminado" respectivamente, para poder calcular después
+  // cuánto tardó la lavada en sí (sin contar la espera en cola).
+  const ahora = new Date().toISOString();
+  const update: {
+    estado: TicketEstado;
+    hora_cambio_estado: string;
+    hora_salida: string | null;
+    hora_inicio_lavado?: string;
+    hora_fin_lavado?: string;
+  } = {
+    estado,
+    hora_cambio_estado: ahora,
+    hora_salida: estado === "entregado" ? ahora : null,
+  };
+  if (estado === "en_proceso") update.hora_inicio_lavado = ahora;
+  if (estado === "terminado") update.hora_fin_lavado = ahora;
+
+  const { error } = await supabase.from("tickets").update(update).eq("id", ticketId);
 
   if (error) return { error: error.message };
 

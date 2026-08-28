@@ -10,6 +10,14 @@ function money(n: number) {
   return `$${n.toFixed(2)}`;
 }
 
+function formatearMinutos(minutos: number) {
+  const redondeado = Math.round(minutos);
+  if (redondeado < 60) return `${redondeado} min`;
+  const horas = Math.floor(redondeado / 60);
+  const resto = redondeado % 60;
+  return resto > 0 ? `${horas}h ${resto}min` : `${horas}h`;
+}
+
 const ESTADO_LABEL: Record<string, string> = {
   en_espera: "En espera",
   en_proceso: "En proceso",
@@ -59,7 +67,9 @@ export default async function DesgloseLavadorPage({
 
   const ticketsQuery = supabase
     .from("tickets")
-    .select("id, cliente_id, vehiculo_id, distintivo, servicio_id, tamano_vehiculo, estado, hora_entrada")
+    .select(
+      "id, cliente_id, vehiculo_id, distintivo, servicio_id, tamano_vehiculo, estado, hora_entrada, hora_inicio_lavado, hora_fin_lavado"
+    )
     .eq("lavador_id", id)
     .order("hora_entrada", { ascending: false });
   if (rango.desdeIso) ticketsQuery.gte("hora_entrada", rango.desdeIso);
@@ -114,6 +124,20 @@ export default async function DesgloseLavadorPage({
     porTamano.set(t.tamanoVehiculo, (porTamano.get(t.tamanoVehiculo) ?? 0) + 1);
   }
 
+  // Tiempo real de lavada (de "Iniciar" a "Terminado", sin contar la espera
+  // en cola) de todas las lavadas que ya pasaron por ese tramo, entregadas
+  // o no.
+  const conTiempoLavado = (tickets ?? []).filter((t) => t.hora_inicio_lavado && t.hora_fin_lavado);
+  const tiempoPromedioLavadoMin =
+    conTiempoLavado.length > 0
+      ? conTiempoLavado.reduce(
+          (acc, t) => acc + (new Date(t.hora_fin_lavado!).getTime() - new Date(t.hora_inicio_lavado!).getTime()),
+          0
+        ) /
+        conTiempoLavado.length /
+        60000
+      : null;
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -152,6 +176,13 @@ export default async function DesgloseLavadorPage({
         <div className="rounded-xl border border-border bg-surface p-5">
           <p className="text-xs uppercase tracking-wide text-muted">Ventas generadas</p>
           <p className="mt-1 text-2xl font-bold text-foreground">{money(totalVentas)}</p>
+        </div>
+        <div className="rounded-xl border border-border bg-surface p-5">
+          <p className="text-xs uppercase tracking-wide text-muted">Tiempo promedio de lavada</p>
+          <p className="mt-1 text-2xl font-bold text-foreground">
+            {tiempoPromedioLavadoMin !== null ? formatearMinutos(tiempoPromedioLavadoMin) : "—"}
+          </p>
+          <p className="text-[11px] text-muted">De &quot;Iniciar&quot; a &quot;Terminado&quot;</p>
         </div>
         <div className="rounded-xl border border-border bg-surface p-5 sm:col-span-2">
           <p className="text-xs uppercase tracking-wide text-muted">Por tamaño de vehículo</p>

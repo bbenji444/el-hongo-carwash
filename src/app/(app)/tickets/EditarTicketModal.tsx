@@ -91,8 +91,15 @@ export function EditarTicketModal({
 
         <div className="flex flex-col gap-4">
           <div className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-muted">
-            {ticket.cliente?.nombre ?? "Cliente de mostrador"}
-            {(ticket.distintivo ?? ticket.vehiculo?.placas) && ` · ${ticket.distintivo ?? ticket.vehiculo?.placas}`}
+            {ticket.cliente ? (
+              <>
+                {ticket.cliente.nombre}
+                {(ticket.distintivo ?? ticket.vehiculo?.placas) &&
+                  ` · ${ticket.distintivo ?? ticket.vehiculo?.placas}`}
+              </>
+            ) : (
+              ticket.distintivo ?? "Cliente de mostrador"
+            )}
           </div>
 
           {/* Distintivo */}

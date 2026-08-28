@@ -277,10 +277,13 @@ export function TicketsBoard({
                           onClick={() => setClienteDetalleTicket(ticket)}
                           className="text-left text-sm font-semibold text-foreground disabled:cursor-default enabled:hover:text-accent enabled:hover:underline"
                         >
-                          {ticket.cliente?.nombre ?? "Cliente de mostrador"}
+                          {ticket.cliente?.nombre ?? ticket.distintivo ?? "Cliente de mostrador"}
                         </button>
                         <p className="text-xs text-muted">
-                          {[ticket.distintivo ?? ticket.vehiculo?.placas, nombreTamano(ticket.tamano_vehiculo)]
+                          {(ticket.cliente
+                            ? [ticket.distintivo ?? ticket.vehiculo?.placas, nombreTamano(ticket.tamano_vehiculo)]
+                            : [nombreTamano(ticket.tamano_vehiculo)]
+                          )
                             .filter(Boolean)
                             .join(" · ")}
                         </p>

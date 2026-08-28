@@ -98,8 +98,8 @@ export default async function DesgloseLavadorPage({
   const filaTickets = (tickets ?? []).map((t) => ({
     id: t.id,
     horaEntrada: t.hora_entrada,
-    cliente: t.cliente_id ? nombrePorCliente.get(t.cliente_id) ?? "—" : "Mostrador",
-    placas: t.distintivo ?? (t.vehiculo_id ? placasPorVehiculo.get(t.vehiculo_id) ?? null : null),
+    cliente: t.cliente_id ? nombrePorCliente.get(t.cliente_id) ?? "—" : t.distintivo ?? "Mostrador",
+    placas: t.cliente_id ? t.distintivo ?? (t.vehiculo_id ? placasPorVehiculo.get(t.vehiculo_id) ?? null : null) : null,
     servicio: nombrePorServicio.get(t.servicio_id) ?? "—",
     tamanoVehiculo: t.tamano_vehiculo,
     estado: t.estado,

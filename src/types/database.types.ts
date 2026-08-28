@@ -17,6 +17,7 @@ export interface Database {
           activo: boolean;
           puede_editar_tickets: boolean;
           puede_editar_turnos: boolean;
+          puede_eliminar_turnos: boolean;
           creado_en: string;
         };
         Insert: {
@@ -26,6 +27,7 @@ export interface Database {
           activo?: boolean;
           puede_editar_tickets?: boolean;
           puede_editar_turnos?: boolean;
+          puede_eliminar_turnos?: boolean;
           creado_en?: string;
         };
         Update: {
@@ -35,6 +37,7 @@ export interface Database {
           activo?: boolean;
           puede_editar_tickets?: boolean;
           puede_editar_turnos?: boolean;
+          puede_eliminar_turnos?: boolean;
           creado_en?: string;
         };
         Relationships: [];
@@ -246,6 +249,7 @@ export interface Database {
           creado_en: string;
           email: string | null;
           puede_editar_turnos: boolean;
+          puede_eliminar_turnos: boolean;
         };
         Insert: {
           id?: string;
@@ -256,6 +260,7 @@ export interface Database {
           creado_en?: string;
           email?: string | null;
           puede_editar_turnos?: boolean;
+          puede_eliminar_turnos?: boolean;
         };
         Update: {
           id?: string;
@@ -266,6 +271,7 @@ export interface Database {
           creado_en?: string;
           email?: string | null;
           puede_editar_turnos?: boolean;
+          puede_eliminar_turnos?: boolean;
         };
         Relationships: [];
       };

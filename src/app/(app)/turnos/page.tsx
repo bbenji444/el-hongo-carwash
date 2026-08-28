@@ -16,7 +16,7 @@ export default async function TurnosPage() {
 
   const { data: usuario } = await supabase
     .from("usuarios")
-    .select("id, nombre, rol, puede_editar_turnos")
+    .select("id, nombre, rol, puede_editar_turnos, puede_eliminar_turnos")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -25,6 +25,7 @@ export default async function TurnosPage() {
   }
 
   const puedeEditarTurnos = usuario.rol === "dueno" || usuario.puede_editar_turnos;
+  const puedeEliminarTurnos = usuario.rol === "dueno" || usuario.puede_eliminar_turnos;
 
   const { data: turnoAbierto } = await supabase
     .from("turnos")
@@ -96,7 +97,7 @@ export default async function TurnosPage() {
       </div>
 
       {turnoAbierto && resumen ? (
-        <TurnoActivoCard turno={turnoAbierto} resumen={resumen} />
+        <TurnoActivoCard turno={turnoAbierto} resumen={resumen} puedeEliminar={puedeEliminarTurnos} />
       ) : (
         <p className="rounded-xl border border-dashed border-border p-4 text-center text-sm text-muted">
           No hay un turno abierto. Ábrelo desde la sección de Tickets.
@@ -105,7 +106,7 @@ export default async function TurnosPage() {
 
       <div className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">Historial de turnos</h2>
-        <HistorialTurnos historial={historial} puedeEditar={puedeEditarTurnos} />
+        <HistorialTurnos historial={historial} puedeEditar={puedeEditarTurnos} puedeEliminar={puedeEliminarTurnos} />
       </div>
     </div>
   );

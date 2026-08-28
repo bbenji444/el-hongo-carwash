@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import type { Turno } from "@/types/database.types";
-import { cerrarTurno } from "./actions";
+import { cerrarTurno, eliminarTurno } from "./actions";
 
 const METODO_LABEL: Record<string, string> = {
   efectivo: "Efectivo",
@@ -17,7 +17,15 @@ type Resumen = {
   ocultarEfectivo: boolean;
 };
 
-export function TurnoActivoCard({ turno, resumen }: { turno: Turno; resumen: Resumen }) {
+export function TurnoActivoCard({
+  turno,
+  resumen,
+  puedeEliminar,
+}: {
+  turno: Turno;
+  resumen: Resumen;
+  puedeEliminar: boolean;
+}) {
   const [efectivoContado, setEfectivoContado] = useState("");
   const [confirmando, setConfirmando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,16 +52,42 @@ export function TurnoActivoCard({ turno, resumen }: { turno: Turno; resumen: Res
     });
   }
 
+  function handleEliminar() {
+    if (
+      !window.confirm(
+        "¿Eliminar por completo este turno abierto? Esto borra también todos sus tickets y pagos registrados hasta ahora. Esta acción no se puede deshacer."
+      )
+    ) {
+      return;
+    }
+    setError(null);
+    startTransition(async () => {
+      const result = await eliminarTurno(turno.id);
+      if (result.error) setError(result.error);
+    });
+  }
+
   return (
     <div className="flex flex-col gap-4 rounded-xl border border-border bg-surface p-5">
-      <div>
-        <p className="text-sm text-muted">
-          Turno abierto desde{" "}
-          <span className="text-foreground">
-            {new Date(turno.hora_apertura).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}
-          </span>
-        </p>
-        <p className="text-xs text-muted">Efectivo inicial: ${turno.efectivo_inicial.toFixed(2)}</p>
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="text-sm text-muted">
+            Turno abierto desde{" "}
+            <span className="text-foreground">
+              {new Date(turno.hora_apertura).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}
+            </span>
+          </p>
+          <p className="text-xs text-muted">Efectivo inicial: ${turno.efectivo_inicial.toFixed(2)}</p>
+        </div>
+        {puedeEliminar && (
+          <button
+            onClick={handleEliminar}
+            disabled={pending}
+            className="text-xs text-primary hover:underline disabled:opacity-60"
+          >
+            Eliminar turno
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

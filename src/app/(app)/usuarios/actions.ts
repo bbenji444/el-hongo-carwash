@@ -56,6 +56,7 @@ export async function crearUsuario(input: {
   rol: RolUsuario;
   puedeEditarTickets: boolean;
   puedeEditarTurnos: boolean;
+  puedeEliminarTurnos: boolean;
 }) {
   const { supabase, error: permisoError } = await requiereDueno();
   if (permisoError) return { error: permisoError };
@@ -82,6 +83,7 @@ export async function crearUsuario(input: {
     rol: input.rol,
     puede_editar_tickets: input.puedeEditarTickets,
     puede_editar_turnos: input.puedeEditarTurnos,
+    puede_eliminar_turnos: input.puedeEliminarTurnos,
   });
 
   if (insertError) {
@@ -102,6 +104,7 @@ export async function actualizarUsuario(
     rol: RolUsuario;
     puedeEditarTickets: boolean;
     puedeEditarTurnos: boolean;
+    puedeEliminarTurnos: boolean;
     correo?: string;
     password?: string;
   }
@@ -134,6 +137,7 @@ export async function actualizarUsuario(
       rol: input.rol,
       puede_editar_tickets: input.puedeEditarTickets,
       puede_editar_turnos: input.puedeEditarTurnos,
+      puede_eliminar_turnos: input.puedeEliminarTurnos,
     })
     .eq("id", id);
 

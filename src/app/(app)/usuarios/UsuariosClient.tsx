@@ -35,6 +35,7 @@ const emptyForm = {
   rol: "cajero" as RolUsuario,
   puedeEditarTickets: false,
   puedeEditarTurnos: false,
+  puedeEliminarTurnos: false,
 };
 
 export function UsuariosClient({
@@ -60,6 +61,7 @@ export function UsuariosClient({
       rol: u.rol,
       puedeEditarTickets: u.puede_editar_tickets,
       puedeEditarTurnos: u.puede_editar_turnos,
+      puedeEliminarTurnos: u.puede_eliminar_turnos,
     });
     setError(null);
     setAviso(null);
@@ -110,6 +112,7 @@ export function UsuariosClient({
         rol: form.rol,
         puedeEditarTickets: form.puedeEditarTickets,
         puedeEditarTurnos: form.puedeEditarTurnos,
+        puedeEliminarTurnos: form.puedeEliminarTurnos,
       });
       if (result.error) {
         setError(result.error);
@@ -127,6 +130,7 @@ export function UsuariosClient({
           rol: form.rol,
           puedeEditarTickets: form.puedeEditarTickets,
           puedeEditarTurnos: form.puedeEditarTurnos,
+          puedeEliminarTurnos: form.puedeEliminarTurnos,
           correo: form.correo.trim(),
           password: form.password || undefined,
         });
@@ -251,6 +255,21 @@ export function UsuariosClient({
                     </span>
                   </span>
                 </label>
+                <label className="flex items-start gap-2 text-sm text-foreground">
+                  <input
+                    type="checkbox"
+                    checked={form.puedeEliminarTurnos}
+                    onChange={(e) => setForm((f) => ({ ...f, puedeEliminarTurnos: e.target.checked }))}
+                    className="mt-0.5"
+                  />
+                  <span>
+                    Puede eliminar turnos
+                    <span className="block text-xs text-muted">
+                      Permiso más fuerte: borra el turno (abierto o cerrado) por completo, junto con todos sus
+                      tickets y pagos. No se puede deshacer.
+                    </span>
+                  </span>
+                </label>
               </>
             )}
 
@@ -331,6 +350,14 @@ export function UsuariosClient({
                       title="Puede editar turnos ya cerrados"
                     >
                       + turnos
+                    </span>
+                  )}
+                  {u.rol !== "dueno" && u.puede_eliminar_turnos && (
+                    <span
+                      className="ml-1.5 rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary"
+                      title="Puede eliminar turnos por completo"
+                    >
+                      + eliminar turnos
                     </span>
                   )}
                 </td>

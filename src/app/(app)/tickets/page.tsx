@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { obtenerConfiguracion } from "@/lib/configuracion";
+import { inicioDeDiaMX } from "@/lib/fecha";
 import { TicketsBoard } from "./TicketsBoard";
 import type { ServicioPrecio, TicketExtra } from "@/types/database.types";
 
@@ -172,14 +173,15 @@ export default async function TicketsPage() {
 
     // Ventas del día y tiempo promedio de servicio se miden por día natural
     // (todos los turnos de hoy), no solo el turno en curso — a diferencia del
-    // efectivo, que sí es un dato propio de este turno.
-    const inicioDia = new Date();
-    inicioDia.setHours(0, 0, 0, 0);
+    // efectivo, que sí es un dato propio de este turno. El "día" se calcula
+    // en hora de México (inicioDeDiaMX), no en la hora local del servidor
+    // (que en Vercel corre en UTC) — si no, las ventas de la noche (después
+    // de las 6pm hora de México) se contaban como del día siguiente.
     const { data: ticketsHoy } = await supabase
       .from("tickets")
       .select("hora_entrada, hora_salida")
       .eq("estado", "entregado")
-      .gte("hora_salida", inicioDia.toISOString());
+      .gte("hora_salida", inicioDeDiaMX(0).toISOString());
 
     const entregadosHoy = (ticketsHoy ?? []).filter((t) => t.hora_salida);
     const tiempoPromedioMin =

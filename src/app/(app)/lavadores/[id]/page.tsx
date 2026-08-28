@@ -114,6 +114,10 @@ export default async function DesgloseLavadorPage({
     tamanoVehiculo: t.tamano_vehiculo,
     estado: t.estado,
     monto: montoPorTicket.get(t.id) ?? 0,
+    tiempoLavadoMin:
+      t.hora_inicio_lavado && t.hora_fin_lavado
+        ? (new Date(t.hora_fin_lavado).getTime() - new Date(t.hora_inicio_lavado).getTime()) / 60000
+        : null,
   }));
 
   const entregados = filaTickets.filter((t) => t.estado === "entregado");
@@ -210,6 +214,7 @@ export default async function DesgloseLavadorPage({
               <th className="px-4 py-3">Paquete</th>
               <th className="px-4 py-3">Tamaño</th>
               <th className="px-4 py-3">Estado</th>
+              <th className="px-4 py-3">Tiempo de lavada</th>
               <th className="px-4 py-3">Monto</th>
             </tr>
           </thead>
@@ -222,12 +227,15 @@ export default async function DesgloseLavadorPage({
                 <td className="px-4 py-3 text-foreground">{t.servicio}</td>
                 <td className="px-4 py-3 text-muted">{nombreTamano(t.tamanoVehiculo)}</td>
                 <td className="px-4 py-3 text-muted">{ESTADO_LABEL[t.estado] ?? t.estado}</td>
+                <td className="px-4 py-3 text-muted">
+                  {t.tiempoLavadoMin !== null ? formatearMinutos(t.tiempoLavadoMin) : "—"}
+                </td>
                 <td className="px-4 py-3 font-medium text-foreground">{money(t.monto)}</td>
               </tr>
             ))}
             {filaTickets.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-muted">
+                <td colSpan={8} className="px-4 py-6 text-center text-muted">
                   Sin tickets asignados en este período.
                 </td>
               </tr>

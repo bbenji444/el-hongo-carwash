@@ -1,9 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient as createSupabaseJsClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
-import type { Database, TicketEstado, PagoMetodo, TamanoVehiculo } from "@/types/database.types";
+import type { TicketEstado, PagoMetodo, TamanoVehiculo } from "@/types/database.types";
 
 export async function abrirTurno(efectivoInicial: number) {
   const supabase = await createClient();
@@ -289,47 +288,47 @@ export async function registrarPago(input: {
   return { error: null };
 }
 
-// Autorización de descuento: se verifica la contraseña del encargado/dueño en un
-// cliente aislado (sin tocar las cookies de sesión del actor actual) para exigir
-// presencia real, no solo el UUID de alguien con el rol correcto.
+// Precio especial: se captura el precio final (no el monto de descuento, la
+// resta la hace el servidor) y solo el nombre de quien lo autoriza — a
+// petición del dueño, ya no se pide correo/contraseña real de un
+// encargado/dueño (ver nota en la migración 20260909010000).
 export async function solicitarDescuento(input: {
   ticketId: string;
-  montoDescuento: number;
-  autorizadorEmail: string;
-  autorizadorPassword: string;
+  precioFinal: number;
+  autorizadorNombre: string;
 }) {
-  const isolatedClient = createSupabaseJsClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { auth: { persistSession: false, autoRefreshToken: false } }
-  );
-
-  const { data: authData, error: authError } = await isolatedClient.auth.signInWithPassword({
-    email: input.autorizadorEmail,
-    password: input.autorizadorPassword,
-  });
-
-  if (authError || !authData.user) {
-    return { error: "Credenciales de autorización inválidas." };
-  }
-
-  const { data: autorizador, error: autorizadorError } = await isolatedClient
-    .from("usuarios")
-    .select("rol, activo")
-    .eq("id", authData.user.id)
-    .maybeSingle();
-
-  if (autorizadorError || !autorizador || !autorizador.activo || !["encargado", "dueno"].includes(autorizador.rol)) {
-    return { error: "Esa cuenta no tiene permisos para autorizar descuentos." };
+  if (!input.autorizadorNombre.trim()) {
+    return { error: "Escribe el nombre de quien autoriza este precio." };
   }
 
   const supabase = await createClient();
 
+  const { data: ticket } = await supabase
+    .from("tickets")
+    .select("servicio_id, tamano_vehiculo")
+    .eq("id", input.ticketId)
+    .maybeSingle();
+
+  if (!ticket) return { error: "El ticket ya no existe." };
+
+  const [{ data: precio }, { data: extras }] = await Promise.all([
+    supabase
+      .from("servicios_precios")
+      .select("precio")
+      .eq("servicio_id", ticket.servicio_id)
+      .eq("tamano_vehiculo", ticket.tamano_vehiculo)
+      .maybeSingle(),
+    supabase.from("ticket_extras").select("precio").eq("ticket_id", input.ticketId),
+  ]);
+
+  const precioBase = (precio?.precio ?? 0) + (extras ?? []).reduce((suma, e) => suma + e.precio, 0);
+  const descuentoMonto = Math.max(precioBase - input.precioFinal, 0);
+
   const { error } = await supabase
     .from("tickets")
     .update({
-      descuento_monto: input.montoDescuento,
-      descuento_autorizado_por: authData.user.id,
+      descuento_monto: descuentoMonto,
+      descuento_autorizado_por: input.autorizadorNombre.trim(),
     })
     .eq("id", input.ticketId);
 

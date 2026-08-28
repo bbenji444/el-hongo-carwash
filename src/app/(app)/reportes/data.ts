@@ -114,7 +114,7 @@ export async function obtenerDatosReporte(rango: RangoResuelto): Promise<DatosRe
       fecha: t.hora_entrada,
       servicio: nombrePorServicio.get(t.servicio_id) ?? "—",
       empleado: nombrePorUsuario.get(t.creado_por) ?? "—",
-      autorizadoPor: t.descuento_autorizado_por ? nombrePorUsuario.get(t.descuento_autorizado_por) ?? "—" : "—",
+      autorizadoPor: t.descuento_autorizado_por ?? "—",
       monto: t.descuento_monto,
     }));
 

@@ -379,7 +379,7 @@ export function TicketsBoard({
                           onClick={() => setDescuentoTicket(ticket)}
                           className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted hover:text-foreground"
                         >
-                          Descuento
+                          Precio especial
                         </button>
                       )}
                       {col.estado !== "entregado" && col.estado !== "terminado" && !ticket.tienePago && (

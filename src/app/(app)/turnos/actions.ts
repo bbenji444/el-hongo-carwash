@@ -53,7 +53,7 @@ export async function editarTurnoCerrado(
 
   if (error) return { error: error.message };
 
-  revalidatePath("/turnos");
+  revalidatePath("/", "layout");
   return { error: null };
 }
 
@@ -101,8 +101,7 @@ export async function eliminarTurno(turnoId: string) {
   const { error } = await supabase.from("turnos").delete().eq("id", turnoId);
   if (error) return { error: error.message };
 
-  revalidatePath("/turnos");
-  revalidatePath("/tickets");
+  revalidatePath("/", "layout");
   return { error: null };
 }
 
@@ -127,7 +126,6 @@ export async function cerrarTurno(turnoId: string, efectivoContado: number) {
 
   if (error) return { error: error.message };
 
-  revalidatePath("/turnos");
-  revalidatePath("/tickets");
+  revalidatePath("/", "layout");
   return { error: null };
 }

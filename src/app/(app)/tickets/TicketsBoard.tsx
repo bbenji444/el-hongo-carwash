@@ -102,6 +102,7 @@ export function TicketsBoard({
   serverAhora,
   config,
   puedeEditarTickets,
+  esDueno,
 }: {
   turno: Turno | null;
   servicios: ServicioConPrecios[];
@@ -113,6 +114,7 @@ export function TicketsBoard({
   serverAhora: string;
   config: ConfiguracionApp;
   puedeEditarTickets: boolean;
+  esDueno: boolean;
 }) {
   const [mostrarNuevo, setMostrarNuevo] = useState(false);
   const [cobroTicket, setCobroTicket] = useState<TicketConDetalle | null>(null);
@@ -391,12 +393,12 @@ export function TicketsBoard({
                           Cobrar
                         </button>
                       )}
-                      {puedeEditarTickets && col.estado !== "entregado" && (
+                      {puedeEditarTickets && (col.estado !== "entregado" || esDueno) && (
                         <button
                           onClick={() => setEditarTicket(ticket)}
                           className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted hover:text-foreground"
                         >
-                          Editar
+                          {col.estado === "entregado" ? "Eliminar" : "Editar"}
                         </button>
                       )}
                     </div>
@@ -461,6 +463,7 @@ export function TicketsBoard({
           extras={extras}
           enProcesoPorLavador={enProcesoPorLavador}
           config={config}
+          esDueno={esDueno}
           onClose={() => setEditarTicket(null)}
         />
       )}

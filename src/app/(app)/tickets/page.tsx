@@ -27,6 +27,7 @@ export default async function TicketsPage() {
   }
 
   const puedeEditarTickets = usuario.rol === "dueno" || usuario.puede_editar_tickets;
+  const esDueno = usuario.rol === "dueno";
 
   const { data: turno } = await supabase
     .from("turnos")
@@ -215,6 +216,7 @@ export default async function TicketsPage() {
       serverAhora={new Date().toISOString()}
       config={config}
       puedeEditarTickets={puedeEditarTickets}
+      esDueno={esDueno}
     />
   );
 }

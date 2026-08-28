@@ -24,7 +24,7 @@ export async function abrirTurno(efectivoInicial: number) {
   // incluso ante dos solicitudes simultáneas.
   const { data: yaAbierto } = await supabase.from("turnos").select("id").eq("estado", "abierto").maybeSingle();
   if (yaAbierto) {
-    revalidatePath("/tickets");
+    revalidatePath("/", "layout");
     return { error: "Ya hay un turno abierto." };
   }
 
@@ -35,13 +35,13 @@ export async function abrirTurno(efectivoInicial: number) {
 
   if (error) {
     if (error.code === "23505") {
-      revalidatePath("/tickets");
+      revalidatePath("/", "layout");
       return { error: "Ya hay un turno abierto." };
     }
     return { error: error.message };
   }
 
-  revalidatePath("/tickets");
+  revalidatePath("/", "layout");
   return { error: null };
 }
 
@@ -197,7 +197,7 @@ export async function crearTicket(input: {
     if (errorExtras) return { error: errorExtras };
   }
 
-  revalidatePath("/tickets");
+  revalidatePath("/", "layout");
   return { error: null };
 }
 
@@ -247,7 +247,7 @@ export async function actualizarEstadoTicket(ticketId: string, estado: TicketEst
 
   if (error) return { error: error.message };
 
-  revalidatePath("/tickets");
+  revalidatePath("/", "layout");
   return { error: null };
 }
 
@@ -270,7 +270,7 @@ export async function registrarPago(input: {
   // tabla pagos exige monto > 0, así que aquí no se inserta nada, solo se
   // deja avanzar el ticket (el estado "gratis" ya vive en tickets.lavada_gratis).
   if (input.monto === 0) {
-    revalidatePath("/tickets");
+    revalidatePath("/", "layout");
     return { error: null };
   }
 
@@ -285,7 +285,7 @@ export async function registrarPago(input: {
 
   if (error) return { error: error.message };
 
-  revalidatePath("/tickets");
+  revalidatePath("/", "layout");
   return { error: null };
 }
 
@@ -335,7 +335,7 @@ export async function solicitarDescuento(input: {
 
   if (error) return { error: error.message };
 
-  revalidatePath("/tickets");
+  revalidatePath("/", "layout");
   return { error: null };
 }
 
@@ -366,7 +366,7 @@ async function requierePermisoEditarTickets() {
     return { supabase, error: "No tienes permiso para editar o eliminar tickets." };
   }
 
-  return { supabase, error: null };
+  return { supabase, error: null, esDueno: actor?.rol === "dueno" };
 }
 
 export async function actualizarTicket(
@@ -406,19 +406,23 @@ export async function actualizarTicket(
     if (errorExtras) return { error: errorExtras };
   }
 
-  revalidatePath("/tickets");
+  revalidatePath("/", "layout");
   return { error: null };
 }
 
 export async function eliminarTicket(ticketId: string) {
-  const { supabase, error: permisoError } = await requierePermisoEditarTickets();
+  const { supabase, error: permisoError, esDueno } = await requierePermisoEditarTickets();
   if (permisoError) return { error: permisoError };
 
   const { data: ticket } = await supabase.from("tickets").select("estado").eq("id", ticketId).maybeSingle();
 
   if (!ticket) return { error: "El ticket ya no existe." };
-  if (ticket.estado === "entregado") {
-    return { error: "No se puede eliminar un ticket ya entregado (afectaría la caja cerrada)." };
+  // Un ticket entregado puede tener pagos que ya se sumaron a la caja
+  // cerrada del turno — solo el dueño puede eliminarlo (p. ej. para
+  // corregir una prueba capturada por error), no un encargado/cajero al
+  // que solo se le delegó el permiso de editar/eliminar tickets normales.
+  if (ticket.estado === "entregado" && !esDueno) {
+    return { error: "Solo el dueño puede eliminar un ticket ya entregado (afectaría la caja cerrada)." };
   }
 
   // Un ticket puede ya tener pagos registrados (se puede cobrar antes de
@@ -431,6 +435,6 @@ export async function eliminarTicket(ticketId: string) {
 
   if (error) return { error: error.message };
 
-  revalidatePath("/tickets");
+  revalidatePath("/", "layout");
   return { error: null };
 }

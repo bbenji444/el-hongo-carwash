@@ -234,9 +234,6 @@ export function NuevoTicketModal({
               placeholder="Ej. Mazda gris, BMW negro"
               className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
             />
-            <p className="text-[11px] text-muted">
-              Para identificarlo a simple vista — no queda ligado a ningún registro de cliente.
-            </p>
           </div>
 
           {/* Tamaño de vehículo */}

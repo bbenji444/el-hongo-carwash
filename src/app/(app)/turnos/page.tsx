@@ -84,10 +84,25 @@ export default async function TurnosPage() {
 
   const usuarioMap = new Map((usuarios ?? []).map((u) => [u.id, u.nombre]));
 
+  const turnoIds = (turnosCerrados ?? []).map((t) => t.id);
+  const { data: pagosTurnos } = turnoIds.length
+    ? await supabase.from("pagos").select("turno_id, monto").in("turno_id", turnoIds)
+    : { data: [] };
+
+  // Ganancia = lo que realmente entró de ventas (efectivo + tarjeta +
+  // transferencia), sin el efectivo inicial de caja — a diferencia de
+  // "Esperado", que sí lo incluye porque ese es el monto que se debe
+  // contar físicamente al cerrar.
+  const gananciaPorTurno = new Map<string, number>();
+  for (const p of pagosTurnos ?? []) {
+    gananciaPorTurno.set(p.turno_id, (gananciaPorTurno.get(p.turno_id) ?? 0) + p.monto);
+  }
+
   const historial = (turnosCerrados ?? []).map((t) => ({
     ...t,
     nombreApertura: usuarioMap.get(t.usuario_apertura_id) ?? "—",
     nombreCierre: t.usuario_cierre_id ? usuarioMap.get(t.usuario_cierre_id) ?? "—" : "—",
+    ganancia: gananciaPorTurno.get(t.id) ?? 0,
   }));
 
   return (

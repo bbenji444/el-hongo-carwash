@@ -5,7 +5,7 @@ import type { Turno } from "@/types/database.types";
 import { EditarTurnoModal } from "./EditarTurnoModal";
 import { eliminarTurno } from "./actions";
 
-type TurnoConNombres = Turno & { nombreApertura: string; nombreCierre: string };
+type TurnoConNombres = Turno & { nombreApertura: string; nombreCierre: string; ganancia: number };
 
 export function HistorialTurnos({
   historial,
@@ -50,6 +50,7 @@ export function HistorialTurnos({
               <th className="px-3 py-2 text-right">Esperado</th>
               <th className="px-3 py-2 text-right">Contado</th>
               <th className="px-3 py-2 text-right">Diferencia</th>
+              <th className="px-3 py-2 text-right">Ganancia</th>
               {mostrarAcciones && <th className="px-3 py-2 text-right">Acciones</th>}
             </tr>
           </thead>
@@ -76,6 +77,7 @@ export function HistorialTurnos({
                 >
                   {t.diferencia != null ? `$${t.diferencia.toFixed(2)}` : "—"}
                 </td>
+                <td className="px-3 py-2 text-right font-semibold text-success">${t.ganancia.toFixed(2)}</td>
                 {mostrarAcciones && (
                   <td className="px-3 py-2 text-right">
                     <div className="flex justify-end gap-2">
@@ -100,7 +102,7 @@ export function HistorialTurnos({
             ))}
             {historial.length === 0 && (
               <tr>
-                <td colSpan={mostrarAcciones ? 9 : 8} className="px-3 py-6 text-center text-muted">
+                <td colSpan={mostrarAcciones ? 10 : 9} className="px-3 py-6 text-center text-muted">
                   Sin turnos cerrados aún.
                 </td>
               </tr>

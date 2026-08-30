@@ -124,6 +124,7 @@ export function construirReporteExcel(datos: DatosReporte): ExcelJS.Workbook {
     { header: "Esperado", key: "esperado", width: 14 },
     { header: "Contado", key: "contado", width: 14 },
     { header: "Diferencia", key: "diferencia", width: 14 },
+    { header: "Ganancia", key: "ganancia", width: 14 },
   ];
   estiloEncabezado(hojaTurnos.getRow(1));
   for (const t of datos.turnos) {
@@ -135,12 +136,13 @@ export function construirReporteExcel(datos: DatosReporte): ExcelJS.Workbook {
       esperado: t.esperado ?? null,
       contado: t.contado ?? null,
       diferencia: t.diferencia ?? null,
+      ganancia: t.ganancia,
     });
     if (t.alertaDiferencia) {
       row.getCell("diferencia").font = { color: { argb: ROJO }, bold: true };
     }
   }
-  (["inicial", "esperado", "contado", "diferencia"] as const).forEach((key) => {
+  (["inicial", "esperado", "contado", "diferencia", "ganancia"] as const).forEach((key) => {
     hojaTurnos.getColumn(key).numFmt = FORMATO_MONEDA;
   });
   sombrearFilasAlternas(hojaTurnos);

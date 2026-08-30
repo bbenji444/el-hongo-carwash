@@ -288,6 +288,7 @@ export function ReportePdf({ datos }: { datos: DatosReporte }) {
               <Text style={[styles.celdaEncabezado, { flex: 1 }]}>Esperado</Text>
               <Text style={[styles.celdaEncabezado, { flex: 1 }]}>Contado</Text>
               <Text style={[styles.celdaEncabezado, { flex: 1 }]}>Diferencia</Text>
+              <Text style={[styles.celdaEncabezado, { flex: 1 }]}>Ganancia</Text>
             </View>
             {datos.turnos.map((t, i) => (
               <View key={t.id} style={[styles.fila, i % 2 === 1 ? styles.filaAlterna : undefined]}>
@@ -304,6 +305,7 @@ export function ReportePdf({ datos }: { datos: DatosReporte }) {
                 <Text style={[t.alertaDiferencia ? styles.celdaRoja : styles.celda, { flex: 1 }]}>
                   {t.diferencia != null ? money(t.diferencia) : "—"}
                 </Text>
+                <Text style={[styles.celda, { flex: 1 }]}>{money(t.ganancia)}</Text>
               </View>
             ))}
             {datos.turnos.length === 0 && <Text style={styles.vacio}>Sin turnos cerrados en este período.</Text>}

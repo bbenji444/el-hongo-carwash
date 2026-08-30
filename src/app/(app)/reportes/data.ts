@@ -28,6 +28,12 @@ export type CierreTurno = {
   contado: number | null;
   diferencia: number | null;
   alertaDiferencia: boolean;
+  // Ganancia real del turno: suma de todos los pagos (efectivo + tarjeta +
+  // transferencia) de sus tickets. A propósito NO es lo mismo que
+  // "esperado" (que sí incluye el efectivo inicial de caja, porque ese es
+  // el monto que se debe contar físicamente al cerrar) — el efectivo
+  // inicial nunca fue una venta, solo el fondo fijo para dar cambio.
+  ganancia: number;
 };
 
 export type DatosReporte = {
@@ -66,7 +72,7 @@ export async function obtenerDatosReporte(rango: RangoResuelto): Promise<DatosRe
 
   const pagosQuery = supabase
     .from("pagos")
-    .select("ticket_id, monto, metodo, creado_en")
+    .select("ticket_id, turno_id, monto, metodo, creado_en")
     .order("creado_en", { ascending: false });
   if (rango.desdeIso) pagosQuery.gte("creado_en", rango.desdeIso);
   if (rango.hastaIso) pagosQuery.lte("creado_en", rango.hastaIso);
@@ -84,9 +90,11 @@ export async function obtenerDatosReporte(rango: RangoResuelto): Promise<DatosRe
   const nombrePorServicio = new Map((servicios ?? []).map((s) => [s.id, s.nombre]));
 
   const montoPorTicket = new Map<string, number>();
+  const gananciaPorTurno = new Map<string, number>();
   const ventasPorMetodo: Record<string, number> = { efectivo: 0, tarjeta: 0, transferencia: 0 };
   for (const pago of pagos ?? []) {
     montoPorTicket.set(pago.ticket_id, (montoPorTicket.get(pago.ticket_id) ?? 0) + pago.monto);
+    gananciaPorTurno.set(pago.turno_id, (gananciaPorTurno.get(pago.turno_id) ?? 0) + pago.monto);
     ventasPorMetodo[pago.metodo] = (ventasPorMetodo[pago.metodo] ?? 0) + pago.monto;
   }
 
@@ -128,6 +136,7 @@ export async function obtenerDatosReporte(rango: RangoResuelto): Promise<DatosRe
     contado: t.efectivo_contado,
     diferencia: t.diferencia,
     alertaDiferencia: t.alerta_diferencia,
+    ganancia: gananciaPorTurno.get(t.id) ?? 0,
   }));
 
   return {

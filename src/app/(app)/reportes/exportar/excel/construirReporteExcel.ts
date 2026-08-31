@@ -150,8 +150,8 @@ export function construirReporteExcel(datos: DatosReporte): ExcelJS.Workbook {
     { header: "Abrió", key: "abrio", width: 18 },
     { header: "Cerró", key: "cerro", width: 18 },
     { header: "Inicial", key: "inicial", width: 14 },
-    { header: "Esperado", key: "esperado", width: 14 },
-    { header: "Contado", key: "contado", width: 14 },
+    { header: "Efectivo esperado", key: "esperado", width: 16 },
+    { header: "Efectivo contado", key: "contado", width: 16 },
     { header: "Diferencia", key: "diferencia", width: 14 },
     { header: "Ganancia", key: "ganancia", width: 14 },
   ];

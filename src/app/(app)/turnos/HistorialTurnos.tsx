@@ -47,8 +47,8 @@ export function HistorialTurnos({
               <th className="px-3 py-2">Abrió</th>
               <th className="px-3 py-2">Cerró</th>
               <th className="px-3 py-2 text-right">Inicial</th>
-              <th className="px-3 py-2 text-right">Esperado</th>
-              <th className="px-3 py-2 text-right">Contado</th>
+              <th className="px-3 py-2 text-right">Efectivo esperado</th>
+              <th className="px-3 py-2 text-right">Efectivo contado</th>
               <th className="px-3 py-2 text-right">Diferencia</th>
               <th className="px-3 py-2 text-right">Ganancia</th>
               {mostrarAcciones && <th className="px-3 py-2 text-right">Acciones</th>}

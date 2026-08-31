@@ -306,8 +306,8 @@ export default async function ReportesPage({
                 <th className="px-4 py-3">Abrió</th>
                 <th className="px-4 py-3">Cerró</th>
                 <th className="px-4 py-3">Inicial</th>
-                <th className="px-4 py-3">Esperado</th>
-                <th className="px-4 py-3">Contado</th>
+                <th className="px-4 py-3">Efectivo esperado</th>
+                <th className="px-4 py-3">Efectivo contado</th>
                 <th className="px-4 py-3">Diferencia</th>
                 <th className="px-4 py-3">Ganancia</th>
                 <th className="px-4 py-3"></th>

@@ -32,6 +32,7 @@ export function AjustesClient({ configuracion }: { configuracion: ConfiguracionA
     nav_clientes: configuracion.nav_clientes,
     nav_inventario: configuracion.nav_inventario,
     nav_reportes: configuracion.nav_reportes,
+    nav_gastos: configuracion.nav_gastos,
     emoji_saludo: configuracion.emoji_saludo,
     emoji_lavador: configuracion.emoji_lavador,
     emoji_automovil: configuracion.emoji_automovil,
@@ -116,6 +117,9 @@ export function AjustesClient({ configuracion }: { configuracion: ConfiguracionA
           </Campo>
           <Campo label="Reportes">
             <input className={inputClass} value={form.nav_reportes} onChange={(e) => set("nav_reportes", e.target.value)} />
+          </Campo>
+          <Campo label="Gastos">
+            <input className={inputClass} value={form.nav_gastos} onChange={(e) => set("nav_gastos", e.target.value)} />
           </Campo>
         </div>
       </section>

@@ -50,6 +50,9 @@ export default async function ReportesPage({
     ventasPorServicio,
     descuentos,
     turnos,
+    gastos,
+    totalGastos,
+    gananciaNeta,
   } = await obtenerDatosReporte(rango);
 
   const qs = queryStringRango(rango);
@@ -173,6 +176,20 @@ export default async function ReportesPage({
           </p>
           <p className="mt-1 text-xs text-muted">{turnosConAlerta} turnos con diferencia</p>
         </div>
+        <div className="hover-lift animate-in rounded-xl border border-border bg-surface p-5" style={{ animationDelay: "240ms" }}>
+          <p className="text-xs uppercase tracking-wide text-muted">Gastos</p>
+          <p className="mt-1 text-2xl font-bold text-primary">
+            <AnimatedNumber value={totalGastos} format="dinero" />
+          </p>
+          <p className="mt-1 text-xs text-muted">{gastos.length} gastos registrados</p>
+        </div>
+        <div className="hover-lift animate-in rounded-xl border border-success/40 bg-success/5 p-5" style={{ animationDelay: "300ms" }}>
+          <p className="text-xs uppercase tracking-wide text-muted">Ganancia neta</p>
+          <p className="mt-1 text-2xl font-bold text-success">
+            <AnimatedNumber value={gananciaNeta} format="dinero" />
+          </p>
+          <p className="mt-1 text-xs text-muted">Ventas menos gastos</p>
+        </div>
       </div>
 
       <div className="flex flex-col gap-3">
@@ -233,6 +250,44 @@ export default async function ReportesPage({
                 <tr>
                   <td colSpan={5} className="px-4 py-6 text-center text-muted">
                     Sin descuentos en este período.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h2 className="font-semibold text-foreground">Gastos</h2>
+          <Link href="/gastos" className="text-xs text-accent hover:underline">
+            Administrar gastos →
+          </Link>
+        </div>
+        <div className="overflow-hidden rounded-xl border border-border bg-surface">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-surface-hover text-xs uppercase tracking-wide text-muted">
+              <tr>
+                <th className="px-4 py-3">Fecha</th>
+                <th className="px-4 py-3">Concepto</th>
+                <th className="px-4 py-3">Notas</th>
+                <th className="px-4 py-3">Monto</th>
+              </tr>
+            </thead>
+            <tbody>
+              {gastos.map((g) => (
+                <tr key={g.id} className="border-t border-border transition-colors hover:bg-surface-hover">
+                  <td className="px-4 py-3 text-muted">{new Date(g.fecha).toLocaleDateString("es-MX")}</td>
+                  <td className="px-4 py-3 text-foreground">{g.concepto}</td>
+                  <td className="px-4 py-3 text-muted">{g.notas ?? "—"}</td>
+                  <td className="px-4 py-3 text-primary">{money(g.monto)}</td>
+                </tr>
+              ))}
+              {gastos.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-6 text-center text-muted">
+                    Sin gastos en este período.
                   </td>
                 </tr>
               )}

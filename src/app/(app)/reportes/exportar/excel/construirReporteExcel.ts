@@ -61,8 +61,17 @@ export function construirReporteExcel(datos: DatosReporte): ExcelJS.Workbook {
     ["Tickets con descuento", datos.descuentos.length],
     ["Diferencia acumulada de caja", datos.diferenciaAcumulada],
     ["Turnos con diferencia", datos.turnosConAlerta],
+    ["Gastos", datos.totalGastos],
+    ["Ganancia neta", datos.gananciaNeta],
   ];
-  const conceptosMoneda = ["ventas totales", "ticket promedio", "descuentos otorgados", "diferencia acumulada de caja"];
+  const conceptosMoneda = [
+    "ventas totales",
+    "ticket promedio",
+    "descuentos otorgados",
+    "diferencia acumulada de caja",
+    "gastos",
+    "ganancia neta",
+  ];
   for (const [concepto, valor] of filasResumen) {
     const row = hojaResumen.addRow([concepto, valor]);
     if (conceptosMoneda.includes(concepto.toLowerCase())) {
@@ -113,6 +122,26 @@ export function construirReporteExcel(datos: DatosReporte): ExcelJS.Workbook {
   }
   hojaDescuentos.getColumn("monto").numFmt = FORMATO_MONEDA;
   sombrearFilasAlternas(hojaDescuentos);
+
+  // --- Gastos ---
+  const hojaGastos = workbook.addWorksheet("Gastos");
+  hojaGastos.columns = [
+    { header: "Fecha", key: "fecha", width: 16 },
+    { header: "Concepto", key: "concepto", width: 24 },
+    { header: "Notas", key: "notas", width: 30 },
+    { header: "Monto", key: "monto", width: 14 },
+  ];
+  estiloEncabezado(hojaGastos.getRow(1));
+  for (const g of datos.gastos) {
+    hojaGastos.addRow({
+      fecha: new Date(g.fecha).toLocaleDateString("es-MX"),
+      concepto: g.concepto,
+      notas: g.notas ?? "",
+      monto: g.monto,
+    });
+  }
+  hojaGastos.getColumn("monto").numFmt = FORMATO_MONEDA;
+  sombrearFilasAlternas(hojaGastos);
 
   // --- Cierres de turno ---
   const hojaTurnos = workbook.addWorksheet("Cierres de turno");

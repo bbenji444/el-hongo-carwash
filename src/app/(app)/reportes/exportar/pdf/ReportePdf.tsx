@@ -8,6 +8,7 @@ import { logoBuffer } from "@/lib/logoPdf";
 Font.registerHyphenationCallback((word) => [word]);
 
 const ROJO = "#e31e24";
+const VERDE = "#16a34a";
 const GRIS_TEXTO = "#3a3a3a";
 const GRIS_MUTED = "#767676";
 const BORDE = "#e2e2e0";
@@ -89,6 +90,9 @@ const styles = StyleSheet.create({
   },
   resumenValorRojo: {
     color: ROJO,
+  },
+  resumenValorVerde: {
+    color: VERDE,
   },
   seccion: {
     marginBottom: 16,
@@ -217,6 +221,17 @@ export function ReportePdf({ datos }: { datos: DatosReporte }) {
           </View>
         </View>
 
+        <View style={styles.resumenFila}>
+          <View style={styles.resumenCaja}>
+            <Text style={styles.resumenLabel}>Gastos</Text>
+            <Text style={[styles.resumenValor, styles.resumenValorRojo]}>{money(datos.totalGastos)}</Text>
+          </View>
+          <View style={styles.resumenCaja}>
+            <Text style={styles.resumenLabel}>Ganancia neta</Text>
+            <Text style={[styles.resumenValor, styles.resumenValorVerde]}>{money(datos.gananciaNeta)}</Text>
+          </View>
+        </View>
+
         <View style={styles.seccion}>
           <Text style={styles.seccionTitulo}>Ventas por método de pago</Text>
           <View style={styles.tabla}>
@@ -274,6 +289,29 @@ export function ReportePdf({ datos }: { datos: DatosReporte }) {
               </View>
             ))}
             {datos.descuentos.length === 0 && <Text style={styles.vacio}>Sin descuentos en este período.</Text>}
+          </View>
+        </View>
+
+        <View style={styles.seccion} wrap={false}>
+          <Text style={styles.seccionTitulo}>Gastos</Text>
+          <View style={styles.tabla}>
+            <View style={styles.filaEncabezado}>
+              <Text style={[styles.celdaEncabezado, { flex: 1.4 }]}>Fecha</Text>
+              <Text style={[styles.celdaEncabezado, { flex: 2 }]}>Concepto</Text>
+              <Text style={[styles.celdaEncabezado, { flex: 2 }]}>Notas</Text>
+              <Text style={[styles.celdaEncabezado, { flex: 1 }]}>Monto</Text>
+            </View>
+            {datos.gastos.map((g, i) => (
+              <View key={g.id} style={[styles.fila, i % 2 === 1 ? styles.filaAlterna : undefined]}>
+                <Text style={[styles.celdaMuted, { flex: 1.4 }]}>
+                  {new Date(g.fecha).toLocaleDateString("es-MX")}
+                </Text>
+                <Text style={[styles.celda, { flex: 2 }]}>{g.concepto}</Text>
+                <Text style={[styles.celdaMuted, { flex: 2 }]}>{g.notas ?? "—"}</Text>
+                <Text style={[styles.celdaRoja, { flex: 1 }]}>{money(g.monto)}</Text>
+              </View>
+            ))}
+            {datos.gastos.length === 0 && <Text style={styles.vacio}>Sin gastos en este período.</Text>}
           </View>
         </View>
 

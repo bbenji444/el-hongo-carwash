@@ -7,10 +7,11 @@ import { emojiPorTamano } from "@/lib/configuracionDefaults";
 import type { ServicioConPrecios } from "./types";
 import { BotonSeleccion } from "./BotonSeleccion";
 import { buscarClientes, crearCliente, crearTicket, progresoLealtadCliente } from "./actions";
-import { obtenerOCrearVehiculo, buscarClientePorPlaca } from "../clientes/actions";
+import { obtenerOCrearVehiculo, buscarVehiculosPorPlaca } from "../clientes/actions";
 
 type ClienteResultado = { id: string; nombre: string; telefono: string | null };
 type LealtadInfo = { lavadasEnCiclo: number; proximaGratis: boolean; ultimaLavada: string | null };
+type ResultadoPlaca = { cliente: ClienteResultado; placas: string | null; tipoVehiculo: string | null };
 
 export function NuevoTicketModal({
   turnoId,
@@ -43,6 +44,7 @@ export function NuevoTicketModal({
 
   const [distintivo, setDistintivo] = useState("");
   const [placa, setPlaca] = useState("");
+  const [resultadosPlaca, setResultadosPlaca] = useState<ResultadoPlaca[]>([]);
   const [placaAutocompleto, setPlacaAutocompleto] = useState(false);
   const [tamanoVehiculo, setTamanoVehiculo] = useState<TamanoVehiculo>("automovil");
 
@@ -72,31 +74,46 @@ export function NuevoTicketModal({
     progresoLealtadCliente(clienteSeleccionado.id).then((res) => setLealtad(res.data));
   }, [clienteSeleccionado]);
 
-  // Autocompletado por placa: si ya está registrada a nombre de un cliente,
-  // se selecciona solo (sin tener que buscarlo por nombre) y se prellena el
-  // distintivo con el tipo de vehículo guardado, si aún no se había escrito.
+  // Autocompletado por placa: conforme se va escribiendo, se buscan
+  // coincidencias parciales (igual que la búsqueda de cliente por nombre) —
+  // si hay una sola y coincide exacta con lo escrito, se selecciona sola;
+  // si hay varias o es una coincidencia parcial, se muestran para elegir.
   useEffect(() => {
     if (clienteSeleccionado || creandoClienteNuevo || !placa.trim()) {
       return;
     }
+    const consulta = placa.trim();
     const timeout = setTimeout(() => {
-      buscarClientePorPlaca(placa.trim()).then((res) => {
-        if (!res.data) return;
-        setClienteSeleccionado(res.data.cliente);
-        setClienteQuery(res.data.cliente.nombre);
-        setPlacaAutocompleto(true);
-        if (res.data.tipoVehiculo) {
-          setDistintivo((actual) => (actual.trim() ? actual : res.data!.tipoVehiculo!));
+      buscarVehiculosPorPlaca(consulta).then((res) => {
+        setResultadosPlaca(res.data);
+        const exacto =
+          res.data.length === 1 && res.data[0].placas?.toLowerCase() === consulta.toLowerCase()
+            ? res.data[0]
+            : null;
+        if (exacto) {
+          seleccionarPorPlaca(exacto);
         }
       });
-    }, 400);
+    }, 300);
     return () => clearTimeout(timeout);
   }, [placa, clienteSeleccionado, creandoClienteNuevo]);
+
+  function seleccionarPorPlaca(r: ResultadoPlaca) {
+    setClienteSeleccionado(r.cliente);
+    setClienteQuery(r.cliente.nombre);
+    setPlaca(r.placas ?? "");
+    setPlacaAutocompleto(true);
+    setResultadosPlaca([]);
+    if (r.tipoVehiculo) {
+      setDistintivo((actual) => (actual.trim() ? actual : r.tipoVehiculo!));
+    }
+  }
 
   function seleccionarCliente(c: ClienteResultado) {
     setClienteSeleccionado(c);
     setClienteQuery(c.nombre);
     setResultados([]);
+    setResultadosPlaca([]);
   }
 
   function limpiarCliente() {
@@ -109,6 +126,7 @@ export function NuevoTicketModal({
     setLealtad(null);
     setPlaca("");
     setPlacaAutocompleto(false);
+    setResultadosPlaca([]);
   }
 
   function handleSubmit() {
@@ -278,7 +296,7 @@ export function NuevoTicketModal({
                 className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
               />
             </div>
-            <div className="flex flex-col gap-1.5">
+            <div className="relative flex flex-col gap-1.5">
               <label className="text-xs font-medium text-muted">Placa (opcional)</label>
               <input
                 value={placa}
@@ -291,6 +309,21 @@ export function NuevoTicketModal({
               />
               {placaAutocompleto && (
                 <p className="text-[11px] text-success">✓ Cliente encontrado por esta placa</p>
+              )}
+              {resultadosPlaca.length > 0 && (
+                <div className="absolute top-full z-10 mt-1 w-full rounded-lg border border-border bg-background shadow-lg">
+                  {resultadosPlaca.map((r, i) => (
+                    <button
+                      key={`${r.cliente.id}-${i}`}
+                      type="button"
+                      onClick={() => seleccionarPorPlaca(r)}
+                      className="block w-full px-3 py-2 text-left text-sm text-foreground hover:bg-surface-hover"
+                    >
+                      <span className="font-medium">{r.placas}</span>
+                      <span className="text-muted"> · {r.cliente.nombre}</span>
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
           </div>

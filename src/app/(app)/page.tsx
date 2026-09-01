@@ -2,12 +2,10 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { diaMX, inicioDeDiaMX } from "@/lib/fecha";
 import { obtenerConfiguracion } from "@/lib/configuracion";
+import { resolverRango } from "@/lib/rangoFechas";
+import { obtenerDatosLavadores } from "./lavadores/data";
 import { AnimatedNumber } from "@/components/AnimatedNumber";
-import { VentasPorServicioChart, TendenciaVentasChart } from "./DashboardCharts";
-
-function money(n: number) {
-  return `$${n.toFixed(2)}`;
-}
+import { VentasPorServicioChart, TendenciaVentasChart, AutosPorLavadorChart, RelacionLavadoresChart } from "./DashboardCharts";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -127,6 +125,17 @@ export default async function DashboardPage() {
     total,
   }));
 
+  // Rendimiento de lavadores (últimos 7 días): quién lava más autos y qué
+  // tan rápido, para poder comparar entre ellos de un vistazo.
+  const { lavadores: lavadoresStats } = await obtenerDatosLavadores(resolverRango({ periodo: "7d" }));
+  const lavadoresActivos = lavadoresStats.filter((l) => l.activo);
+  const autosPorLavador = [...lavadoresActivos]
+    .sort((a, b) => b.autosLavados - a.autosLavados)
+    .map((l) => ({ nombre: l.nombre, autos: l.autosLavados }));
+  const relacionLavadores = lavadoresActivos
+    .filter((l) => l.tiempoPromedioLavadoMin !== null)
+    .map((l) => ({ nombre: l.nombre, autos: l.autosLavados, tiempoMin: l.tiempoPromedioLavadoMin! }));
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -199,6 +208,28 @@ export default async function DashboardPage() {
           <h2 className="font-semibold text-foreground">Tendencia de ventas (últimos 7 días)</h2>
           <div className="mt-3">
             <TendenciaVentasChart data={tendenciaVentas} />
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div
+          className="hover-lift animate-in rounded-xl border border-border bg-surface p-5"
+          style={{ animationDelay: "360ms" }}
+        >
+          <h2 className="font-semibold text-foreground">Autos lavados por lavador (últimos 7 días)</h2>
+          <div className="mt-3">
+            <AutosPorLavadorChart data={autosPorLavador} />
+          </div>
+        </div>
+        <div
+          className="hover-lift animate-in rounded-xl border border-border bg-surface p-5"
+          style={{ animationDelay: "420ms" }}
+        >
+          <h2 className="font-semibold text-foreground">Rendimiento: velocidad vs volumen (últimos 7 días)</h2>
+          <p className="text-xs text-muted">Arriba-izquierda es lo mejor: rápido y con muchos autos.</p>
+          <div className="mt-3">
+            <RelacionLavadoresChart data={relacionLavadores} />
           </div>
         </div>
       </div>

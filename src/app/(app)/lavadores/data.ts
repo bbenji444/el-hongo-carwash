@@ -22,6 +22,9 @@ export type LavadorStat = {
   autosLavados: number;
   ventasGeneradas: number;
   porTamano: ConteoPorTamano;
+  // Promedio de "Iniciar" a "Terminado" (minutos). null si ninguno de sus
+  // tickets en el rango tiene ambas marcas de tiempo capturadas.
+  tiempoPromedioLavadoMin: number | null;
 };
 
 export type DatosLavadores = {
@@ -35,7 +38,7 @@ async function ticketsLavadosEnRango(rango: RangoResuelto) {
 
   const ticketsQuery = supabase
     .from("tickets")
-    .select("id, lavador_id, tamano_vehiculo, hora_entrada")
+    .select("id, lavador_id, tamano_vehiculo, hora_entrada, hora_inicio_lavado, hora_fin_lavado")
     .eq("estado", "entregado")
     .not("lavador_id", "is", null);
   if (rango.desdeIso) ticketsQuery.gte("hora_entrada", rango.desdeIso);
@@ -58,6 +61,10 @@ async function ticketsLavadosEnRango(rango: RangoResuelto) {
     lavadorId: t.lavador_id as string,
     tamanoVehiculo: t.tamano_vehiculo,
     monto: montoPorTicket.get(t.id) ?? 0,
+    tiempoLavadoMin:
+      t.hora_inicio_lavado && t.hora_fin_lavado
+        ? (new Date(t.hora_fin_lavado).getTime() - new Date(t.hora_inicio_lavado).getTime()) / 60000
+        : null,
   }));
 }
 
@@ -69,17 +76,26 @@ export async function obtenerDatosLavadores(rango: RangoResuelto): Promise<Datos
     ticketsLavadosEnRango(rango),
   ]);
 
-  const statsPorLavador = new Map<string, { autos: number; ventas: number; porTamano: ConteoPorTamano }>();
+  const statsPorLavador = new Map<
+    string,
+    { autos: number; ventas: number; porTamano: ConteoPorTamano; sumaTiempoMin: number; conTiempo: number }
+  >();
   for (const t of tickets) {
-    const entry = statsPorLavador.get(t.lavadorId) ?? { autos: 0, ventas: 0, porTamano: conteoVacio() };
+    const entry =
+      statsPorLavador.get(t.lavadorId) ?? { autos: 0, ventas: 0, porTamano: conteoVacio(), sumaTiempoMin: 0, conTiempo: 0 };
     entry.autos += 1;
     entry.ventas += t.monto;
     entry.porTamano[t.tamanoVehiculo] += 1;
+    if (t.tiempoLavadoMin !== null) {
+      entry.sumaTiempoMin += t.tiempoLavadoMin;
+      entry.conTiempo += 1;
+    }
     statsPorLavador.set(t.lavadorId, entry);
   }
 
   const lavadores: LavadorStat[] = (lavadoresRaw ?? []).map((l) => {
-    const stat = statsPorLavador.get(l.id) ?? { autos: 0, ventas: 0, porTamano: conteoVacio() };
+    const stat =
+      statsPorLavador.get(l.id) ?? { autos: 0, ventas: 0, porTamano: conteoVacio(), sumaTiempoMin: 0, conTiempo: 0 };
     return {
       id: l.id,
       nombre: l.nombre,
@@ -87,6 +103,7 @@ export async function obtenerDatosLavadores(rango: RangoResuelto): Promise<Datos
       autosLavados: stat.autos,
       ventasGeneradas: stat.ventas,
       porTamano: stat.porTamano,
+      tiempoPromedioLavadoMin: stat.conTiempo > 0 ? stat.sumaTiempoMin / stat.conTiempo : null,
     };
   });
 

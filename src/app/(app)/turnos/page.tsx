@@ -95,10 +95,14 @@ export default async function TurnosPage() {
   // contar físicamente al cerrar.
   const gananciaPorTurno = new Map<string, number>();
   const transferenciaPorTurno = new Map<string, number>();
+  const tarjetaPorTurno = new Map<string, number>();
   for (const p of pagosTurnos ?? []) {
     gananciaPorTurno.set(p.turno_id, (gananciaPorTurno.get(p.turno_id) ?? 0) + p.monto);
     if (p.metodo === "transferencia") {
       transferenciaPorTurno.set(p.turno_id, (transferenciaPorTurno.get(p.turno_id) ?? 0) + p.monto);
+    }
+    if (p.metodo === "tarjeta") {
+      tarjetaPorTurno.set(p.turno_id, (tarjetaPorTurno.get(p.turno_id) ?? 0) + p.monto);
     }
   }
 
@@ -108,6 +112,7 @@ export default async function TurnosPage() {
     nombreCierre: t.usuario_cierre_id ? usuarioMap.get(t.usuario_cierre_id) ?? "—" : "—",
     ganancia: gananciaPorTurno.get(t.id) ?? 0,
     total: t.efectivo_inicial + (gananciaPorTurno.get(t.id) ?? 0),
+    tarjeta: tarjetaPorTurno.get(t.id) ?? 0,
     transferencia: transferenciaPorTurno.get(t.id) ?? 0,
   }));
 

@@ -11,6 +11,7 @@ type TurnoConNombres = Turno & {
   ganancia: number;
   total: number;
   transferencia: number;
+  tarjeta: number;
 };
 
 export function HistorialTurnos({
@@ -56,6 +57,7 @@ export function HistorialTurnos({
               <th className="px-3 py-2 text-right">Efectivo esperado</th>
               <th className="px-3 py-2 text-right">Efectivo contado</th>
               <th className="px-3 py-2 text-right">Diferencia</th>
+              <th className="px-3 py-2 text-right">Tarjeta</th>
               <th className="px-3 py-2 text-right">Transferencia</th>
               <th className="px-3 py-2 text-right">Total</th>
               <th className="px-3 py-2 text-right">Ganancia</th>
@@ -85,6 +87,7 @@ export function HistorialTurnos({
                 >
                   {t.diferencia != null ? `$${t.diferencia.toFixed(2)}` : "—"}
                 </td>
+                <td className="px-3 py-2 text-right text-foreground">${t.tarjeta.toFixed(2)}</td>
                 <td className="px-3 py-2 text-right text-foreground">${t.transferencia.toFixed(2)}</td>
                 <td className="px-3 py-2 text-right font-medium text-foreground">${t.total.toFixed(2)}</td>
                 <td className="px-3 py-2 text-right font-semibold text-success">${t.ganancia.toFixed(2)}</td>
@@ -112,7 +115,7 @@ export function HistorialTurnos({
             ))}
             {historial.length === 0 && (
               <tr>
-                <td colSpan={mostrarAcciones ? 12 : 11} className="px-3 py-6 text-center text-muted">
+                <td colSpan={mostrarAcciones ? 13 : 12} className="px-3 py-6 text-center text-muted">
                   Sin turnos cerrados aún.
                 </td>
               </tr>

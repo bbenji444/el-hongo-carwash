@@ -103,6 +103,7 @@ export default async function TurnosPage() {
     nombreApertura: usuarioMap.get(t.usuario_apertura_id) ?? "—",
     nombreCierre: t.usuario_cierre_id ? usuarioMap.get(t.usuario_cierre_id) ?? "—" : "—",
     ganancia: gananciaPorTurno.get(t.id) ?? 0,
+    total: t.efectivo_inicial + (gananciaPorTurno.get(t.id) ?? 0),
   }));
 
   return (

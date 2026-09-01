@@ -234,6 +234,13 @@ export function TicketsBoard({
                 {METODO_LABEL[m]}: ${(resumenCaja.totalesVisibles[m] ?? 0).toFixed(2)}
               </span>
             ))}
+            <span className="rounded-full border border-success/40 bg-success/10 px-3 py-1 text-xs font-semibold text-success">
+              Total: $
+              {(
+                (resumenCaja.ocultarEfectivo ? 0 : turno.efectivo_inicial) +
+                Object.values(resumenCaja.totalesVisibles).reduce((suma, monto) => suma + monto, 0)
+              ).toFixed(2)}
+            </span>
             <span className="rounded-full border border-border bg-background px-3 py-1 text-xs text-foreground">
               Ventas hoy: {resumenCaja.ventasHoy}
             </span>

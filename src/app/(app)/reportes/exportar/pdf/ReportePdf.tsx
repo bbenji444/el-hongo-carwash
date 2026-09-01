@@ -326,6 +326,7 @@ export function ReportePdf({ datos }: { datos: DatosReporte }) {
               <Text style={[styles.celdaEncabezado, { flex: 1.2 }]}>Efectivo esperado</Text>
               <Text style={[styles.celdaEncabezado, { flex: 1.2 }]}>Efectivo contado</Text>
               <Text style={[styles.celdaEncabezado, { flex: 1 }]}>Diferencia</Text>
+              <Text style={[styles.celdaEncabezado, { flex: 1 }]}>Total</Text>
               <Text style={[styles.celdaEncabezado, { flex: 1 }]}>Ganancia</Text>
             </View>
             {datos.turnos.map((t, i) => (
@@ -343,6 +344,7 @@ export function ReportePdf({ datos }: { datos: DatosReporte }) {
                 <Text style={[t.alertaDiferencia ? styles.celdaRoja : styles.celda, { flex: 1 }]}>
                   {t.diferencia != null ? money(t.diferencia) : "—"}
                 </Text>
+                <Text style={[styles.celda, { flex: 1 }]}>{money(t.total)}</Text>
                 <Text style={[styles.celda, { flex: 1 }]}>{money(t.ganancia)}</Text>
               </View>
             ))}

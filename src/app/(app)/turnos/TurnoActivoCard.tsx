@@ -110,7 +110,11 @@ export function TurnoActivoCard({
         <div className="rounded-lg border border-success/40 bg-success/10 p-3">
           <p className="text-[10px] uppercase tracking-wide text-muted">Total</p>
           <p className="text-sm font-semibold text-success">
-            ${Object.values(resumen.totalesVisibles).reduce((suma, monto) => suma + monto, 0).toFixed(2)}
+            $
+            {(
+              (resumen.ocultarEfectivo ? 0 : turno.efectivo_inicial) +
+              Object.values(resumen.totalesVisibles).reduce((suma, monto) => suma + monto, 0)
+            ).toFixed(2)}
           </p>
         </div>
       </div>

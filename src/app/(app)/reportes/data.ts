@@ -42,6 +42,10 @@ export type CierreTurno = {
   // el monto que se debe contar físicamente al cerrar) — el efectivo
   // inicial nunca fue una venta, solo el fondo fijo para dar cambio.
   ganancia: number;
+  // Total = efectivo inicial + ganancia (todo el dinero del turno junto,
+  // incluido el fondo fijo). Se muestra aparte de "Ganancia" para que se
+  // vea claro que Total - efectivo inicial = Ganancia, sin ambigüedad.
+  total: number;
 };
 
 export type DatosReporte = {
@@ -163,6 +167,7 @@ export async function obtenerDatosReporte(rango: RangoResuelto): Promise<DatosRe
     diferencia: t.diferencia,
     alertaDiferencia: t.alerta_diferencia,
     ganancia: gananciaPorTurno.get(t.id) ?? 0,
+    total: t.efectivo_inicial + (gananciaPorTurno.get(t.id) ?? 0),
   }));
 
   return {

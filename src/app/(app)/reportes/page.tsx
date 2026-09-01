@@ -309,6 +309,7 @@ export default async function ReportesPage({
                 <th className="px-4 py-3">Efectivo esperado</th>
                 <th className="px-4 py-3">Efectivo contado</th>
                 <th className="px-4 py-3">Diferencia</th>
+                <th className="px-4 py-3">Total</th>
                 <th className="px-4 py-3">Ganancia</th>
                 <th className="px-4 py-3"></th>
               </tr>
@@ -329,6 +330,7 @@ export default async function ReportesPage({
                   <td className={`px-4 py-3 font-medium ${t.alertaDiferencia ? "text-primary" : "text-foreground"}`}>
                     {t.diferencia != null ? money(t.diferencia) : "—"}
                   </td>
+                  <td className="px-4 py-3 font-medium text-foreground">{money(t.total)}</td>
                   <td className="px-4 py-3 font-semibold text-success">{money(t.ganancia)}</td>
                   <td className="px-4 py-3 text-right">
                     <Link href={`/reportes/turnos/${t.id}`} className="text-xs text-accent hover:underline">
@@ -339,7 +341,7 @@ export default async function ReportesPage({
               ))}
               {turnos.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-6 text-center text-muted">
+                  <td colSpan={10} className="px-4 py-6 text-center text-muted">
                     Sin turnos cerrados en este período.
                   </td>
                 </tr>

@@ -490,6 +490,8 @@ export interface Database {
           monto: number;
           fecha: string;
           notas: string | null;
+          archivo_path: string | null;
+          archivo_nombre: string | null;
           creado_por: string;
           creado_en: string;
         };
@@ -499,6 +501,8 @@ export interface Database {
           monto: number;
           fecha?: string;
           notas?: string | null;
+          archivo_path?: string | null;
+          archivo_nombre?: string | null;
           creado_por: string;
           creado_en?: string;
         };
@@ -508,6 +512,8 @@ export interface Database {
           monto?: number;
           fecha?: string;
           notas?: string | null;
+          archivo_path?: string | null;
+          archivo_nombre?: string | null;
           creado_por?: string;
           creado_en?: string;
         };

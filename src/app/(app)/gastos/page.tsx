@@ -58,6 +58,7 @@ export default async function GastosPage({
     monto: g.monto,
     fecha: g.fecha,
     notas: g.notas,
+    archivoNombre: g.archivo_nombre,
     creadoPor: nombrePorUsuario.get(g.creado_por) ?? "—",
   }));
 

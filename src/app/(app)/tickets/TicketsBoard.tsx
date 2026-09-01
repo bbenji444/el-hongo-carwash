@@ -346,13 +346,31 @@ export function TicketsBoard({
                     </div>
 
                     {entregado ? (
-                      <p className="text-[11px] text-muted">
-                        Entregado a las{" "}
-                        {new Date(ticket.hora_salida ?? ticket.hora_cambio_estado).toLocaleTimeString("es-MX", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </p>
+                      <div className="flex flex-col gap-0.5 text-[11px] text-muted">
+                        <span>
+                          Entregado a las{" "}
+                          {new Date(ticket.hora_salida ?? ticket.hora_cambio_estado).toLocaleTimeString("es-MX", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                        {ticket.hora_inicio_lavado && ticket.hora_fin_lavado && (
+                          <span>
+                            🧽 Lavada:{" "}
+                            {formatearDuracion(
+                              new Date(ticket.hora_fin_lavado).getTime() -
+                                new Date(ticket.hora_inicio_lavado).getTime()
+                            )}
+                          </span>
+                        )}
+                        <span>
+                          ⏱ Total desde que llegó:{" "}
+                          {formatearDuracion(
+                            new Date(ticket.hora_salida ?? ticket.hora_cambio_estado).getTime() -
+                              new Date(ticket.hora_entrada).getTime()
+                          )}
+                        </span>
+                      </div>
                     ) : (
                       <div className="flex flex-col gap-0.5 text-[11px]">
                         <span className={`flex items-center gap-1.5 font-semibold ${CRONOMETRO_ESTILO[nivel]}`}>

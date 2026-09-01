@@ -69,3 +69,41 @@ export async function obtenerOCrearVehiculo(input: {
   revalidatePath(`/clientes/${input.clienteId}`);
   return { data, error: null };
 }
+
+// Autocompletado al capturar la placa en Nuevo ticket: si esa placa ya está
+// registrada a nombre de un cliente, se regresa para llenar el cliente y el
+// distintivo solos, sin tener que buscarlo por nombre. Coincidencia exacta
+// (sin importar mayúsculas/espacios) para no auto-seleccionar de más
+// mientras la persona sigue escribiendo.
+export async function buscarClientePorPlaca(placa: string) {
+  const supabase = await createClient();
+  const placaNorm = placa.trim();
+  if (!placaNorm) return { data: null, error: null };
+
+  // Sin relaciones embebidas (mismo motivo que en el resto de la app: el
+  // tipo Database se escribió a mano con Relationships: [] para evitar
+  // ambigüedad de FKs) — se resuelve con dos consultas por separado.
+  const { data: vehiculo, error: vehiculoError } = await supabase
+    .from("vehiculos")
+    .select("cliente_id, tipo_vehiculo")
+    .ilike("placas", placaNorm)
+    .limit(1)
+    .maybeSingle();
+
+  if (vehiculoError) return { data: null, error: vehiculoError.message };
+  if (!vehiculo) return { data: null, error: null };
+
+  const { data: cliente, error: clienteError } = await supabase
+    .from("clientes")
+    .select("id, nombre, telefono")
+    .eq("id", vehiculo.cliente_id)
+    .maybeSingle();
+
+  if (clienteError) return { data: null, error: clienteError.message };
+  if (!cliente) return { data: null, error: null };
+
+  return {
+    data: { cliente, tipoVehiculo: vehiculo.tipo_vehiculo },
+    error: null,
+  };
+}

@@ -30,6 +30,25 @@ function fechaInput(iso: string) {
   return new Date(d.getTime() - offset * 60000).toISOString().slice(0, 10);
 }
 
+// El navegador a veces no reporta bien el tipo de un HEIC/HEIF (algunos
+// celulares mandan "" o "application/octet-stream"), así que además del
+// mime revisamos la extensión del nombre del archivo.
+function esHeic(archivo: File) {
+  return archivo.type === "image/heic" || archivo.type === "image/heif" || /\.hei[cf]$/i.test(archivo.name);
+}
+
+// Convierte HEIC/HEIF a JPEG en el navegador antes de subirlo, para que se
+// pueda previsualizar (ningún navegador muestra HEIC directo). Se hace del
+// lado del cliente para no depender de librerías nativas en el servidor.
+async function convertirSiEsHeic(archivo: File): Promise<File> {
+  if (!esHeic(archivo)) return archivo;
+  const heic2any = (await import("heic2any")).default;
+  const resultado = await heic2any({ blob: archivo, toType: "image/jpeg", quality: 0.85 });
+  const jpegBlob = Array.isArray(resultado) ? resultado[0] : resultado;
+  const nuevoNombre = archivo.name.replace(/\.hei[cf]$/i, ".jpg");
+  return new File([jpegBlob], nuevoNombre, { type: "image/jpeg" });
+}
+
 const emptyForm = { concepto: "", monto: "", fecha: fechaInput(new Date().toISOString()), notas: "" };
 
 export function GastosClient({ gastos }: { gastos: Gasto[] }) {
@@ -38,6 +57,7 @@ export function GastosClient({ gastos }: { gastos: Gasto[] }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [mostrarForm, setMostrarForm] = useState(false);
+  const [convirtiendo, setConvirtiendo] = useState(false);
   const [verArchivoPendiente, setVerArchivoPendiente] = useState<string | null>(null);
   const [archivoVista, setArchivoVista] = useState<ArchivoVista | null>(null);
   const archivoInputRef = useRef<HTMLInputElement>(null);
@@ -100,9 +120,22 @@ export function GastosClient({ gastos }: { gastos: Gasto[] }) {
       return;
     }
 
-    const archivo = archivoInputRef.current?.files?.[0] ?? null;
+    const archivoOriginal = archivoInputRef.current?.files?.[0] ?? null;
 
     startTransition(async () => {
+      let archivo = archivoOriginal;
+      if (archivo && esHeic(archivo)) {
+        setConvirtiendo(true);
+        try {
+          archivo = await convertirSiEsHeic(archivo);
+        } catch {
+          setConvirtiendo(false);
+          setError("No se pudo convertir la foto HEIC. Intenta guardarla como JPG desde tu celular y subirla de nuevo.");
+          return;
+        }
+        setConvirtiendo(false);
+      }
+
       const result = await crearGasto(datosGasto);
       if (result.error || !result.data) {
         setError(result.error ?? "No se pudo guardar el gasto.");
@@ -213,8 +246,8 @@ export function GastosClient({ gastos }: { gastos: Gasto[] }) {
                   />
                   <p className="text-[11px] text-muted">
                     Foto o PDF del ticket de compra — captura solo el total ahora y consulta el detalle completo
-                    después. Si tu celular guarda fotos en HEIC, no se va a poder previsualizar en el navegador
-                    (solo descargar) — usa JPG si puedes.
+                    después. Si tu celular guarda fotos en HEIC, se convierte automáticamente a JPG al guardar
+                    para que se pueda previsualizar.
                   </p>
                 </div>
               )}
@@ -226,7 +259,13 @@ export function GastosClient({ gastos }: { gastos: Gasto[] }) {
                 disabled={pending}
                 className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:opacity-60"
               >
-                {pending ? "Guardando..." : editandoId ? "Guardar cambios" : "Guardar gasto"}
+                {convirtiendo
+                  ? "Convirtiendo foto..."
+                  : pending
+                    ? "Guardando..."
+                    : editandoId
+                      ? "Guardar cambios"
+                      : "Guardar gasto"}
               </button>
               <button
                 type="button"

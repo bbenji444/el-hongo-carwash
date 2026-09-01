@@ -5,7 +5,13 @@ import type { Turno } from "@/types/database.types";
 import { EditarTurnoModal } from "./EditarTurnoModal";
 import { eliminarTurno } from "./actions";
 
-type TurnoConNombres = Turno & { nombreApertura: string; nombreCierre: string; ganancia: number; total: number };
+type TurnoConNombres = Turno & {
+  nombreApertura: string;
+  nombreCierre: string;
+  ganancia: number;
+  total: number;
+  transferencia: number;
+};
 
 export function HistorialTurnos({
   historial,
@@ -50,6 +56,7 @@ export function HistorialTurnos({
               <th className="px-3 py-2 text-right">Efectivo esperado</th>
               <th className="px-3 py-2 text-right">Efectivo contado</th>
               <th className="px-3 py-2 text-right">Diferencia</th>
+              <th className="px-3 py-2 text-right">Transferencia</th>
               <th className="px-3 py-2 text-right">Total</th>
               <th className="px-3 py-2 text-right">Ganancia</th>
               {mostrarAcciones && <th className="px-3 py-2 text-right">Acciones</th>}
@@ -78,6 +85,7 @@ export function HistorialTurnos({
                 >
                   {t.diferencia != null ? `$${t.diferencia.toFixed(2)}` : "—"}
                 </td>
+                <td className="px-3 py-2 text-right text-foreground">${t.transferencia.toFixed(2)}</td>
                 <td className="px-3 py-2 text-right font-medium text-foreground">${t.total.toFixed(2)}</td>
                 <td className="px-3 py-2 text-right font-semibold text-success">${t.ganancia.toFixed(2)}</td>
                 {mostrarAcciones && (
@@ -104,7 +112,7 @@ export function HistorialTurnos({
             ))}
             {historial.length === 0 && (
               <tr>
-                <td colSpan={mostrarAcciones ? 11 : 10} className="px-3 py-6 text-center text-muted">
+                <td colSpan={mostrarAcciones ? 12 : 11} className="px-3 py-6 text-center text-muted">
                   Sin turnos cerrados aún.
                 </td>
               </tr>

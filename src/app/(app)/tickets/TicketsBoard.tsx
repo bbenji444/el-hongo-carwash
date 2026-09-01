@@ -210,50 +210,64 @@ export function TicketsBoard({
         </p>
       )}
 
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-surface px-5 py-3">
-        <span className="whitespace-nowrap rounded-full border border-border bg-background px-3 py-1 text-xs text-foreground">
-          Efectivo inicial: ${turno.efectivo_inicial.toFixed(2)}
-        </span>
-        {resumenCaja && (
-          <>
-            {!resumenCaja.ocultarEfectivo && (
-              <span className="rounded-full border border-border bg-background px-3 py-1 text-xs text-foreground">
-                {METODO_LABEL.efectivo}: ${(resumenCaja.totalesVisibles.efectivo ?? 0).toFixed(2)}
-              </span>
-            )}
-            {resumenCaja.efectivoEsperado !== null && (
-              <span className="rounded-full border border-border bg-background px-3 py-1 text-xs text-foreground">
-                Efectivo esperado: ${resumenCaja.efectivoEsperado.toFixed(2)}
-              </span>
-            )}
-            {(["tarjeta", "transferencia"] as const).map((m) => (
-              <span
-                key={m}
-                className="rounded-full border border-border bg-background px-3 py-1 text-xs text-foreground"
-              >
-                {METODO_LABEL[m]}: ${(resumenCaja.totalesVisibles[m] ?? 0).toFixed(2)}
-              </span>
-            ))}
-            <span className="rounded-full border border-success/40 bg-success/10 px-3 py-1 text-xs font-semibold text-success">
-              Total: $
-              {(
-                (resumenCaja.ocultarEfectivo ? 0 : turno.efectivo_inicial) +
-                Object.values(resumenCaja.totalesVisibles).reduce((suma, monto) => suma + monto, 0)
-              ).toFixed(2)}
-            </span>
-            <span className="rounded-full border border-border bg-background px-3 py-1 text-xs text-foreground">
-              Ventas hoy: {resumenCaja.ventasHoy}
-            </span>
-            <span className="rounded-full border border-border bg-background px-3 py-1 text-xs text-foreground">
-              Tiempo promedio:{" "}
-              {resumenCaja.tiempoPromedioMin !== null ? formatearMinutos(resumenCaja.tiempoPromedioMin) : "—"}
-            </span>
-            {resumenCaja.pendientes > 0 && (
-              <span className="ml-auto rounded-full border border-warning/40 bg-warning/10 px-3 py-1 text-xs font-medium text-warning">
-                {resumenCaja.pendientes} sin entregar
-              </span>
-            )}
-          </>
+      <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted">Resumen del turno</p>
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
+          <div className="rounded-lg border border-border bg-background p-2.5">
+            <p className="text-[10px] uppercase tracking-wide text-muted">Efectivo inicial</p>
+            <p className="text-sm font-semibold text-foreground">${turno.efectivo_inicial.toFixed(2)}</p>
+          </div>
+          {resumenCaja && (
+            <>
+              {!resumenCaja.ocultarEfectivo && (
+                <div className="rounded-lg border border-border bg-background p-2.5">
+                  <p className="text-[10px] uppercase tracking-wide text-muted">{METODO_LABEL.efectivo}</p>
+                  <p className="text-sm font-semibold text-foreground">
+                    ${(resumenCaja.totalesVisibles.efectivo ?? 0).toFixed(2)}
+                  </p>
+                </div>
+              )}
+              {resumenCaja.efectivoEsperado !== null && (
+                <div className="rounded-lg border border-border bg-background p-2.5">
+                  <p className="text-[10px] uppercase tracking-wide text-muted">Efectivo esperado</p>
+                  <p className="text-sm font-semibold text-foreground">${resumenCaja.efectivoEsperado.toFixed(2)}</p>
+                </div>
+              )}
+              {(["tarjeta", "transferencia"] as const).map((m) => (
+                <div key={m} className="rounded-lg border border-border bg-background p-2.5">
+                  <p className="text-[10px] uppercase tracking-wide text-muted">{METODO_LABEL[m]}</p>
+                  <p className="text-sm font-semibold text-foreground">
+                    ${(resumenCaja.totalesVisibles[m] ?? 0).toFixed(2)}
+                  </p>
+                </div>
+              ))}
+              <div className="rounded-lg border border-success/40 bg-success/10 p-2.5">
+                <p className="text-[10px] uppercase tracking-wide text-muted">Total</p>
+                <p className="text-sm font-semibold text-success">
+                  $
+                  {(
+                    (resumenCaja.ocultarEfectivo ? 0 : turno.efectivo_inicial) +
+                    Object.values(resumenCaja.totalesVisibles).reduce((suma, monto) => suma + monto, 0)
+                  ).toFixed(2)}
+                </p>
+              </div>
+              <div className="rounded-lg border border-border bg-background p-2.5">
+                <p className="text-[10px] uppercase tracking-wide text-muted">Ventas hoy</p>
+                <p className="text-sm font-semibold text-foreground">{resumenCaja.ventasHoy}</p>
+              </div>
+              <div className="rounded-lg border border-border bg-background p-2.5">
+                <p className="text-[10px] uppercase tracking-wide text-muted">Tiempo promedio</p>
+                <p className="text-sm font-semibold text-foreground">
+                  {resumenCaja.tiempoPromedioMin !== null ? formatearMinutos(resumenCaja.tiempoPromedioMin) : "—"}
+                </p>
+              </div>
+            </>
+          )}
+        </div>
+        {resumenCaja && resumenCaja.pendientes > 0 && (
+          <p className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs font-medium text-warning">
+            {resumenCaja.pendientes} ticket(s) sin entregar en este turno.
+          </p>
         )}
       </div>
 

@@ -52,14 +52,14 @@ function CustomTooltip({
   );
 }
 
-export function VentasPorServicioChart({ data }: { data: { nombre: string; total: number }[] }) {
+export function VentasPorServicioChart({ data }: { data: { nombre: string; total: number; tickets: number }[] }) {
   if (data.length === 0) {
     return <p className="flex h-[260px] items-center justify-center text-sm text-muted">Sin ventas todavía hoy.</p>;
   }
 
   return (
     <ResponsiveContainer width="100%" height={260}>
-      <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
+      <BarChart data={data} margin={{ top: 20, right: 8, left: 0, bottom: 8 }}>
         <defs>
           <linearGradient id="barVentas" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="var(--primary)" stopOpacity={1} />
@@ -69,7 +69,25 @@ export function VentasPorServicioChart({ data }: { data: { nombre: string; total
         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
         <XAxis dataKey="nombre" stroke="var(--muted)" fontSize={12} tickLine={false} axisLine={false} />
         <YAxis stroke="var(--muted)" fontSize={12} tickLine={false} axisLine={false} width={48} />
-        <Tooltip content={<CustomTooltip />} cursor={{ fill: "var(--primary)", fillOpacity: 0.06 }} />
+        <Tooltip
+          cursor={{ fill: "var(--primary)", fillOpacity: 0.06 }}
+          content={({ active, payload, label }) => {
+            if (!active || !payload?.length) return null;
+            const p = payload[0].payload as { nombre: string; total: number; tickets: number };
+            return (
+              <div className="rounded-lg border border-border bg-surface px-3 py-2 text-xs shadow-lg">
+                <p className="mb-0.5 font-medium text-foreground">{label}</p>
+                <p className="flex items-center gap-1.5 text-muted">
+                  <span className="h-2 w-2 rounded-full" style={{ background: "var(--primary)" }} />
+                  {money(p.total)}
+                </p>
+                <p className="text-muted">
+                  {p.tickets} {p.tickets === 1 ? "vendido" : "vendidos"}
+                </p>
+              </div>
+            );
+          }}
+        />
         <Bar
           dataKey="total"
           fill="url(#barVentas)"
@@ -77,7 +95,9 @@ export function VentasPorServicioChart({ data }: { data: { nombre: string; total
           maxBarSize={56}
           animationDuration={700}
           animationEasing="ease-out"
-        />
+        >
+          <LabelList dataKey="tickets" position="top" fontSize={11} fill="var(--muted)" />
+        </Bar>
       </BarChart>
     </ResponsiveContainer>
   );

@@ -101,14 +101,19 @@ export default async function DashboardPage() {
   const ticketPromedioHoy = numEntregadosHoy > 0 ? ventasHoy / numEntregadosHoy : 0;
   const descuentosHoy = (ticketsHoy ?? []).reduce((acc, t) => acc + t.descuento_monto, 0);
 
-  const ventasPorServicioMap = new Map<string, number>();
+  const ventasPorServicioMap = new Map<string, { total: number; tickets: number }>();
   for (const t of ticketsEntregadosHoy) {
     const nombre = nombrePorServicio.get(t.servicio_id) ?? "Otro";
-    ventasPorServicioMap.set(nombre, (ventasPorServicioMap.get(nombre) ?? 0) + (montoPorTicket.get(t.id) ?? 0));
+    const entry = ventasPorServicioMap.get(nombre) ?? { total: 0, tickets: 0 };
+    entry.total += montoPorTicket.get(t.id) ?? 0;
+    entry.tickets += 1;
+    ventasPorServicioMap.set(nombre, entry);
   }
-  const ventasPorServicio = Array.from(ventasPorServicioMap, ([nombre, total]) => ({ nombre, total })).sort(
-    (a, b) => b.total - a.total
-  );
+  const ventasPorServicio = Array.from(ventasPorServicioMap, ([nombre, v]) => ({
+    nombre,
+    total: v.total,
+    tickets: v.tickets,
+  })).sort((a, b) => b.total - a.total);
 
   const totalesPorDia = new Map<string, number>();
   for (let i = 6; i >= 0; i--) {

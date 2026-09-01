@@ -30,6 +30,10 @@ export function EditarTicketModal({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const entregado = ticket.estado === "entregado";
+  // Un ticket entregado puede afectar una venta ya cobrada y sumada a una
+  // caja que quizás ya cerró — solo el dueño puede editarlo, no basta con
+  // el permiso normal de editar tickets.
+  const puedeEditarCampos = !entregado || esDueno;
 
   const [tamanoVehiculo, setTamanoVehiculo] = useState<TamanoVehiculo>(ticket.tamano_vehiculo);
   const [servicioId, setServicioId] = useState(ticket.servicio_id);
@@ -110,12 +114,13 @@ export function EditarTicketModal({
 
           {entregado && (
             <p className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
-              Este ticket ya fue entregado — sus datos ya no se pueden modificar. Como dueño, solo puedes
-              eliminarlo por completo si se capturó por error (ej. una prueba).
+              {esDueno
+                ? "Este ticket ya fue entregado — es una venta ya cobrada. Edítalo solo para corregir un error real."
+                : "Este ticket ya fue entregado — solo el dueño puede modificarlo o eliminarlo."}
             </p>
           )}
 
-          {!entregado && (
+          {puedeEditarCampos && (
             <>
               {/* Distintivo */}
               <div className="flex flex-col gap-1.5">
@@ -217,7 +222,7 @@ export function EditarTicketModal({
           )}
 
           <div className="flex gap-2">
-            {!entregado && (
+            {puedeEditarCampos && (
               <button
                 onClick={handleGuardar}
                 disabled={pending}

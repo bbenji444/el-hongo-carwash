@@ -393,8 +393,20 @@ export async function actualizarTicket(
     extraIds: string[];
   }
 ) {
-  const { supabase, error: permisoError } = await requierePermisoEditarTickets();
+  const { supabase, error: permisoError, esDueno } = await requierePermisoEditarTickets();
   if (permisoError) return { error: permisoError };
+
+  // Editar un ticket ya entregado puede afectar una venta ya cobrada y
+  // sumada a una caja que quizás ya cerró — solo el dueño puede hacerlo
+  // (mismo criterio que eliminar un ticket entregado). A un
+  // encargado/cajero con el permiso normal de editar tickets se le sigue
+  // bloqueando en ese caso.
+  if (!esDueno) {
+    const { data: ticket } = await supabase.from("tickets").select("estado").eq("id", ticketId).maybeSingle();
+    if (ticket?.estado === "entregado") {
+      return { error: "Solo el dueño puede editar un ticket ya entregado." };
+    }
+  }
 
   const { error } = await supabase
     .from("tickets")
@@ -404,8 +416,7 @@ export async function actualizarTicket(
       lavador_id: input.lavadorId,
       distintivo: input.distintivo,
     })
-    .eq("id", ticketId)
-    .neq("estado", "entregado");
+    .eq("id", ticketId);
 
   if (error) return { error: error.message };
 

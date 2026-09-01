@@ -398,7 +398,7 @@ export function TicketsBoard({
                           onClick={() => setEditarTicket(ticket)}
                           className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted hover:text-foreground"
                         >
-                          {col.estado === "entregado" ? "Eliminar" : "Editar"}
+                          Editar
                         </button>
                       )}
                     </div>

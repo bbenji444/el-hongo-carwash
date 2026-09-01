@@ -303,10 +303,11 @@ export function TicketsBoard({
                           {ticket.cliente?.nombre ?? ticket.distintivo ?? "Cliente de mostrador"}
                         </button>
                         <p className="text-xs text-muted">
-                          {(ticket.cliente
-                            ? [ticket.distintivo ?? ticket.vehiculo?.placas, nombreTamano(ticket.tamano_vehiculo)]
-                            : [nombreTamano(ticket.tamano_vehiculo)]
-                          )
+                          {[
+                            ticket.cliente ? ticket.distintivo : null,
+                            ticket.placa ?? ticket.vehiculo?.placas,
+                            nombreTamano(ticket.tamano_vehiculo),
+                          ]
                             .filter(Boolean)
                             .join(" · ")}
                         </p>
@@ -504,7 +505,8 @@ export function TicketsBoard({
             servicioNombre: clienteDetalleTicket.servicio?.nombre ?? null,
             empleadoNombre: clienteDetalleTicket.empleado?.nombre ?? null,
             lavadorNombre: clienteDetalleTicket.lavador?.nombre ?? null,
-            placas: clienteDetalleTicket.distintivo ?? clienteDetalleTicket.vehiculo?.placas ?? null,
+            distintivo: clienteDetalleTicket.distintivo,
+            placa: clienteDetalleTicket.placa ?? clienteDetalleTicket.vehiculo?.placas ?? null,
           }}
           onClose={() => setClienteDetalleTicket(null)}
         />

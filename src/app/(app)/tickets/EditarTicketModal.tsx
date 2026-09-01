@@ -40,7 +40,7 @@ export function EditarTicketModal({
   const [servicioId, setServicioId] = useState(ticket.servicio_id);
   const [lavadorId, setLavadorId] = useState(ticket.lavador?.id ?? "");
   const [distintivo, setDistintivo] = useState(ticket.distintivo ?? "");
-  const [placa, setPlaca] = useState(ticket.vehiculo?.placas ?? "");
+  const [placa, setPlaca] = useState(ticket.placa ?? ticket.vehiculo?.placas ?? "");
   const [extraIds, setExtraIds] = useState<string[]>(ticket.extras.map((e) => e.extra_id));
   const hayCliente = Boolean(ticket.cliente);
 
@@ -75,7 +75,8 @@ export function EditarTicketModal({
         servicioId,
         tamanoVehiculo,
         lavadorId: lavadorId || null,
-        distintivo: hayCliente ? null : distintivo.trim() || null,
+        distintivo: distintivo.trim() || null,
+        placa: placa.trim() || null,
         vehiculoId,
         extraIds,
       });
@@ -119,15 +120,11 @@ export function EditarTicketModal({
 
         <div className="flex flex-col gap-4">
           <div className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-muted">
-            {ticket.cliente ? (
-              <>
-                {ticket.cliente.nombre}
-                {(ticket.distintivo ?? ticket.vehiculo?.placas) &&
-                  ` · ${ticket.distintivo ?? ticket.vehiculo?.placas}`}
-              </>
-            ) : (
-              ticket.distintivo ?? "Cliente de mostrador"
-            )}
+            {ticket.cliente ? ticket.cliente.nombre : ticket.distintivo ?? "Cliente de mostrador"}
+            {[ticket.cliente ? ticket.distintivo : null, ticket.placa ?? ticket.vehiculo?.placas]
+              .filter(Boolean)
+              .map((v) => ` · ${v}`)
+              .join("")}
           </div>
 
           {entregado && (
@@ -140,10 +137,19 @@ export function EditarTicketModal({
 
           {puedeEditarCampos && (
             <>
-              {/* Distintivo o placa, según si el ticket tiene cliente registrado */}
-              {hayCliente ? (
+              {/* Distintivo y placa */}
+              <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-medium text-muted">Número de placa (opcional)</label>
+                  <label className="text-xs font-medium text-muted">Distintivo (opcional)</label>
+                  <input
+                    value={distintivo}
+                    onChange={(e) => setDistintivo(e.target.value)}
+                    placeholder="Ej. Jetta negro"
+                    className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-medium text-muted">Placa (opcional)</label>
                   <input
                     value={placa}
                     onChange={(e) => setPlaca(e.target.value)}
@@ -151,17 +157,7 @@ export function EditarTicketModal({
                     className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
                   />
                 </div>
-              ) : (
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-medium text-muted">Distintivo (opcional)</label>
-                  <input
-                    value={distintivo}
-                    onChange={(e) => setDistintivo(e.target.value)}
-                    placeholder="Ej. Mazda gris, BMW negro"
-                    className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
-                  />
-                </div>
-              )}
+              </div>
 
               {/* Tamaño de vehículo */}
               <div className="flex flex-col gap-1.5">

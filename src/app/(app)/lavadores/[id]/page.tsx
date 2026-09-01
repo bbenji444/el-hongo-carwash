@@ -68,7 +68,7 @@ export default async function DesgloseLavadorPage({
   const ticketsQuery = supabase
     .from("tickets")
     .select(
-      "id, cliente_id, vehiculo_id, distintivo, servicio_id, tamano_vehiculo, estado, hora_entrada, hora_inicio_lavado, hora_fin_lavado"
+      "id, cliente_id, vehiculo_id, distintivo, placa, servicio_id, tamano_vehiculo, estado, hora_entrada, hora_inicio_lavado, hora_fin_lavado"
     )
     .eq("lavador_id", id)
     .order("hora_entrada", { ascending: false });
@@ -109,7 +109,13 @@ export default async function DesgloseLavadorPage({
     id: t.id,
     horaEntrada: t.hora_entrada,
     cliente: t.cliente_id ? nombrePorCliente.get(t.cliente_id) ?? "—" : t.distintivo ?? "Mostrador",
-    placas: t.cliente_id ? t.distintivo ?? (t.vehiculo_id ? placasPorVehiculo.get(t.vehiculo_id) ?? null : null) : null,
+    placas:
+      [
+        t.cliente_id ? t.distintivo : null,
+        t.placa ?? (t.vehiculo_id ? placasPorVehiculo.get(t.vehiculo_id) ?? null : null),
+      ]
+        .filter(Boolean)
+        .join(" · ") || null,
     servicio: nombrePorServicio.get(t.servicio_id) ?? "—",
     tamanoVehiculo: t.tamano_vehiculo,
     estado: t.estado,

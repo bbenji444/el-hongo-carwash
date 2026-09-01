@@ -383,6 +383,7 @@ export interface Database {
           vehiculo_id: string | null;
           cliente_id: string | null;
           distintivo: string | null;
+          placa: string | null;
           servicio_id: string;
           tamano_vehiculo: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande" | "moto_chica" | "moto_grande";
           empleado_id: string;
@@ -405,6 +406,7 @@ export interface Database {
           vehiculo_id?: string | null;
           cliente_id?: string | null;
           distintivo?: string | null;
+          placa?: string | null;
           servicio_id: string;
           tamano_vehiculo: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande" | "moto_chica" | "moto_grande";
           empleado_id: string;
@@ -427,6 +429,7 @@ export interface Database {
           vehiculo_id?: string | null;
           cliente_id?: string | null;
           distintivo?: string | null;
+          placa?: string | null;
           servicio_id?: string;
           tamano_vehiculo?: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande" | "moto_chica" | "moto_grande";
           empleado_id?: string;

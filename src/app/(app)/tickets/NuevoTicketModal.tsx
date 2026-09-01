@@ -88,11 +88,6 @@ export function NuevoTicketModal({
     setPlaca("");
   }
 
-  // Con cliente de mostrador (sin registro) se usa el distintivo libre; en
-  // cuanto hay un cliente real (elegido o por crear ahora mismo) se cambia a
-  // capturar su placa, que sí queda ligada a su ficha para la próxima visita.
-  const hayCliente = Boolean(clienteSeleccionado) || creandoClienteNuevo;
-
   function handleSubmit() {
     setError(null);
 
@@ -138,7 +133,8 @@ export function NuevoTicketModal({
       const result = await crearTicket({
         clienteId,
         vehiculoId,
-        distintivo: clienteId ? null : distintivo.trim() || null,
+        distintivo: distintivo.trim() || null,
+        placa: placa.trim() || null,
         servicioId,
         tamanoVehiculo,
         empleadoId: usuarioActualId,
@@ -248,10 +244,19 @@ export function NuevoTicketModal({
             </div>
           )}
 
-          {/* Distintivo o placa, según si hay cliente registrado */}
-          {hayCliente ? (
+          {/* Distintivo y placa */}
+          <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-muted">Número de placa (opcional)</label>
+              <label className="text-xs font-medium text-muted">Distintivo (opcional)</label>
+              <input
+                value={distintivo}
+                onChange={(e) => setDistintivo(e.target.value)}
+                placeholder="Ej. Jetta negro"
+                className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-medium text-muted">Placa (opcional)</label>
               <input
                 value={placa}
                 onChange={(e) => setPlaca(e.target.value)}
@@ -259,17 +264,7 @@ export function NuevoTicketModal({
                 className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
               />
             </div>
-          ) : (
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-muted">Distintivo (opcional)</label>
-              <input
-                value={distintivo}
-                onChange={(e) => setDistintivo(e.target.value)}
-                placeholder="Ej. Mazda gris, BMW negro"
-                className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
-              />
-            </div>
-          )}
+          </div>
 
           {/* Tamaño de vehículo */}
           <div className="flex flex-col gap-1.5">

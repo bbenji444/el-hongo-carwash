@@ -15,7 +15,8 @@ export function ClienteDetalleModal({
     servicioNombre: string | null;
     empleadoNombre: string | null;
     lavadorNombre: string | null;
-    placas: string | null;
+    distintivo: string | null;
+    placa: string | null;
   };
   onClose: () => void;
 }) {
@@ -73,7 +74,8 @@ export function ClienteDetalleModal({
               {ticketActual.lavadorNombre && (
                 <p className="text-muted">Lavador: {ticketActual.lavadorNombre}</p>
               )}
-              {ticketActual.placas && <p className="text-muted">Distintivo: {ticketActual.placas}</p>}
+              {ticketActual.distintivo && <p className="text-muted">Distintivo: {ticketActual.distintivo}</p>}
+              {ticketActual.placa && <p className="text-muted">Placa: {ticketActual.placa}</p>}
             </div>
 
             <div className="grid grid-cols-2 gap-2">

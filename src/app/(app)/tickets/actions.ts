@@ -156,6 +156,7 @@ export async function crearTicket(input: {
   clienteId: string | null;
   vehiculoId: string | null;
   distintivo: string | null;
+  placa: string | null;
   servicioId: string;
   tamanoVehiculo: TamanoVehiculo;
   empleadoId: string;
@@ -181,6 +182,7 @@ export async function crearTicket(input: {
       cliente_id: input.clienteId,
       vehiculo_id: input.vehiculoId,
       distintivo: input.distintivo,
+      placa: input.placa,
       servicio_id: input.servicioId,
       tamano_vehiculo: input.tamanoVehiculo,
       empleado_id: input.empleadoId,
@@ -392,6 +394,7 @@ export async function actualizarTicket(
     tamanoVehiculo: TamanoVehiculo;
     lavadorId: string | null;
     distintivo: string | null;
+    placa: string | null;
     vehiculoId: string | null;
     extraIds: string[];
   }
@@ -418,6 +421,7 @@ export async function actualizarTicket(
       tamano_vehiculo: input.tamanoVehiculo,
       lavador_id: input.lavadorId,
       distintivo: input.distintivo,
+      placa: input.placa,
       vehiculo_id: input.vehiculoId,
     })
     .eq("id", ticketId);

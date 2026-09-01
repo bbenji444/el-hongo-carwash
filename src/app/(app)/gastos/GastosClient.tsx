@@ -94,14 +94,25 @@ export function GastosClient({ gastos }: { gastos: Gasto[] }) {
 
   function handleVerArchivo(id: string) {
     setError(null);
+    // La pestaña se abre YA (en blanco), en el mismo instante del clic —
+    // en celular (sobre todo iOS), si se abre hasta que responde el
+    // servidor, el navegador ya no lo asocia con el toque del usuario y lo
+    // bloquea como pop-up sin avisar. Así conserva el permiso y solo se le
+    // pone la URL real cuando ya se tiene.
+    const ventana = window.open("", "_blank", "noopener,noreferrer");
     setVerArchivoPendiente(id);
     obtenerUrlArchivoGasto(id).then((result) => {
       setVerArchivoPendiente(null);
       if (result.error || !result.data) {
         setError(result.error ?? "No se pudo abrir el archivo.");
+        ventana?.close();
         return;
       }
-      window.open(result.data, "_blank", "noopener,noreferrer");
+      if (ventana) {
+        ventana.location.href = result.data;
+      } else {
+        window.location.href = result.data;
+      }
     });
   }
 

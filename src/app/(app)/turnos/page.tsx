@@ -89,15 +89,9 @@ export default async function TurnosPage() {
     ? await supabase.from("pagos").select("turno_id, monto, metodo").in("turno_id", turnoIds)
     : { data: [] };
 
-  // Ganancia = lo que realmente entró de ventas (efectivo + tarjeta +
-  // transferencia), sin el efectivo inicial de caja — a diferencia de
-  // "Esperado", que sí lo incluye porque ese es el monto que se debe
-  // contar físicamente al cerrar.
-  const gananciaPorTurno = new Map<string, number>();
   const transferenciaPorTurno = new Map<string, number>();
   const tarjetaPorTurno = new Map<string, number>();
   for (const p of pagosTurnos ?? []) {
-    gananciaPorTurno.set(p.turno_id, (gananciaPorTurno.get(p.turno_id) ?? 0) + p.monto);
     if (p.metodo === "transferencia") {
       transferenciaPorTurno.set(p.turno_id, (transferenciaPorTurno.get(p.turno_id) ?? 0) + p.monto);
     }
@@ -106,15 +100,25 @@ export default async function TurnosPage() {
     }
   }
 
-  const historial = (turnosCerrados ?? []).map((t) => ({
-    ...t,
-    nombreApertura: usuarioMap.get(t.usuario_apertura_id) ?? "—",
-    nombreCierre: t.usuario_cierre_id ? usuarioMap.get(t.usuario_cierre_id) ?? "—" : "—",
-    ganancia: gananciaPorTurno.get(t.id) ?? 0,
-    total: t.efectivo_inicial + (gananciaPorTurno.get(t.id) ?? 0),
-    tarjeta: tarjetaPorTurno.get(t.id) ?? 0,
-    transferencia: transferenciaPorTurno.get(t.id) ?? 0,
-  }));
+  const historial = (turnosCerrados ?? []).map((t) => {
+    // Ganancia/Total usan el efectivo CONTADO (lo que de verdad se recuperó
+    // al cerrar), no el efectivo esperado según los pagos registrados — si
+    // faltó dinero en el corte, ese faltante debe descontarse de la
+    // ganancia real, no aparecer como si todo se hubiera cobrado bien.
+    // efectivo_contado nunca es null aquí: el trigger de cierre exige
+    // capturarlo antes de dejar pasar un turno a "cerrado".
+    const tarjetaYTransferencia = (tarjetaPorTurno.get(t.id) ?? 0) + (transferenciaPorTurno.get(t.id) ?? 0);
+    const total = (t.efectivo_contado ?? 0) + tarjetaYTransferencia;
+    return {
+      ...t,
+      nombreApertura: usuarioMap.get(t.usuario_apertura_id) ?? "—",
+      nombreCierre: t.usuario_cierre_id ? usuarioMap.get(t.usuario_cierre_id) ?? "—" : "—",
+      ganancia: total - t.efectivo_inicial,
+      total,
+      tarjeta: tarjetaPorTurno.get(t.id) ?? 0,
+      transferencia: transferenciaPorTurno.get(t.id) ?? 0,
+    };
+  });
 
   return (
     <div className="flex flex-col gap-6">

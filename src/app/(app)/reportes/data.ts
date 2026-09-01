@@ -36,15 +36,15 @@ export type CierreTurno = {
   contado: number | null;
   diferencia: number | null;
   alertaDiferencia: boolean;
-  // Ganancia real del turno: suma de todos los pagos (efectivo + tarjeta +
-  // transferencia) de sus tickets. A propósito NO es lo mismo que
-  // "esperado" (que sí incluye el efectivo inicial de caja, porque ese es
-  // el monto que se debe contar físicamente al cerrar) — el efectivo
-  // inicial nunca fue una venta, solo el fondo fijo para dar cambio.
+  // Ganancia real del turno: efectivo CONTADO (no lo esperado según los
+  // pagos registrados — si faltó dinero en el corte, se descuenta aquí en
+  // vez de aparecer como si todo se hubiera cobrado bien) + tarjeta +
+  // transferencia, menos el efectivo inicial de caja (nunca fue una venta,
+  // solo el fondo fijo para dar cambio).
   ganancia: number;
-  // Total = efectivo inicial + ganancia (todo el dinero del turno junto,
-  // incluido el fondo fijo). Se muestra aparte de "Ganancia" para que se
-  // vea claro que Total - efectivo inicial = Ganancia, sin ambigüedad.
+  // Total = efectivo contado + tarjeta + transferencia (todo el dinero real
+  // del turno junto, incluido el fondo fijo). Total - efectivo inicial =
+  // Ganancia, siempre.
   total: number;
 };
 
@@ -110,11 +110,17 @@ export async function obtenerDatosReporte(rango: RangoResuelto): Promise<DatosRe
   const nombrePorServicio = new Map((servicios ?? []).map((s) => [s.id, s.nombre]));
 
   const montoPorTicket = new Map<string, number>();
-  const gananciaPorTurno = new Map<string, number>();
+  const tarjetaPorTurno = new Map<string, number>();
+  const transferenciaPorTurno = new Map<string, number>();
   const ventasPorMetodo: Record<string, number> = { efectivo: 0, tarjeta: 0, transferencia: 0 };
   for (const pago of pagos ?? []) {
     montoPorTicket.set(pago.ticket_id, (montoPorTicket.get(pago.ticket_id) ?? 0) + pago.monto);
-    gananciaPorTurno.set(pago.turno_id, (gananciaPorTurno.get(pago.turno_id) ?? 0) + pago.monto);
+    if (pago.metodo === "tarjeta") {
+      tarjetaPorTurno.set(pago.turno_id, (tarjetaPorTurno.get(pago.turno_id) ?? 0) + pago.monto);
+    }
+    if (pago.metodo === "transferencia") {
+      transferenciaPorTurno.set(pago.turno_id, (transferenciaPorTurno.get(pago.turno_id) ?? 0) + pago.monto);
+    }
     ventasPorMetodo[pago.metodo] = (ventasPorMetodo[pago.metodo] ?? 0) + pago.monto;
   }
 
@@ -156,19 +162,26 @@ export async function obtenerDatosReporte(rango: RangoResuelto): Promise<DatosRe
       monto: t.descuento_monto,
     }));
 
-  const turnos: CierreTurno[] = (turnosRaw ?? []).map((t) => ({
-    id: t.id,
-    horaCierre: t.hora_cierre,
-    abrio: nombrePorUsuario.get(t.usuario_apertura_id) ?? "—",
-    cerro: t.usuario_cierre_id ? nombrePorUsuario.get(t.usuario_cierre_id) ?? "—" : "—",
-    inicial: t.efectivo_inicial,
-    esperado: t.efectivo_esperado,
-    contado: t.efectivo_contado,
-    diferencia: t.diferencia,
-    alertaDiferencia: t.alerta_diferencia,
-    ganancia: gananciaPorTurno.get(t.id) ?? 0,
-    total: t.efectivo_inicial + (gananciaPorTurno.get(t.id) ?? 0),
-  }));
+  // efectivo_contado nunca es null aquí: el trigger de cierre exige
+  // capturarlo antes de dejar pasar un turno a "cerrado" (y esta consulta
+  // solo trae turnos cerrados).
+  const turnos: CierreTurno[] = (turnosRaw ?? []).map((t) => {
+    const tarjetaYTransferencia = (tarjetaPorTurno.get(t.id) ?? 0) + (transferenciaPorTurno.get(t.id) ?? 0);
+    const total = (t.efectivo_contado ?? 0) + tarjetaYTransferencia;
+    return {
+      id: t.id,
+      horaCierre: t.hora_cierre,
+      abrio: nombrePorUsuario.get(t.usuario_apertura_id) ?? "—",
+      cerro: t.usuario_cierre_id ? nombrePorUsuario.get(t.usuario_cierre_id) ?? "—" : "—",
+      inicial: t.efectivo_inicial,
+      esperado: t.efectivo_esperado,
+      contado: t.efectivo_contado,
+      diferencia: t.diferencia,
+      alertaDiferencia: t.alerta_diferencia,
+      ganancia: total - t.efectivo_inicial,
+      total,
+    };
+  });
 
   return {
     rango,

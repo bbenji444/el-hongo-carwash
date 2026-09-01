@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition, type FormEvent } from "react";
-import { crearGasto, eliminarGasto, subirArchivoGasto, obtenerUrlArchivoGasto } from "./actions";
+import { crearGasto, actualizarGasto, eliminarGasto, subirArchivoGasto, obtenerUrlArchivoGasto } from "./actions";
 
 type Gasto = {
   id: string;
@@ -13,25 +13,53 @@ type Gasto = {
   creadoPor: string;
 };
 
+type ArchivoVista = {
+  url: string;
+  nombre: string | null;
+  tipo: string | null;
+  previsualizable: boolean;
+};
+
 function money(n: number) {
   return `$${n.toFixed(2)}`;
 }
 
-function hoyInput() {
-  const hoy = new Date();
-  const offset = hoy.getTimezoneOffset();
-  return new Date(hoy.getTime() - offset * 60000).toISOString().slice(0, 10);
+function fechaInput(iso: string) {
+  const d = new Date(iso);
+  const offset = d.getTimezoneOffset();
+  return new Date(d.getTime() - offset * 60000).toISOString().slice(0, 10);
 }
 
-const emptyForm = { concepto: "", monto: "", fecha: hoyInput(), notas: "" };
+const emptyForm = { concepto: "", monto: "", fecha: fechaInput(new Date().toISOString()), notas: "" };
 
 export function GastosClient({ gastos }: { gastos: Gasto[] }) {
   const [form, setForm] = useState(emptyForm);
+  const [editandoId, setEditandoId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [mostrarForm, setMostrarForm] = useState(false);
   const [verArchivoPendiente, setVerArchivoPendiente] = useState<string | null>(null);
+  const [archivoVista, setArchivoVista] = useState<ArchivoVista | null>(null);
   const archivoInputRef = useRef<HTMLInputElement>(null);
+
+  function abrirNuevo() {
+    setEditandoId(null);
+    setForm(emptyForm);
+    setError(null);
+    setMostrarForm(true);
+  }
+
+  function abrirEdicion(g: Gasto) {
+    setEditandoId(g.id);
+    setForm({
+      concepto: g.concepto,
+      monto: String(g.monto),
+      fecha: fechaInput(g.fecha),
+      notas: g.notas ?? "",
+    });
+    setError(null);
+    setMostrarForm(true);
+  }
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -51,15 +79,31 @@ export function GastosClient({ gastos }: { gastos: Gasto[] }) {
       return;
     }
 
+    const datosGasto = {
+      concepto: form.concepto.trim(),
+      monto,
+      fecha: new Date(`${form.fecha}T12:00:00`).toISOString(),
+      notas: form.notas.trim() || null,
+    };
+
+    if (editandoId) {
+      startTransition(async () => {
+        const result = await actualizarGasto(editandoId, datosGasto);
+        if (result.error) {
+          setError(result.error);
+          return;
+        }
+        setForm(emptyForm);
+        setEditandoId(null);
+        setMostrarForm(false);
+      });
+      return;
+    }
+
     const archivo = archivoInputRef.current?.files?.[0] ?? null;
 
     startTransition(async () => {
-      const result = await crearGasto({
-        concepto: form.concepto.trim(),
-        monto,
-        fecha: new Date(`${form.fecha}T12:00:00`).toISOString(),
-        notas: form.notas.trim() || null,
-      });
+      const result = await crearGasto(datosGasto);
       if (result.error || !result.data) {
         setError(result.error ?? "No se pudo guardar el gasto.");
         return;
@@ -94,9 +138,6 @@ export function GastosClient({ gastos }: { gastos: Gasto[] }) {
 
   function handleVerArchivo(id: string) {
     setError(null);
-    // Nada de pestaña nueva (en celular se quedaba en blanco) — se navega
-    // la misma pestaña directo al archivo; el botón "atrás" del navegador
-    // regresa a Gastos.
     setVerArchivoPendiente(id);
     obtenerUrlArchivoGasto(id).then((result) => {
       setVerArchivoPendiente(null);
@@ -104,7 +145,7 @@ export function GastosClient({ gastos }: { gastos: Gasto[] }) {
         setError(result.error ?? "No se pudo abrir el archivo.");
         return;
       }
-      window.location.href = result.data;
+      setArchivoVista(result.data);
     });
   }
 
@@ -113,7 +154,7 @@ export function GastosClient({ gastos }: { gastos: Gasto[] }) {
       <div>
         {!mostrarForm ? (
           <button
-            onClick={() => setMostrarForm(true)}
+            onClick={abrirNuevo}
             className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-hover"
           >
             + Nuevo gasto
@@ -161,19 +202,22 @@ export function GastosClient({ gastos }: { gastos: Gasto[] }) {
                   className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
                 />
               </div>
-              <div className="flex flex-col gap-1.5 sm:col-span-2">
-                <label className="text-xs font-medium text-muted">Añadir archivo (opcional)</label>
-                <input
-                  ref={archivoInputRef}
-                  type="file"
-                  accept="image/*,application/pdf"
-                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none file:mr-3 file:rounded-md file:border-0 file:bg-accent/15 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-accent"
-                />
-                <p className="text-[11px] text-muted">
-                  Foto o PDF del ticket de compra — captura solo el total ahora y consulta el detalle completo
-                  después.
-                </p>
-              </div>
+              {!editandoId && (
+                <div className="flex flex-col gap-1.5 sm:col-span-2">
+                  <label className="text-xs font-medium text-muted">Añadir archivo (opcional)</label>
+                  <input
+                    ref={archivoInputRef}
+                    type="file"
+                    accept="image/*,application/pdf"
+                    className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none file:mr-3 file:rounded-md file:border-0 file:bg-accent/15 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-accent"
+                  />
+                  <p className="text-[11px] text-muted">
+                    Foto o PDF del ticket de compra — captura solo el total ahora y consulta el detalle completo
+                    después. Si tu celular guarda fotos en HEIC, no se va a poder previsualizar en el navegador
+                    (solo descargar) — usa JPG si puedes.
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="flex gap-2">
@@ -182,12 +226,13 @@ export function GastosClient({ gastos }: { gastos: Gasto[] }) {
                 disabled={pending}
                 className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:opacity-60"
               >
-                {pending ? "Guardando..." : "Guardar gasto"}
+                {pending ? "Guardando..." : editandoId ? "Guardar cambios" : "Guardar gasto"}
               </button>
               <button
                 type="button"
                 onClick={() => {
                   setMostrarForm(false);
+                  setEditandoId(null);
                   setError(null);
                 }}
                 className="rounded-lg border border-border px-4 py-2 text-sm text-muted transition hover:text-foreground"
@@ -235,13 +280,21 @@ export function GastosClient({ gastos }: { gastos: Gasto[] }) {
                 </td>
                 <td className="px-4 py-3 text-right font-medium text-primary">{money(g.monto)}</td>
                 <td className="px-4 py-3 text-right">
-                  <button
-                    onClick={() => handleEliminar(g.id)}
-                    disabled={pending}
-                    className="text-xs text-primary hover:underline disabled:opacity-60"
-                  >
-                    Eliminar
-                  </button>
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => abrirEdicion(g)}
+                      className="text-xs text-accent hover:underline"
+                    >
+                      Editar
+                    </button>
+                    <button
+                      onClick={() => handleEliminar(g.id)}
+                      disabled={pending}
+                      className="text-xs text-primary hover:underline disabled:opacity-60"
+                    >
+                      Eliminar
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -255,6 +308,58 @@ export function GastosClient({ gastos }: { gastos: Gasto[] }) {
           </tbody>
         </table>
       </div>
+
+      {archivoVista && (
+        <div
+          className="animate-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4"
+          onClick={() => setArchivoVista(null)}
+        >
+          <div
+            className="animate-modal flex max-h-[90vh] w-full max-w-2xl flex-col gap-3 overflow-y-auto rounded-xl border border-border bg-surface p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <p className="truncate text-sm font-medium text-foreground">{archivoVista.nombre ?? "Archivo"}</p>
+              <button onClick={() => setArchivoVista(null)} className="text-muted hover:text-foreground">
+                ✕
+              </button>
+            </div>
+
+            {archivoVista.previsualizable && archivoVista.tipo?.startsWith("image/") && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={archivoVista.url}
+                alt={archivoVista.nombre ?? "Archivo adjunto"}
+                className="max-h-[65vh] w-full rounded-lg object-contain"
+              />
+            )}
+
+            {archivoVista.previsualizable && archivoVista.tipo === "application/pdf" && (
+              <iframe src={archivoVista.url} className="h-[65vh] w-full rounded-lg border border-border" />
+            )}
+
+            {!archivoVista.previsualizable && (
+              <p className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
+                Este formato no se puede previsualizar en el navegador
+                {archivoVista.tipo?.includes("heic") || archivoVista.tipo?.includes("heif")
+                  ? " (HEIC/HEIF, el formato nativo de fotos del iPhone)"
+                  : ""}
+                . Descárgalo para verlo.
+              </p>
+            )}
+
+            <a
+              href={archivoVista.url}
+              download={archivoVista.nombre ?? undefined}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-fit rounded-lg border border-border px-4 py-2 text-sm text-foreground transition hover:bg-surface-hover"
+            >
+              ⬇ Descargar
+            </a>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -275,6 +275,37 @@ export interface Database {
         };
         Relationships: [];
       };
+      // Tampoco es una tabla real (ver migración
+      // 20260913010000_busqueda_vehiculos_rapida.sql) — mismo motivo que
+      // usuarios_con_correo arriba: tipos inline bajo Tables, no Views.
+      // Solo se usa para SELECT.
+      vehiculos_con_cliente: {
+        Row: {
+          vehiculo_id: string;
+          placas: string | null;
+          tipo_vehiculo: string | null;
+          cliente_id: string;
+          cliente_nombre: string;
+          cliente_telefono: string | null;
+        };
+        Insert: {
+          vehiculo_id?: string;
+          placas?: string | null;
+          tipo_vehiculo?: string | null;
+          cliente_id?: string;
+          cliente_nombre?: string;
+          cliente_telefono?: string | null;
+        };
+        Update: {
+          vehiculo_id?: string;
+          placas?: string | null;
+          tipo_vehiculo?: string | null;
+          cliente_id?: string;
+          cliente_nombre?: string;
+          cliente_telefono?: string | null;
+        };
+        Relationships: [];
+      };
       lavadores: {
         Row: {
           id: string;
@@ -492,6 +523,7 @@ export interface Database {
           notas: string | null;
           archivo_path: string | null;
           archivo_nombre: string | null;
+          archivo_tipo: string | null;
           creado_por: string;
           creado_en: string;
         };
@@ -503,6 +535,7 @@ export interface Database {
           notas?: string | null;
           archivo_path?: string | null;
           archivo_nombre?: string | null;
+          archivo_tipo?: string | null;
           creado_por: string;
           creado_en?: string;
         };
@@ -514,6 +547,7 @@ export interface Database {
           notas?: string | null;
           archivo_path?: string | null;
           archivo_nombre?: string | null;
+          archivo_tipo?: string | null;
           creado_por?: string;
           creado_en?: string;
         };

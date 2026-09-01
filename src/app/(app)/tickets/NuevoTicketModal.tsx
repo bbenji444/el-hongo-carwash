@@ -7,11 +7,11 @@ import { emojiPorTamano } from "@/lib/configuracionDefaults";
 import type { ServicioConPrecios } from "./types";
 import { BotonSeleccion } from "./BotonSeleccion";
 import { buscarClientes, crearCliente, crearTicket, progresoLealtadCliente } from "./actions";
-import { obtenerOCrearVehiculo, buscarVehiculosPorPlaca } from "../clientes/actions";
+import { obtenerOCrearVehiculo, buscarVehiculosPorPlaca, buscarVehiculosPorTipo } from "../clientes/actions";
 
 type ClienteResultado = { id: string; nombre: string; telefono: string | null };
 type LealtadInfo = { lavadasEnCiclo: number; proximaGratis: boolean; ultimaLavada: string | null };
-type ResultadoPlaca = { cliente: ClienteResultado; placas: string | null; tipoVehiculo: string | null };
+type ResultadoVehiculo = { cliente: ClienteResultado; placas: string | null; tipoVehiculo: string | null };
 
 export function NuevoTicketModal({
   turnoId,
@@ -44,7 +44,8 @@ export function NuevoTicketModal({
 
   const [distintivo, setDistintivo] = useState("");
   const [placa, setPlaca] = useState("");
-  const [resultadosPlaca, setResultadosPlaca] = useState<ResultadoPlaca[]>([]);
+  const [resultadosPlaca, setResultadosPlaca] = useState<ResultadoVehiculo[]>([]);
+  const [resultadosDistintivo, setResultadosDistintivo] = useState<ResultadoVehiculo[]>([]);
   const [placaAutocompleto, setPlacaAutocompleto] = useState(false);
   const [tamanoVehiculo, setTamanoVehiculo] = useState<TamanoVehiculo>("automovil");
 
@@ -91,22 +92,37 @@ export function NuevoTicketModal({
             ? res.data[0]
             : null;
         if (exacto) {
-          seleccionarPorPlaca(exacto);
+          aplicarResultadoVehiculo(exacto);
         }
       });
-    }, 300);
+    }, 180);
     return () => clearTimeout(timeout);
   }, [placa, clienteSeleccionado, creandoClienteNuevo]);
 
-  function seleccionarPorPlaca(r: ResultadoPlaca) {
+  // Autocompletado por distintivo: misma idea, pero buscando por tipo de
+  // vehículo (ej. "Jetta negro") en vez de placa — siempre se muestra la
+  // lista para elegir (nunca se auto-selecciona sola), porque a diferencia
+  // de la placa el distintivo no es único: puede haber varios "Jetta negro"
+  // de clientes distintos.
+  useEffect(() => {
+    if (clienteSeleccionado || creandoClienteNuevo || !distintivo.trim()) {
+      return;
+    }
+    const consulta = distintivo.trim();
+    const timeout = setTimeout(() => {
+      buscarVehiculosPorTipo(consulta).then((res) => setResultadosDistintivo(res.data));
+    }, 180);
+    return () => clearTimeout(timeout);
+  }, [distintivo, clienteSeleccionado, creandoClienteNuevo]);
+
+  function aplicarResultadoVehiculo(r: ResultadoVehiculo) {
     setClienteSeleccionado(r.cliente);
     setClienteQuery(r.cliente.nombre);
-    setPlaca(r.placas ?? "");
+    if (r.placas) setPlaca(r.placas);
+    if (r.tipoVehiculo) setDistintivo(r.tipoVehiculo);
     setPlacaAutocompleto(true);
     setResultadosPlaca([]);
-    if (r.tipoVehiculo) {
-      setDistintivo((actual) => (actual.trim() ? actual : r.tipoVehiculo!));
-    }
+    setResultadosDistintivo([]);
   }
 
   function seleccionarCliente(c: ClienteResultado) {
@@ -114,6 +130,7 @@ export function NuevoTicketModal({
     setClienteQuery(c.nombre);
     setResultados([]);
     setResultadosPlaca([]);
+    setResultadosDistintivo([]);
   }
 
   function limpiarCliente() {
@@ -127,6 +144,7 @@ export function NuevoTicketModal({
     setPlaca("");
     setPlacaAutocompleto(false);
     setResultadosPlaca([]);
+    setResultadosDistintivo([]);
   }
 
   function handleSubmit() {
@@ -287,7 +305,7 @@ export function NuevoTicketModal({
 
           {/* Distintivo y placa */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
+            <div className="relative flex flex-col gap-1.5">
               <label className="text-xs font-medium text-muted">Distintivo (opcional)</label>
               <input
                 value={distintivo}
@@ -295,6 +313,24 @@ export function NuevoTicketModal({
                 placeholder="Ej. Jetta negro"
                 className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
               />
+              {resultadosDistintivo.length > 0 && (
+                <div className="absolute top-full z-10 mt-1 w-full rounded-lg border border-border bg-background shadow-lg">
+                  {resultadosDistintivo.map((r, i) => (
+                    <button
+                      key={`${r.cliente.id}-${i}`}
+                      type="button"
+                      onClick={() => aplicarResultadoVehiculo(r)}
+                      className="block w-full px-3 py-2 text-left text-sm text-foreground hover:bg-surface-hover"
+                    >
+                      <span className="font-medium">{r.tipoVehiculo}</span>
+                      <span className="text-muted">
+                        {" "}
+                        {r.placas && `· ${r.placas} `}· {r.cliente.nombre}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="relative flex flex-col gap-1.5">
               <label className="text-xs font-medium text-muted">Placa (opcional)</label>
@@ -316,7 +352,7 @@ export function NuevoTicketModal({
                     <button
                       key={`${r.cliente.id}-${i}`}
                       type="button"
-                      onClick={() => seleccionarPorPlaca(r)}
+                      onClick={() => aplicarResultadoVehiculo(r)}
                       className="block w-full px-3 py-2 text-left text-sm text-foreground hover:bg-surface-hover"
                     >
                       <span className="font-medium">{r.placas}</span>

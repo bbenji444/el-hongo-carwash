@@ -43,6 +43,29 @@ export async function crearGasto(input: { concepto: string; monto: number; fecha
   return { data, error: null };
 }
 
+export async function actualizarGasto(
+  gastoId: string,
+  input: { concepto: string; monto: number; fecha: string; notas: string | null }
+) {
+  const { supabase, error: permisoError } = await requiereDuenoOEncargado();
+  if (permisoError) return { error: permisoError };
+
+  const { error } = await supabase
+    .from("gastos")
+    .update({
+      concepto: input.concepto,
+      monto: input.monto,
+      fecha: input.fecha,
+      notas: input.notas,
+    })
+    .eq("id", gastoId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/", "layout");
+  return { error: null };
+}
+
 const TIPOS_ARCHIVO_PERMITIDOS = ["application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"];
 
 // Sube la foto/PDF del ticket de compra a Supabase Storage (bucket privado
@@ -71,7 +94,7 @@ export async function subirArchivoGasto(gastoId: string, formData: FormData) {
 
   const { error } = await supabase
     .from("gastos")
-    .update({ archivo_path: path, archivo_nombre: archivo.name })
+    .update({ archivo_path: path, archivo_nombre: archivo.name, archivo_tipo: archivo.type })
     .eq("id", gastoId);
 
   if (error) return { error: error.message };
@@ -80,15 +103,23 @@ export async function subirArchivoGasto(gastoId: string, formData: FormData) {
   return { error: null };
 }
 
+// Formatos que un navegador sí puede mostrar directo (img/iframe). HEIC/HEIF
+// (el formato nativo de fotos del iPhone) no está en la lista a propósito:
+// ningún navegador lo renderiza sin convertirlo primero — para esos solo se
+// ofrece descargar.
+const TIPOS_PREVISUALIZABLES = ["image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf"];
+
 // Genera una URL firmada de corta duración para ver el archivo — el bucket
 // es privado, así que no hay una URL pública fija que se pueda guardar.
+// Regresa también el tipo/nombre para que la app decida cómo mostrarlo
+// (imagen, PDF, o solo descarga si el formato no se puede previsualizar).
 export async function obtenerUrlArchivoGasto(gastoId: string) {
   const { supabase, error: permisoError } = await requiereDuenoOEncargado();
   if (permisoError) return { data: null, error: permisoError };
 
   const { data: gasto, error: gastoError } = await supabase
     .from("gastos")
-    .select("archivo_path")
+    .select("archivo_path, archivo_nombre, archivo_tipo")
     .eq("id", gastoId)
     .maybeSingle();
 
@@ -99,7 +130,15 @@ export async function obtenerUrlArchivoGasto(gastoId: string) {
 
   if (error) return { data: null, error: error.message };
 
-  return { data: data.signedUrl, error: null };
+  return {
+    data: {
+      url: data.signedUrl,
+      nombre: gasto.archivo_nombre,
+      tipo: gasto.archivo_tipo,
+      previsualizable: Boolean(gasto.archivo_tipo && TIPOS_PREVISUALIZABLES.includes(gasto.archivo_tipo)),
+    },
+    error: null,
+  };
 }
 
 export async function eliminarGasto(gastoId: string) {

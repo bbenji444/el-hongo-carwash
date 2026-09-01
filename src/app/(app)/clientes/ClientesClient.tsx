@@ -9,7 +9,7 @@ type ClienteConDetalle = {
   id: string;
   nombre: string;
   telefono: string | null;
-  vehiculos: number;
+  placas: string[];
   ultimaLavada: string | null;
   lavadasEnCiclo: number;
 };
@@ -109,7 +109,7 @@ export function ClientesClient({ clientes }: { clientes: ClienteConDetalle[] }) 
             <tr>
               <th className="px-4 py-3">Nombre</th>
               <th className="px-4 py-3">Teléfono</th>
-              <th className="px-4 py-3">Vehículos</th>
+              <th className="px-4 py-3">Placas</th>
               <th className="px-4 py-3">Última lavada</th>
               <th className="px-4 py-3">Lealtad</th>
             </tr>
@@ -123,7 +123,9 @@ export function ClientesClient({ clientes }: { clientes: ClienteConDetalle[] }) 
                   </Link>
                 </td>
                 <td className="px-4 py-3 text-muted">{cliente.telefono ?? "—"}</td>
-                <td className="px-4 py-3 text-muted">{cliente.vehiculos}</td>
+                <td className="px-4 py-3 text-muted">
+                  {cliente.placas.length > 0 ? cliente.placas.join(", ") : "—"}
+                </td>
                 <td className="px-4 py-3 text-muted">
                   {cliente.ultimaLavada
                     ? new Date(cliente.ultimaLavada).toLocaleDateString("es-MX", {

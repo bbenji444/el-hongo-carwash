@@ -29,7 +29,7 @@ export default async function ClientesPage({
 
   const [{ data: vehiculos }, { data: ticketsEntregados }] = await Promise.all([
     clienteIds.length
-      ? supabase.from("vehiculos").select("cliente_id").in("cliente_id", clienteIds)
+      ? supabase.from("vehiculos").select("cliente_id, placas").in("cliente_id", clienteIds)
       : Promise.resolve({ data: [] }),
     clienteIds.length
       ? supabase
@@ -40,9 +40,12 @@ export default async function ClientesPage({
       : Promise.resolve({ data: [] }),
   ]);
 
-  const vehiculosPorCliente = new Map<string, number>();
+  const placasPorCliente = new Map<string, string[]>();
   for (const v of vehiculos ?? []) {
-    vehiculosPorCliente.set(v.cliente_id, (vehiculosPorCliente.get(v.cliente_id) ?? 0) + 1);
+    if (!v.placas) continue;
+    const lista = placasPorCliente.get(v.cliente_id) ?? [];
+    lista.push(v.placas);
+    placasPorCliente.set(v.cliente_id, lista);
   }
 
   const ultimaLavadaPorCliente = new Map<string, string>();
@@ -62,7 +65,7 @@ export default async function ClientesPage({
 
   const clientesConDetalle = (clientes ?? []).map((c) => ({
     ...c,
-    vehiculos: vehiculosPorCliente.get(c.id) ?? 0,
+    placas: placasPorCliente.get(c.id) ?? [],
     ultimaLavada: ultimaLavadaPorCliente.get(c.id) ?? null,
     lavadasEnCiclo: (lavadasPorCliente.get(c.id) ?? 0) % 6,
   }));

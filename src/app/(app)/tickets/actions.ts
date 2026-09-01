@@ -154,6 +154,7 @@ export async function detalleCliente(clienteId: string) {
 
 export async function crearTicket(input: {
   clienteId: string | null;
+  vehiculoId: string | null;
   distintivo: string | null;
   servicioId: string;
   tamanoVehiculo: TamanoVehiculo;
@@ -178,6 +179,7 @@ export async function crearTicket(input: {
     .from("tickets")
     .insert({
       cliente_id: input.clienteId,
+      vehiculo_id: input.vehiculoId,
       distintivo: input.distintivo,
       servicio_id: input.servicioId,
       tamano_vehiculo: input.tamanoVehiculo,
@@ -390,6 +392,7 @@ export async function actualizarTicket(
     tamanoVehiculo: TamanoVehiculo;
     lavadorId: string | null;
     distintivo: string | null;
+    vehiculoId: string | null;
     extraIds: string[];
   }
 ) {
@@ -415,6 +418,7 @@ export async function actualizarTicket(
       tamano_vehiculo: input.tamanoVehiculo,
       lavador_id: input.lavadorId,
       distintivo: input.distintivo,
+      vehiculo_id: input.vehiculoId,
     })
     .eq("id", ticketId);
 

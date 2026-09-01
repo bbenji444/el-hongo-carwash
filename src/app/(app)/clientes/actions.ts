@@ -36,3 +36,36 @@ export async function crearVehiculo(input: {
   revalidatePath(`/clientes/${input.clienteId}`);
   return { error: null };
 }
+
+// Usado al capturar la placa de un cliente ya registrado directamente desde
+// el ticket (Nuevo/Editar ticket): reutiliza el vehículo si ese cliente ya
+// tiene una placa igual registrada, en vez de crear un duplicado cada vez
+// que vuelve a visitar.
+export async function obtenerOCrearVehiculo(input: {
+  clienteId: string;
+  placas: string;
+  tipoVehiculo: string | null;
+}) {
+  const supabase = await createClient();
+  const placasNorm = input.placas.trim();
+
+  const { data: existente } = await supabase
+    .from("vehiculos")
+    .select("id")
+    .eq("cliente_id", input.clienteId)
+    .ilike("placas", placasNorm)
+    .maybeSingle();
+
+  if (existente) return { data: existente, error: null };
+
+  const { data, error } = await supabase
+    .from("vehiculos")
+    .insert({ cliente_id: input.clienteId, placas: placasNorm, tipo_vehiculo: input.tipoVehiculo })
+    .select("id")
+    .single();
+
+  if (error) return { data: null, error: error.message };
+
+  revalidatePath(`/clientes/${input.clienteId}`);
+  return { data, error: null };
+}

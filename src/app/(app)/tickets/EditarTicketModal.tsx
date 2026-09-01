@@ -2,11 +2,12 @@
 
 import { useState, useTransition } from "react";
 import type { TamanoVehiculo, Lavador, ConfiguracionApp, ExtraCatalogo } from "@/types/database.types";
-import { TAMANOS_VEHICULO, precioPorTamano } from "@/lib/servicios";
+import { TAMANOS_VEHICULO, nombreTamano, precioPorTamano } from "@/lib/servicios";
 import { emojiPorTamano } from "@/lib/configuracionDefaults";
 import type { ServicioConPrecios, TicketConDetalle } from "./types";
 import { BotonSeleccion } from "./BotonSeleccion";
 import { actualizarTicket, eliminarTicket } from "./actions";
+import { obtenerOCrearVehiculo } from "../clientes/actions";
 
 export function EditarTicketModal({
   ticket,
@@ -39,7 +40,9 @@ export function EditarTicketModal({
   const [servicioId, setServicioId] = useState(ticket.servicio_id);
   const [lavadorId, setLavadorId] = useState(ticket.lavador?.id ?? "");
   const [distintivo, setDistintivo] = useState(ticket.distintivo ?? "");
+  const [placa, setPlaca] = useState(ticket.vehiculo?.placas ?? "");
   const [extraIds, setExtraIds] = useState<string[]>(ticket.extras.map((e) => e.extra_id));
+  const hayCliente = Boolean(ticket.cliente);
 
   function toggleExtra(id: string) {
     setExtraIds((prev) => (prev.includes(id) ? prev.filter((e) => e !== id) : [...prev, id]));
@@ -54,11 +57,26 @@ export function EditarTicketModal({
     }
 
     startTransition(async () => {
+      let vehiculoId: string | null = null;
+      if (hayCliente && placa.trim()) {
+        const res = await obtenerOCrearVehiculo({
+          clienteId: ticket.cliente!.id,
+          placas: placa.trim(),
+          tipoVehiculo: nombreTamano(tamanoVehiculo),
+        });
+        if (res.error) {
+          setError(res.error);
+          return;
+        }
+        vehiculoId = res.data?.id ?? null;
+      }
+
       const result = await actualizarTicket(ticket.id, {
         servicioId,
         tamanoVehiculo,
         lavadorId: lavadorId || null,
-        distintivo: distintivo.trim() || null,
+        distintivo: hayCliente ? null : distintivo.trim() || null,
+        vehiculoId,
         extraIds,
       });
 
@@ -122,16 +140,28 @@ export function EditarTicketModal({
 
           {puedeEditarCampos && (
             <>
-              {/* Distintivo */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-muted">Distintivo (opcional)</label>
-                <input
-                  value={distintivo}
-                  onChange={(e) => setDistintivo(e.target.value)}
-                  placeholder="Ej. Mazda gris, BMW negro"
-                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
-                />
-              </div>
+              {/* Distintivo o placa, según si el ticket tiene cliente registrado */}
+              {hayCliente ? (
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-medium text-muted">Número de placa (opcional)</label>
+                  <input
+                    value={placa}
+                    onChange={(e) => setPlaca(e.target.value)}
+                    placeholder="Ej. ABC-123"
+                    className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+                  />
+                </div>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-medium text-muted">Distintivo (opcional)</label>
+                  <input
+                    value={distintivo}
+                    onChange={(e) => setDistintivo(e.target.value)}
+                    placeholder="Ej. Mazda gris, BMW negro"
+                    className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+                  />
+                </div>
+              )}
 
               {/* Tamaño de vehículo */}
               <div className="flex flex-col gap-1.5">

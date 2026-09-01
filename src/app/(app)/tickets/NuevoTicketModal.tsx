@@ -2,11 +2,12 @@
 
 import { useEffect, useState, useTransition } from "react";
 import type { TamanoVehiculo, Lavador, ConfiguracionApp, ExtraCatalogo } from "@/types/database.types";
-import { TAMANOS_VEHICULO, precioPorTamano } from "@/lib/servicios";
+import { TAMANOS_VEHICULO, nombreTamano, precioPorTamano } from "@/lib/servicios";
 import { emojiPorTamano } from "@/lib/configuracionDefaults";
 import type { ServicioConPrecios } from "./types";
 import { BotonSeleccion } from "./BotonSeleccion";
 import { buscarClientes, crearCliente, crearTicket, progresoLealtadCliente } from "./actions";
+import { obtenerOCrearVehiculo } from "../clientes/actions";
 
 type ClienteResultado = { id: string; nombre: string; telefono: string | null };
 type LealtadInfo = { lavadasEnCiclo: number; proximaGratis: boolean; ultimaLavada: string | null };
@@ -41,6 +42,7 @@ export function NuevoTicketModal({
   const [creandoClienteNuevo, setCreandoClienteNuevo] = useState(false);
 
   const [distintivo, setDistintivo] = useState("");
+  const [placa, setPlaca] = useState("");
   const [tamanoVehiculo, setTamanoVehiculo] = useState<TamanoVehiculo>("automovil");
 
   const [servicioId, setServicioId] = useState(servicios[0]?.id ?? "");
@@ -83,7 +85,13 @@ export function NuevoTicketModal({
     setCreandoClienteNuevo(false);
     setResultados([]);
     setLealtad(null);
+    setPlaca("");
   }
+
+  // Con cliente de mostrador (sin registro) se usa el distintivo libre; en
+  // cuanto hay un cliente real (elegido o por crear ahora mismo) se cambia a
+  // capturar su placa, que sí queda ligada a su ficha para la próxima visita.
+  const hayCliente = Boolean(clienteSeleccionado) || creandoClienteNuevo;
 
   function handleSubmit() {
     setError(null);
@@ -113,9 +121,24 @@ export function NuevoTicketModal({
         clienteId = res.data.id;
       }
 
+      let vehiculoId: string | null = null;
+      if (clienteId && placa.trim()) {
+        const res = await obtenerOCrearVehiculo({
+          clienteId,
+          placas: placa.trim(),
+          tipoVehiculo: nombreTamano(tamanoVehiculo),
+        });
+        if (res.error) {
+          setError(res.error);
+          return;
+        }
+        vehiculoId = res.data?.id ?? null;
+      }
+
       const result = await crearTicket({
         clienteId,
-        distintivo: distintivo.trim() || null,
+        vehiculoId,
+        distintivo: clienteId ? null : distintivo.trim() || null,
         servicioId,
         tamanoVehiculo,
         empleadoId: usuarioActualId,
@@ -225,16 +248,28 @@ export function NuevoTicketModal({
             </div>
           )}
 
-          {/* Distintivo */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-muted">Distintivo (opcional)</label>
-            <input
-              value={distintivo}
-              onChange={(e) => setDistintivo(e.target.value)}
-              placeholder="Ej. Mazda gris, BMW negro"
-              className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
-            />
-          </div>
+          {/* Distintivo o placa, según si hay cliente registrado */}
+          {hayCliente ? (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-medium text-muted">Número de placa (opcional)</label>
+              <input
+                value={placa}
+                onChange={(e) => setPlaca(e.target.value)}
+                placeholder="Ej. ABC-123"
+                className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+              />
+            </div>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-medium text-muted">Distintivo (opcional)</label>
+              <input
+                value={distintivo}
+                onChange={(e) => setDistintivo(e.target.value)}
+                placeholder="Ej. Mazda gris, BMW negro"
+                className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+              />
+            </div>
+          )}
 
           {/* Tamaño de vehículo */}
           <div className="flex flex-col gap-1.5">

@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 
 // Se suscribe a cambios en tiempo real (Supabase Realtime) de las tablas
 // indicadas y refresca los datos del Server Component actual cuando algo
@@ -14,7 +15,8 @@ export function useRealtimeRefresh(tablas: string[]) {
 
   useEffect(() => {
     const supabase = createClient();
-    const canal = supabase.channel(`live-${tablasClave}`);
+    let canal: RealtimeChannel | null = null;
+    let vivo = true;
 
     // Varios cambios pueden llegar casi juntos (p. ej. borrar un turno se
     // lleva varios tickets y pagos a la vez) — se agrupan en un solo
@@ -25,15 +27,47 @@ export function useRealtimeRefresh(tablas: string[]) {
       timeout = setTimeout(() => router.refresh(), 300);
     }
 
-    for (const tabla of tablasClave.split(",")) {
-      canal.on("postgres_changes", { event: "*", schema: "public", table: tabla }, refrescar);
+    // El celular suspende la conexión de websocket cuando la pantalla se
+    // bloquea, cambia de wifi a datos, o el navegador pasa la pestaña a
+    // segundo plano — la librería de Realtime no siempre reconecta sola a
+    // tiempo. Si el canal se cae, se vuelve a suscribir solo en vez de
+    // quedarse muerto en silencio hasta que alguien recargue a mano.
+    function suscribir() {
+      canal = supabase.channel(`live-${tablasClave}`);
+      for (const tabla of tablasClave.split(",")) {
+        canal.on("postgres_changes", { event: "*", schema: "public", table: tabla }, refrescar);
+      }
+      canal.subscribe((status) => {
+        if (!vivo) return;
+        if (status === "CLOSED" || status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          if (canal) supabase.removeChannel(canal);
+          setTimeout(() => {
+            if (vivo) suscribir();
+          }, 2000);
+        }
+      });
     }
+    suscribir();
 
-    canal.subscribe();
+    // Además del canal en vivo, se fuerza un refresh cada vez que la
+    // pestaña vuelve a estar visible/con foco o el celular recupera
+    // conexión — cubre el hueco de lo que se haya perdido mientras la
+    // sesión estaba en segundo plano, sin esperar a que llegue un evento
+    // nuevo de Realtime.
+    function alVolver() {
+      if (document.visibilityState === "visible") refrescar();
+    }
+    document.addEventListener("visibilitychange", alVolver);
+    window.addEventListener("focus", refrescar);
+    window.addEventListener("online", refrescar);
 
     return () => {
+      vivo = false;
       if (timeout) clearTimeout(timeout);
-      supabase.removeChannel(canal);
+      document.removeEventListener("visibilitychange", alVolver);
+      window.removeEventListener("focus", refrescar);
+      window.removeEventListener("online", refrescar);
+      if (canal) supabase.removeChannel(canal);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tablasClave]);

@@ -138,7 +138,12 @@ export default async function TurnosPage() {
 
       <div className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">Historial de turnos</h2>
-        <HistorialTurnos historial={historial} puedeEditar={puedeEditarTurnos} puedeEliminar={puedeEliminarTurnos} />
+        <HistorialTurnos
+          historial={historial}
+          puedeEditar={puedeEditarTurnos}
+          puedeEliminar={puedeEliminarTurnos}
+          puedeVerDesglose={usuario.rol !== "cajero"}
+        />
       </div>
     </div>
   );

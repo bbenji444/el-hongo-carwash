@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import type { Turno } from "@/types/database.types";
 import { EditarTurnoModal } from "./EditarTurnoModal";
@@ -18,15 +19,17 @@ export function HistorialTurnos({
   historial,
   puedeEditar,
   puedeEliminar,
+  puedeVerDesglose,
 }: {
   historial: TurnoConNombres[];
   puedeEditar: boolean;
   puedeEliminar: boolean;
+  puedeVerDesglose: boolean;
 }) {
   const [editando, setEditando] = useState<TurnoConNombres | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const mostrarAcciones = puedeEditar || puedeEliminar;
+  const mostrarAcciones = puedeEditar || puedeEliminar || puedeVerDesglose;
 
   function handleEliminar(t: TurnoConNombres) {
     if (
@@ -94,6 +97,16 @@ export function HistorialTurnos({
                 {mostrarAcciones && (
                   <td className="px-3 py-2 text-right">
                     <div className="flex justify-end gap-2">
+                      {puedeVerDesglose && (
+                        <Link
+                          href={`/reportes/turnos/${t.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-accent hover:underline"
+                        >
+                          Ver desglose
+                        </Link>
+                      )}
                       {puedeEditar && (
                         <button onClick={() => setEditando(t)} className="text-xs text-accent hover:underline">
                           Editar

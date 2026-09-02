@@ -33,7 +33,7 @@ type ResumenCaja = {
   pendientes: number;
   efectivoEsperado: number | null;
   ventasHoy: number;
-  tiempoPromedioMin: number | null;
+  tiempoEsperaMin: number | null;
 };
 
 // Semáforo de espera: verde en orden, amarillo/rojo a partir de los minutos
@@ -256,9 +256,9 @@ export function TicketsBoard({
                 <p className="text-sm font-semibold text-foreground">{resumenCaja.ventasHoy}</p>
               </div>
               <div className="rounded-lg border border-border bg-background p-2.5">
-                <p className="text-[10px] uppercase tracking-wide text-muted">Tiempo promedio</p>
+                <p className="text-[10px] uppercase tracking-wide text-muted">Tiempo de espera</p>
                 <p className="text-sm font-semibold text-foreground">
-                  {resumenCaja.tiempoPromedioMin !== null ? formatearMinutos(resumenCaja.tiempoPromedioMin) : "—"}
+                  {resumenCaja.tiempoEsperaMin !== null ? formatearMinutos(resumenCaja.tiempoEsperaMin) : "—"}
                 </p>
               </div>
             </>

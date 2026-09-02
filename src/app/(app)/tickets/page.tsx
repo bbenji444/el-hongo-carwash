@@ -161,7 +161,7 @@ export default async function TicketsPage() {
     pendientes: number;
     efectivoEsperado: number | null;
     ventasHoy: number;
-    tiempoPromedioMin: number | null;
+    tiempoEsperaMin: number | null;
   } | null = null;
 
   if (turno) {
@@ -171,12 +171,12 @@ export default async function TicketsPage() {
     }
     const puedeVerEfectivo = usuario.rol !== "cajero";
 
-    // Ventas del día y tiempo promedio de servicio se miden por día natural
-    // (todos los turnos de hoy), no solo el turno en curso — a diferencia del
-    // efectivo, que sí es un dato propio de este turno. El "día" se calcula
-    // en hora de México (inicioDeDiaMX), no en la hora local del servidor
-    // (que en Vercel corre en UTC) — si no, las ventas de la noche (después
-    // de las 6pm hora de México) se contaban como del día siguiente.
+    // Ventas del día se miden por día natural (todos los turnos de hoy), no
+    // solo el turno en curso — a diferencia del efectivo, que sí es un dato
+    // propio de este turno. El "día" se calcula en hora de México
+    // (inicioDeDiaMX), no en la hora local del servidor (que en Vercel
+    // corre en UTC) — si no, las ventas de la noche (después de las 6pm
+    // hora de México) se contaban como del día siguiente.
     const { data: ticketsHoy } = await supabase
       .from("tickets")
       .select("hora_entrada, hora_salida")
@@ -184,13 +184,26 @@ export default async function TicketsPage() {
       .gte("hora_salida", inicioDeDiaMX(0).toISOString());
 
     const entregadosHoy = (ticketsHoy ?? []).filter((t) => t.hora_salida);
-    const tiempoPromedioMin =
-      entregadosHoy.length > 0
-        ? entregadosHoy.reduce(
-            (suma, t) => suma + (new Date(t.hora_salida!).getTime() - new Date(t.hora_entrada).getTime()),
+
+    // Tiempo de espera: desde que el auto entra (en espera) hasta que un
+    // lavador de verdad empieza a lavarlo — no hasta que se entrega. Sirve
+    // para poder decirle a quien va llegando cuánto tiene que esperar
+    // aprox., así que se mide con TODOS los autos que ya empezaron a
+    // lavarse hoy (no solo los ya entregados) para reflejar la espera real
+    // del momento, no solo la de servicios ya cerrados por completo.
+    const { data: ticketsIniciadosHoy } = await supabase
+      .from("tickets")
+      .select("hora_entrada, hora_inicio_lavado")
+      .gte("hora_inicio_lavado", inicioDeDiaMX(0).toISOString());
+
+    const iniciadosHoy = (ticketsIniciadosHoy ?? []).filter((t) => t.hora_inicio_lavado);
+    const tiempoEsperaMin =
+      iniciadosHoy.length > 0
+        ? iniciadosHoy.reduce(
+            (suma, t) => suma + (new Date(t.hora_inicio_lavado!).getTime() - new Date(t.hora_entrada).getTime()),
             0
           ) /
-          entregadosHoy.length /
+          iniciadosHoy.length /
           60000
         : null;
 
@@ -202,7 +215,7 @@ export default async function TicketsPage() {
       pendientes: (tickets ?? []).filter((t) => t.estado !== "entregado").length,
       efectivoEsperado: puedeVerEfectivo ? turno.efectivo_inicial + totalesPorMetodo.efectivo : null,
       ventasHoy: entregadosHoy.length,
-      tiempoPromedioMin,
+      tiempoEsperaMin,
     };
   }
 

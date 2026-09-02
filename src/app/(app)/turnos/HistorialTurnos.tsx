@@ -98,12 +98,7 @@ export function HistorialTurnos({
                   <td className="px-3 py-2 text-right">
                     <div className="flex justify-end gap-2">
                       {puedeVerDesglose && (
-                        <Link
-                          href={`/reportes/turnos/${t.id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-accent hover:underline"
-                        >
+                        <Link href={`/reportes/turnos/${t.id}`} className="text-xs text-accent hover:underline">
                           Ver desglose
                         </Link>
                       )}

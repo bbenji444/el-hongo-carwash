@@ -15,6 +15,21 @@ function money(n: number) {
   return `$${n.toFixed(2)}`;
 }
 
+function formatearDuracion(ms: number) {
+  const totalSegundos = Math.max(0, Math.floor(ms / 1000));
+  const horas = Math.floor(totalSegundos / 3600);
+  const minutos = Math.floor((totalSegundos % 3600) / 60);
+  const segundos = totalSegundos % 60;
+  const mm = String(minutos).padStart(2, "0");
+  const ss = String(segundos).padStart(2, "0");
+  return horas > 0 ? `${horas}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+
+function duracionLavado(t: { hora_inicio_lavado: string | null; hora_fin_lavado: string | null }) {
+  if (!t.hora_inicio_lavado || !t.hora_fin_lavado) return null;
+  return formatearDuracion(new Date(t.hora_fin_lavado).getTime() - new Date(t.hora_inicio_lavado).getTime());
+}
+
 const METODO_LABEL: Record<PagoMetodo, string> = {
   efectivo: "Efectivo",
   tarjeta: "Tarjeta",
@@ -75,6 +90,7 @@ export function DesgloseTurnoTabla({
               <th className="px-4 py-3">Tamaño</th>
               <th className="px-4 py-3">Empleado</th>
               <th className="px-4 py-3">Lavador</th>
+              <th className="px-4 py-3">Tiempo de lavado</th>
               <th className="px-4 py-3">Estado</th>
               <th className="px-4 py-3">Método</th>
               <th className="px-4 py-3">Monto</th>
@@ -100,6 +116,7 @@ export function DesgloseTurnoTabla({
                 <td className="px-4 py-3 text-muted">{nombreTamano(t.tamano_vehiculo)}</td>
                 <td className="px-4 py-3 text-foreground">{t.empleado?.nombre ?? "—"}</td>
                 <td className="px-4 py-3 text-muted">{t.lavador?.nombre ?? "—"}</td>
+                <td className="px-4 py-3 text-muted">{duracionLavado(t) ?? "—"}</td>
                 <td className="px-4 py-3 text-muted">{ESTADO_LABEL[t.estado] ?? t.estado}</td>
                 <td className="px-4 py-3 text-muted">
                   {t.lavada_gratis
@@ -120,7 +137,7 @@ export function DesgloseTurnoTabla({
             ))}
             {tickets.length === 0 && (
               <tr>
-                <td colSpan={puedeEditarTickets ? 11 : 10} className="px-4 py-6 text-center text-muted">
+                <td colSpan={puedeEditarTickets ? 12 : 11} className="px-4 py-6 text-center text-muted">
                   {hayFiltro ? "Ningún ticket coincide con este filtro." : "Sin tickets en este turno."}
                 </td>
               </tr>

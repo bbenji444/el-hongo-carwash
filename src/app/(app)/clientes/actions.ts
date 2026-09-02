@@ -18,6 +18,23 @@ export async function crearCliente(input: { nombre: string; telefono: string | n
   return { data, error: null };
 }
 
+// Usado al completar/corregir el nombre o teléfono de un cliente que ya
+// existe (p. ej. desde Editar ticket) — actualiza el mismo registro en vez
+// de crear uno nuevo, para no terminar con clientes duplicados.
+export async function actualizarCliente(clienteId: string, input: { nombre: string; telefono: string | null }) {
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("clientes")
+    .update({ nombre: input.nombre, telefono: input.telefono })
+    .eq("id", clienteId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/", "layout");
+  return { error: null };
+}
+
 export async function crearVehiculo(input: {
   clienteId: string;
   placas: string | null;

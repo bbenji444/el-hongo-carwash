@@ -398,6 +398,7 @@ export async function actualizarTicket(
     distintivo: string | null;
     placa: string | null;
     vehiculoId: string | null;
+    clienteId: string | null;
     extraIds: string[];
   }
 ) {
@@ -425,6 +426,7 @@ export async function actualizarTicket(
       distintivo: input.distintivo,
       placa: input.placa,
       vehiculo_id: input.vehiculoId,
+      cliente_id: input.clienteId,
     })
     .eq("id", ticketId);
 

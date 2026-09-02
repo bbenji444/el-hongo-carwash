@@ -18,6 +18,21 @@ export function useRealtimeRefresh(tablas: string[]) {
     let canal: RealtimeChannel | null = null;
     let vivo = true;
 
+    // El token de sesión se renueva solo para las peticiones normales
+    // (REST vía cookies), pero el canal de Realtime ya abierto se queda
+    // autenticado con el token viejo si nadie se lo actualiza. Al expirar
+    // (Supabase por defecto usa ~1h), las políticas de RLS empiezan a
+    // rechazarlo EN SILENCIO — el canal se sigue viendo "SUBSCRIBED", no
+    // marca error, solo deja de entregar cambios — que es justo el síntoma
+    // reportado: funciona un rato después de entrar y luego para. Por eso
+    // se reenvía el token fresco cada vez que Supabase lo renueva.
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) supabase.realtime.setAuth(data.session.access_token);
+    });
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) supabase.realtime.setAuth(session.access_token);
+    });
+
     // Varios cambios pueden llegar casi juntos (p. ej. borrar un turno se
     // lleva varios tickets y pagos a la vez) — se agrupan en un solo
     // refresh en vez de disparar uno por cada evento.
@@ -67,6 +82,7 @@ export function useRealtimeRefresh(tablas: string[]) {
       document.removeEventListener("visibilitychange", alVolver);
       window.removeEventListener("focus", refrescar);
       window.removeEventListener("online", refrescar);
+      authListener.subscription.unsubscribe();
       if (canal) supabase.removeChannel(canal);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

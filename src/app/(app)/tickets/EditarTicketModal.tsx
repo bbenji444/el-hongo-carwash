@@ -7,7 +7,7 @@ import { emojiPorTamano } from "@/lib/configuracionDefaults";
 import type { ServicioConPrecios, TicketConDetalle } from "./types";
 import { BotonSeleccion } from "./BotonSeleccion";
 import { actualizarTicket, eliminarTicket } from "./actions";
-import { obtenerOCrearVehiculo } from "../clientes/actions";
+import { obtenerOCrearVehiculo, crearCliente, actualizarCliente } from "../clientes/actions";
 
 export function EditarTicketModal({
   ticket,
@@ -42,7 +42,8 @@ export function EditarTicketModal({
   const [distintivo, setDistintivo] = useState(ticket.distintivo ?? "");
   const [placa, setPlaca] = useState(ticket.placa ?? ticket.vehiculo?.placas ?? "");
   const [extraIds, setExtraIds] = useState<string[]>(ticket.extras.map((e) => e.extra_id));
-  const hayCliente = Boolean(ticket.cliente);
+  const [clienteNombre, setClienteNombre] = useState(ticket.cliente?.nombre ?? "");
+  const [clienteTelefono, setClienteTelefono] = useState(ticket.cliente?.telefono ?? "");
 
   function toggleExtra(id: string) {
     setExtraIds((prev) => (prev.includes(id) ? prev.filter((e) => e !== id) : [...prev, id]));
@@ -56,11 +57,43 @@ export function EditarTicketModal({
       return;
     }
 
+    const nombreCliente = clienteNombre.trim();
+    if (nombreCliente && (!distintivo.trim() || !placa.trim())) {
+      setError("Para guardar el cliente, primero completa distintivo y placa.");
+      return;
+    }
+
     startTransition(async () => {
+      let clienteId: string | null = ticket.cliente?.id ?? null;
+
+      if (nombreCliente) {
+        if (clienteId) {
+          // Cliente ya registrado: se actualiza el mismo renglón, no se
+          // crea uno nuevo (evita duplicados).
+          const res = await actualizarCliente(clienteId, {
+            nombre: nombreCliente,
+            telefono: clienteTelefono.trim() || null,
+          });
+          if (res.error) {
+            setError(res.error);
+            return;
+          }
+        } else {
+          // Registro rápido completado ahora: como ya viene con distintivo
+          // y placa, se guarda el cliente por primera vez.
+          const res = await crearCliente({ nombre: nombreCliente, telefono: clienteTelefono.trim() || null });
+          if (res.error || !res.data) {
+            setError(res.error ?? "No se pudo guardar el cliente.");
+            return;
+          }
+          clienteId = res.data.id;
+        }
+      }
+
       let vehiculoId: string | null = null;
-      if (hayCliente && placa.trim()) {
+      if (clienteId && placa.trim()) {
         const res = await obtenerOCrearVehiculo({
-          clienteId: ticket.cliente!.id,
+          clienteId,
           placas: placa.trim(),
           tipoVehiculo: nombreTamano(tamanoVehiculo),
         });
@@ -78,6 +111,7 @@ export function EditarTicketModal({
         distintivo: distintivo.trim() || null,
         placa: placa.trim() || null,
         vehiculoId,
+        clienteId,
         extraIds,
       });
 
@@ -137,6 +171,28 @@ export function EditarTicketModal({
 
           {puedeEditarCampos && (
             <>
+              {/* Cliente */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-muted">Cliente (opcional)</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <input
+                    value={clienteNombre}
+                    onChange={(e) => setClienteNombre(e.target.value)}
+                    placeholder="Nombre"
+                    className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+                  />
+                  <input
+                    value={clienteTelefono}
+                    onChange={(e) => setClienteTelefono(e.target.value)}
+                    placeholder="Teléfono (opcional)"
+                    className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+                  />
+                </div>
+                <p className="text-[11px] text-muted">
+                  El cliente se guarda solo si además completas distintivo y placa abajo.
+                </p>
+              </div>
+
               {/* Distintivo y placa */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1.5">

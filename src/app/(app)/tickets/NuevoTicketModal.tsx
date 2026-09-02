@@ -162,6 +162,14 @@ export function NuevoTicketModal({
       setError("Ingresa el nombre del cliente nuevo.");
       return;
     }
+    // El cliente solo se guarda cuando el registro viene completo (con
+    // distintivo y placa) — un registro rápido con solo uno de los dos no
+    // debe dejar un cliente a medias en la base de datos; se puede
+    // completar después desde Editar ticket.
+    if (creandoClienteNuevo && nuevoClienteNombre.trim() && (!distintivo.trim() || !placa.trim())) {
+      setError("Para guardar el cliente, primero escribe el distintivo y la placa.");
+      return;
+    }
 
     startTransition(async () => {
       let clienteId: string | null = clienteSeleccionado?.id ?? null;

@@ -2,13 +2,13 @@
 
 import { useState, useTransition, type FormEvent } from "react";
 import type { ServicioCatalogo, ServicioPrecio } from "@/types/database.types";
-import { TAMANOS_VEHICULO, precioPorTamano } from "@/lib/servicios";
+import { TAMANOS_VEHICULO, TAMANOS_PRECIO_VARIABLE, PRECIOS_MOTO_FIJOS, precioPorTamano } from "@/lib/servicios";
 import { crearServicio, actualizarServicio, toggleActivoServicio, eliminarServicio } from "./actions";
 
 type ServicioConPrecios = ServicioCatalogo & { precios: ServicioPrecio[] };
 
 function preciosVacios() {
-  return Object.fromEntries(TAMANOS_VEHICULO.map((t) => [t.value, ""])) as Record<string, string>;
+  return Object.fromEntries(TAMANOS_PRECIO_VARIABLE.map((t) => [t.value, ""])) as Record<string, string>;
 }
 
 const emptyForm = {
@@ -46,7 +46,7 @@ export function ServiciosClient({
       precios: {
         ...preciosVacios(),
         ...Object.fromEntries(
-          TAMANOS_VEHICULO.map((t) => [t.value, String(precioPorTamano(servicio.precios, t.value) || "")])
+          TAMANOS_PRECIO_VARIABLE.map((t) => [t.value, String(precioPorTamano(servicio.precios, t.value) || "")])
         ),
       },
     });
@@ -68,7 +68,7 @@ export function ServiciosClient({
       return;
     }
 
-    const precios = TAMANOS_VEHICULO.map((t) => ({
+    const precios = TAMANOS_PRECIO_VARIABLE.map((t) => ({
       tamanoVehiculo: t.value,
       precio: Number(form.precios[t.value]),
     }));
@@ -181,7 +181,7 @@ export function ServiciosClient({
                   Precio por tamaño de vehículo (MXN)
                 </label>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  {TAMANOS_VEHICULO.map((t) => (
+                  {TAMANOS_PRECIO_VARIABLE.map((t) => (
                     <div key={t.value} className="flex flex-col gap-1">
                       <span className="text-[11px] text-muted">{t.label}</span>
                       <input
@@ -197,6 +197,11 @@ export function ServiciosClient({
                     </div>
                   ))}
                 </div>
+                <p className="text-[11px] text-muted">
+                  Moto chica (${PRECIOS_MOTO_FIJOS.moto_chica?.toFixed(2)}) y moto grande ($
+                  {PRECIOS_MOTO_FIJOS.moto_grande?.toFixed(2)}) tienen precio fijo — no varían por paquete, así
+                  que no se configuran aquí.
+                </p>
               </div>
 
               <div className="flex flex-wrap items-end gap-4">

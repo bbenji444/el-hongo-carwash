@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { PRECIOS_MOTO_FIJOS } from "@/lib/servicios";
 import type { TicketEstado, PagoMetodo, TamanoVehiculo } from "@/types/database.types";
 
 export async function abrirTurno(efectivoInicial: number) {
@@ -340,7 +341,8 @@ export async function solicitarDescuento(input: {
     supabase.from("ticket_extras").select("precio").eq("ticket_id", input.ticketId),
   ]);
 
-  const precioBase = (precio?.precio ?? 0) + (extras ?? []).reduce((suma, e) => suma + e.precio, 0);
+  const precioTamano = PRECIOS_MOTO_FIJOS[ticket.tamano_vehiculo] ?? precio?.precio ?? 0;
+  const precioBase = precioTamano + (extras ?? []).reduce((suma, e) => suma + e.precio, 0);
   const descuentoMonto = Math.max(precioBase - input.precioFinal, 0);
 
   const { error } = await supabase

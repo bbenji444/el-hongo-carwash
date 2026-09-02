@@ -1,7 +1,20 @@
 "use client";
 
 import { useRef, useState, useTransition, type FormEvent } from "react";
-import { crearGasto, actualizarGasto, eliminarGasto, subirArchivoGasto, obtenerUrlArchivoGasto } from "./actions";
+import {
+  crearGasto,
+  actualizarGasto,
+  eliminarGasto,
+  subirArchivoGasto,
+  eliminarArchivoGasto,
+  obtenerUrlArchivoGasto,
+  agregarGastoItem,
+  actualizarGastoItem,
+  eliminarGastoItem,
+} from "./actions";
+
+type GastoArchivo = { id: string; nombre: string; tipo: string | null };
+type GastoItem = { id: string; producto: string; cantidad: number; precioUnitario: number };
 
 type Gasto = {
   id: string;
@@ -9,8 +22,9 @@ type Gasto = {
   monto: number;
   fecha: string;
   notas: string | null;
-  archivoNombre: string | null;
   creadoPor: string;
+  archivos: GastoArchivo[];
+  items: GastoItem[];
 };
 
 type ArchivoVista = {
@@ -19,6 +33,8 @@ type ArchivoVista = {
   tipo: string | null;
   previsualizable: boolean;
 };
+
+type ItemForm = { key: string; id: string | null; producto: string; cantidad: string; precioUnitario: string };
 
 function money(n: number) {
   return `$${n.toFixed(2)}`;
@@ -49,6 +65,10 @@ async function convertirSiEsHeic(archivo: File): Promise<File> {
   return new File([jpegBlob], nuevoNombre, { type: "image/jpeg" });
 }
 
+function nuevoRenglonItem(): ItemForm {
+  return { key: crypto.randomUUID(), id: null, producto: "", cantidad: "1", precioUnitario: "" };
+}
+
 const emptyForm = { concepto: "", monto: "", fecha: fechaInput(new Date().toISOString()), notas: "" };
 
 export function GastosClient({ gastos }: { gastos: Gasto[] }) {
@@ -60,11 +80,30 @@ export function GastosClient({ gastos }: { gastos: Gasto[] }) {
   const [convirtiendo, setConvirtiendo] = useState(false);
   const [verArchivoPendiente, setVerArchivoPendiente] = useState<string | null>(null);
   const [archivoVista, setArchivoVista] = useState<ArchivoVista | null>(null);
+  const [itemsVista, setItemsVista] = useState<{ concepto: string; items: GastoItem[] } | null>(null);
   const archivoInputRef = useRef<HTMLInputElement>(null);
+  const editArchivoInputRef = useRef<HTMLInputElement>(null);
+
+  const [itemsForm, setItemsForm] = useState<ItemForm[]>([]);
+  const [itemsOriginalIds, setItemsOriginalIds] = useState<Set<string>>(new Set());
+  const [archivosNuevos, setArchivosNuevos] = useState<File[]>([]);
+  const [archivosEdit, setArchivosEdit] = useState<GastoArchivo[]>([]);
+  const [archivoPendingEdit, setArchivoPendingEdit] = useState(false);
+
+  const tieneItems = itemsForm.some((it) => it.producto.trim() !== "");
+  const totalItems = itemsForm.reduce((acc, it) => {
+    const c = Number(it.cantidad);
+    const p = Number(it.precioUnitario);
+    return acc + (Number.isFinite(c) && Number.isFinite(p) ? c * p : 0);
+  }, 0);
 
   function abrirNuevo() {
     setEditandoId(null);
     setForm(emptyForm);
+    setItemsForm([]);
+    setItemsOriginalIds(new Set());
+    setArchivosNuevos([]);
+    setArchivosEdit([]);
     setError(null);
     setMostrarForm(true);
   }
@@ -77,8 +116,68 @@ export function GastosClient({ gastos }: { gastos: Gasto[] }) {
       fecha: fechaInput(g.fecha),
       notas: g.notas ?? "",
     });
+    setItemsForm(
+      g.items.map((it) => ({
+        key: it.id,
+        id: it.id,
+        producto: it.producto,
+        cantidad: String(it.cantidad),
+        precioUnitario: String(it.precioUnitario),
+      }))
+    );
+    setItemsOriginalIds(new Set(g.items.map((it) => it.id)));
+    setArchivosNuevos([]);
+    setArchivosEdit(g.archivos);
     setError(null);
     setMostrarForm(true);
+  }
+
+  function actualizarRenglonItem(key: string, campo: "producto" | "cantidad" | "precioUnitario", valor: string) {
+    setItemsForm((f) => f.map((it) => (it.key === key ? { ...it, [campo]: valor } : it)));
+  }
+
+  function quitarRenglonItem(key: string) {
+    setItemsForm((f) => f.filter((it) => it.key !== key));
+  }
+
+  async function handleAgregarArchivoEdit(files: FileList | null) {
+    if (!files || files.length === 0 || !editandoId) return;
+    setArchivoPendingEdit(true);
+    setError(null);
+    for (const original of Array.from(files)) {
+      let archivo = original;
+      if (esHeic(archivo)) {
+        try {
+          archivo = await convertirSiEsHeic(archivo);
+        } catch {
+          setError(`No se pudo convertir "${original.name}" (HEIC). Intenta subirla como JPG.`);
+          continue;
+        }
+      }
+      const datosArchivo = new FormData();
+      datosArchivo.set("archivo", archivo);
+      const result = await subirArchivoGasto(editandoId, datosArchivo);
+      if (result.error || !result.data) {
+        setError(result.error ?? `No se pudo subir "${archivo.name}".`);
+        continue;
+      }
+      setArchivosEdit((prev) => [...prev, result.data]);
+    }
+    setArchivoPendingEdit(false);
+    if (editArchivoInputRef.current) editArchivoInputRef.current.value = "";
+  }
+
+  function handleEliminarArchivoEdit(archivoId: string) {
+    if (!window.confirm("¿Eliminar este archivo?")) return;
+    setError(null);
+    startTransition(async () => {
+      const result = await eliminarArchivoGasto(archivoId);
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      setArchivosEdit((prev) => prev.filter((a) => a.id !== archivoId));
+    });
   }
 
   function handleSubmit(e: FormEvent) {
@@ -89,9 +188,27 @@ export function GastosClient({ gastos }: { gastos: Gasto[] }) {
       setError("Escribe el concepto del gasto (ej. Sueldos, Insumos).");
       return;
     }
-    const monto = Number(form.monto);
-    if (!Number.isFinite(monto) || monto <= 0) {
-      setError("Ingresa un monto válido.");
+
+    const renglones = itemsForm
+      .filter((it) => it.producto.trim() !== "")
+      .map((it) => ({ ...it, cantidadNum: Number(it.cantidad), precioNum: Number(it.precioUnitario) }));
+
+    for (const it of renglones) {
+      if (!Number.isFinite(it.cantidadNum) || it.cantidadNum <= 0) {
+        setError(`Ingresa una cantidad válida para "${it.producto}".`);
+        return;
+      }
+      if (!Number.isFinite(it.precioNum) || it.precioNum < 0) {
+        setError(`Ingresa un precio válido para "${it.producto}".`);
+        return;
+      }
+    }
+
+    const montoCalculado =
+      renglones.length > 0 ? renglones.reduce((acc, it) => acc + it.cantidadNum * it.precioNum, 0) : Number(form.monto);
+
+    if (!Number.isFinite(montoCalculado) || montoCalculado <= 0) {
+      setError(renglones.length > 0 ? "Agrega al menos un producto con cantidad y precio." : "Ingresa un monto válido.");
       return;
     }
     if (!form.fecha) {
@@ -101,67 +218,88 @@ export function GastosClient({ gastos }: { gastos: Gasto[] }) {
 
     const datosGasto = {
       concepto: form.concepto.trim(),
-      monto,
+      monto: montoCalculado,
       fecha: new Date(`${form.fecha}T12:00:00`).toISOString(),
       notas: form.notas.trim() || null,
     };
 
-    if (editandoId) {
-      startTransition(async () => {
+    const archivosAsubir = archivosNuevos;
+
+    startTransition(async () => {
+      let gastoId = editandoId;
+
+      if (editandoId) {
         const result = await actualizarGasto(editandoId, datosGasto);
         if (result.error) {
           setError(result.error);
           return;
         }
-        setForm(emptyForm);
-        setEditandoId(null);
-        setMostrarForm(false);
-      });
-      return;
-    }
-
-    const archivoOriginal = archivoInputRef.current?.files?.[0] ?? null;
-
-    startTransition(async () => {
-      let archivo = archivoOriginal;
-      if (archivo && esHeic(archivo)) {
-        setConvirtiendo(true);
-        try {
-          archivo = await convertirSiEsHeic(archivo);
-        } catch {
-          setConvirtiendo(false);
-          setError("No se pudo convertir la foto HEIC. Intenta guardarla como JPG desde tu celular y subirla de nuevo.");
+      } else {
+        const result = await crearGasto(datosGasto);
+        if (result.error || !result.data) {
+          setError(result.error ?? "No se pudo guardar el gasto.");
           return;
+        }
+        gastoId = result.data.id;
+      }
+
+      const idsActuales = new Set(renglones.filter((it) => it.id).map((it) => it.id!));
+      for (const idOriginal of itemsOriginalIds) {
+        if (!idsActuales.has(idOriginal)) {
+          await eliminarGastoItem(idOriginal);
+        }
+      }
+      for (const it of renglones) {
+        if (it.id) {
+          await actualizarGastoItem(it.id, {
+            producto: it.producto.trim(),
+            cantidad: it.cantidadNum,
+            precioUnitario: it.precioNum,
+          });
+        } else {
+          await agregarGastoItem(gastoId!, {
+            producto: it.producto.trim(),
+            cantidad: it.cantidadNum,
+            precioUnitario: it.precioNum,
+          });
+        }
+      }
+
+      if (!editandoId && archivosAsubir.length > 0) {
+        setConvirtiendo(true);
+        for (const original of archivosAsubir) {
+          let archivo = original;
+          if (esHeic(archivo)) {
+            try {
+              archivo = await convertirSiEsHeic(archivo);
+            } catch {
+              setError(`El gasto se guardó, pero "${original.name}" (HEIC) no se pudo convertir.`);
+              continue;
+            }
+          }
+          const datosArchivo = new FormData();
+          datosArchivo.set("archivo", archivo);
+          const resultArchivo = await subirArchivoGasto(gastoId!, datosArchivo);
+          if (resultArchivo.error) {
+            setError(`El gasto se guardó, pero "${archivo.name}" no se pudo subir: ${resultArchivo.error}`);
+          }
         }
         setConvirtiendo(false);
       }
 
-      const result = await crearGasto(datosGasto);
-      if (result.error || !result.data) {
-        setError(result.error ?? "No se pudo guardar el gasto.");
-        return;
-      }
-
-      if (archivo) {
-        const datosArchivo = new FormData();
-        datosArchivo.set("archivo", archivo);
-        const resultArchivo = await subirArchivoGasto(result.data.id, datosArchivo);
-        if (resultArchivo.error) {
-          setError(`El gasto se guardó, pero el archivo no se pudo subir: ${resultArchivo.error}`);
-          setForm(emptyForm);
-          if (archivoInputRef.current) archivoInputRef.current.value = "";
-          return;
-        }
-      }
-
       setForm(emptyForm);
+      setItemsForm([]);
+      setItemsOriginalIds(new Set());
+      setArchivosNuevos([]);
+      setArchivosEdit([]);
+      setEditandoId(null);
       if (archivoInputRef.current) archivoInputRef.current.value = "";
       setMostrarForm(false);
     });
   }
 
   function handleEliminar(id: string) {
-    if (!window.confirm("¿Eliminar este gasto? Esta acción no se puede deshacer (borra también su archivo adjunto, si tiene).")) return;
+    if (!window.confirm("¿Eliminar este gasto? Esta acción no se puede deshacer (borra también sus archivos y productos adjuntos, si tiene).")) return;
     setError(null);
     startTransition(async () => {
       const result = await eliminarGasto(id);
@@ -169,10 +307,10 @@ export function GastosClient({ gastos }: { gastos: Gasto[] }) {
     });
   }
 
-  function handleVerArchivo(id: string) {
+  function handleVerArchivo(archivoId: string) {
     setError(null);
-    setVerArchivoPendiente(id);
-    obtenerUrlArchivoGasto(id).then((result) => {
+    setVerArchivoPendiente(archivoId);
+    obtenerUrlArchivoGasto(archivoId).then((result) => {
       setVerArchivoPendiente(null);
       if (result.error || !result.data) {
         setError(result.error ?? "No se pudo abrir el archivo.");
@@ -210,13 +348,15 @@ export function GastosClient({ gastos }: { gastos: Gasto[] }) {
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-medium text-muted">Monto</label>
                 <input
-                  value={form.monto}
+                  value={tieneItems ? totalItems.toFixed(2) : form.monto}
                   onChange={(e) => setForm((f) => ({ ...f, monto: e.target.value }))}
                   type="number"
                   min="0"
                   step="0.01"
-                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+                  disabled={tieneItems}
+                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent disabled:opacity-60"
                 />
+                {tieneItems && <p className="text-[11px] text-muted">Se calcula solo de los productos de abajo.</p>}
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-medium text-muted">Fecha</label>
@@ -235,22 +375,150 @@ export function GastosClient({ gastos }: { gastos: Gasto[] }) {
                   className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
                 />
               </div>
-              {!editandoId && (
-                <div className="flex flex-col gap-1.5 sm:col-span-2">
-                  <label className="text-xs font-medium text-muted">Añadir archivo (opcional)</label>
-                  <input
-                    ref={archivoInputRef}
-                    type="file"
-                    accept="image/*,application/pdf"
-                    className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none file:mr-3 file:rounded-md file:border-0 file:bg-accent/15 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-accent"
-                  />
-                  <p className="text-[11px] text-muted">
-                    Foto o PDF del ticket de compra — captura solo el total ahora y consulta el detalle completo
-                    después. Si tu celular guarda fotos en HEIC, se convierte automáticamente a JPG al guardar
-                    para que se pueda previsualizar.
-                  </p>
+
+              <div className="flex flex-col gap-1.5 sm:col-span-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-muted">Productos de la compra — orden de compra (opcional)</label>
+                  <button
+                    type="button"
+                    onClick={() => setItemsForm((f) => [...f, nuevoRenglonItem()])}
+                    className="text-xs text-accent hover:underline"
+                  >
+                    + Agregar producto
+                  </button>
                 </div>
-              )}
+                {itemsForm.length > 0 && (
+                  <div className="flex flex-col gap-2 rounded-lg border border-border bg-background p-3">
+                    {itemsForm.map((it) => (
+                      <div key={it.key} className="grid grid-cols-[1fr_64px_84px_auto] items-center gap-2">
+                        <input
+                          value={it.producto}
+                          onChange={(e) => actualizarRenglonItem(it.key, "producto", e.target.value)}
+                          placeholder="Producto (ej. Fibras)"
+                          className="rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-foreground outline-none focus:border-accent"
+                        />
+                        <input
+                          value={it.cantidad}
+                          onChange={(e) => actualizarRenglonItem(it.key, "cantidad", e.target.value)}
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="Cant."
+                          className="rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-foreground outline-none focus:border-accent"
+                        />
+                        <input
+                          value={it.precioUnitario}
+                          onChange={(e) => actualizarRenglonItem(it.key, "precioUnitario", e.target.value)}
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="Precio c/u"
+                          className="rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-foreground outline-none focus:border-accent"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => quitarRenglonItem(it.key)}
+                          className="text-muted hover:text-primary"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                    <p className="text-right text-xs font-medium text-foreground">Total productos: {money(totalItems)}</p>
+                  </div>
+                )}
+                <p className="text-[11px] text-muted">
+                  Útil cuando compras varios insumos en un solo ticket: agrega cada producto por separado (con
+                  cantidad y precio) en vez de registrar un gasto por cada uno — el monto se calcula solo y todo
+                  queda en un mismo registro.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-1.5 sm:col-span-2">
+                <label className="text-xs font-medium text-muted">
+                  {editandoId ? "Archivos adjuntos" : "Añadir archivo(s) (opcional)"}
+                </label>
+
+                {editandoId ? (
+                  <div className="flex flex-col gap-1.5">
+                    {archivosEdit.length > 0 ? (
+                      <ul className="flex flex-col gap-1">
+                        {archivosEdit.map((a) => (
+                          <li
+                            key={a.id}
+                            className="flex items-center justify-between gap-2 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs"
+                          >
+                            <span className="truncate text-foreground">{a.nombre}</span>
+                            <div className="flex shrink-0 gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleVerArchivo(a.id)}
+                                disabled={verArchivoPendiente === a.id}
+                                className="text-accent hover:underline disabled:opacity-60"
+                              >
+                                {verArchivoPendiente === a.id ? "Abriendo..." : "Ver"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleEliminarArchivoEdit(a.id)}
+                                className="text-primary hover:underline"
+                              >
+                                Eliminar
+                              </button>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs text-muted">Sin archivos adjuntos.</p>
+                    )}
+                    <input
+                      ref={editArchivoInputRef}
+                      type="file"
+                      accept="image/*,application/pdf"
+                      multiple
+                      disabled={archivoPendingEdit}
+                      onChange={(e) => handleAgregarArchivoEdit(e.target.files)}
+                      className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none file:mr-3 file:rounded-md file:border-0 file:bg-accent/15 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-accent disabled:opacity-60"
+                    />
+                    {archivoPendingEdit && <p className="text-[11px] text-muted">Subiendo...</p>}
+                  </div>
+                ) : (
+                  <>
+                    <input
+                      ref={archivoInputRef}
+                      type="file"
+                      accept="image/*,application/pdf"
+                      multiple
+                      onChange={(e) => setArchivosNuevos(Array.from(e.target.files ?? []))}
+                      className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none file:mr-3 file:rounded-md file:border-0 file:bg-accent/15 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-accent"
+                    />
+                    {archivosNuevos.length > 0 && (
+                      <ul className="flex flex-col gap-1">
+                        {archivosNuevos.map((f, i) => (
+                          <li
+                            key={`${f.name}-${i}`}
+                            className="flex items-center justify-between gap-2 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs"
+                          >
+                            <span className="truncate text-foreground">{f.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => setArchivosNuevos((prev) => prev.filter((_, idx) => idx !== i))}
+                              className="shrink-0 text-primary hover:underline"
+                            >
+                              Quitar
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <p className="text-[11px] text-muted">
+                      Foto(s) o PDF del ticket de compra — puedes subir varias a la vez. Si tu celular guarda fotos
+                      en HEIC, se convierten solas a JPG al guardar para que se puedan previsualizar.
+                    </p>
+                  </>
+                )}
+              </div>
             </div>
 
             <div className="flex gap-2">
@@ -301,18 +569,33 @@ export function GastosClient({ gastos }: { gastos: Gasto[] }) {
             {gastos.map((g) => (
               <tr key={g.id} className="border-t border-border transition-colors hover:bg-surface-hover">
                 <td className="px-4 py-3 text-muted">{new Date(g.fecha).toLocaleDateString("es-MX")}</td>
-                <td className="px-4 py-3 text-foreground">{g.concepto}</td>
+                <td className="px-4 py-3 text-foreground">
+                  {g.concepto}
+                  {g.items.length > 0 && (
+                    <button
+                      onClick={() => setItemsVista({ concepto: g.concepto, items: g.items })}
+                      className="block text-[11px] text-accent hover:underline"
+                    >
+                      🧾 {g.items.length} producto{g.items.length > 1 ? "s" : ""}
+                    </button>
+                  )}
+                </td>
                 <td className="px-4 py-3 text-muted">{g.notas ?? "—"}</td>
                 <td className="px-4 py-3 text-muted">{g.creadoPor}</td>
                 <td className="px-4 py-3">
-                  {g.archivoNombre ? (
-                    <button
-                      onClick={() => handleVerArchivo(g.id)}
-                      disabled={verArchivoPendiente === g.id}
-                      className="text-xs text-accent hover:underline disabled:opacity-60"
-                    >
-                      {verArchivoPendiente === g.id ? "Abriendo..." : "Ver archivo"}
-                    </button>
+                  {g.archivos.length > 0 ? (
+                    <div className="flex flex-col gap-0.5">
+                      {g.archivos.map((a, i) => (
+                        <button
+                          key={a.id}
+                          onClick={() => handleVerArchivo(a.id)}
+                          disabled={verArchivoPendiente === a.id}
+                          className="text-left text-xs text-accent hover:underline disabled:opacity-60"
+                        >
+                          {verArchivoPendiente === a.id ? "Abriendo..." : g.archivos.length > 1 ? `Ver archivo ${i + 1}` : "Ver archivo"}
+                        </button>
+                      ))}
+                    </div>
                   ) : (
                     <span className="text-xs text-muted">—</span>
                   )}
@@ -347,6 +630,38 @@ export function GastosClient({ gastos }: { gastos: Gasto[] }) {
           </tbody>
         </table>
       </div>
+
+      {itemsVista && (
+        <div
+          className="animate-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4"
+          onClick={() => setItemsVista(null)}
+        >
+          <div
+            className="animate-modal flex max-h-[90vh] w-full max-w-md flex-col gap-3 overflow-y-auto rounded-xl border border-border bg-surface p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <p className="truncate text-sm font-medium text-foreground">Productos — {itemsVista.concepto}</p>
+              <button onClick={() => setItemsVista(null)} className="text-muted hover:text-foreground">
+                ✕
+              </button>
+            </div>
+            <ul className="flex flex-col gap-1.5 text-sm">
+              {itemsVista.items.map((it) => (
+                <li key={it.id} className="flex justify-between gap-3 border-b border-border pb-1.5 text-foreground">
+                  <span>
+                    {it.producto} <span className="text-muted">× {it.cantidad}</span>
+                  </span>
+                  <span className="font-medium">{money(it.cantidad * it.precioUnitario)}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="text-right text-sm font-semibold text-primary">
+              Total: {money(itemsVista.items.reduce((acc, it) => acc + it.cantidad * it.precioUnitario, 0))}
+            </p>
+          </div>
+        </div>
+      )}
 
       {archivoVista && (
         <div

@@ -46,11 +46,42 @@ export default async function GastosPage({
 
   const { data: gastosRaw } = await gastosQuery;
 
-  const usuarioIds = [...new Set((gastosRaw ?? []).map((g) => g.creado_por))];
-  const { data: usuarios } = usuarioIds.length
-    ? await supabase.from("usuarios").select("id, nombre").in("id", usuarioIds)
-    : { data: [] };
+  const gastoIds = (gastosRaw ?? []).map((g) => g.id);
+
+  const [{ data: usuarios }, { data: archivosRaw }, { data: itemsRaw }] = await Promise.all([
+    gastoIds.length
+      ? (async () => {
+          const usuarioIds = [...new Set((gastosRaw ?? []).map((g) => g.creado_por))];
+          return supabase.from("usuarios").select("id, nombre").in("id", usuarioIds);
+        })()
+      : Promise.resolve({ data: [] }),
+    gastoIds.length
+      ? supabase.from("gasto_archivos").select("id, gasto_id, archivo_nombre, archivo_tipo").in("gasto_id", gastoIds)
+      : Promise.resolve({ data: [] }),
+    gastoIds.length
+      ? supabase
+          .from("gasto_items")
+          .select("id, gasto_id, producto, cantidad, precio_unitario")
+          .in("gasto_id", gastoIds)
+          .order("creado_en", { ascending: true })
+      : Promise.resolve({ data: [] }),
+  ]);
+
   const nombrePorUsuario = new Map((usuarios ?? []).map((u) => [u.id, u.nombre]));
+
+  const archivosPorGasto = new Map<string, { id: string; nombre: string; tipo: string | null }[]>();
+  for (const a of archivosRaw ?? []) {
+    const lista = archivosPorGasto.get(a.gasto_id) ?? [];
+    lista.push({ id: a.id, nombre: a.archivo_nombre, tipo: a.archivo_tipo });
+    archivosPorGasto.set(a.gasto_id, lista);
+  }
+
+  const itemsPorGasto = new Map<string, { id: string; producto: string; cantidad: number; precioUnitario: number }[]>();
+  for (const it of itemsRaw ?? []) {
+    const lista = itemsPorGasto.get(it.gasto_id) ?? [];
+    lista.push({ id: it.id, producto: it.producto, cantidad: it.cantidad, precioUnitario: it.precio_unitario });
+    itemsPorGasto.set(it.gasto_id, lista);
+  }
 
   const gastos = (gastosRaw ?? []).map((g) => ({
     id: g.id,
@@ -58,8 +89,9 @@ export default async function GastosPage({
     monto: g.monto,
     fecha: g.fecha,
     notas: g.notas,
-    archivoNombre: g.archivo_nombre,
     creadoPor: nombrePorUsuario.get(g.creado_por) ?? "—",
+    archivos: archivosPorGasto.get(g.id) ?? [],
+    items: itemsPorGasto.get(g.id) ?? [],
   }));
 
   const totalGastos = gastos.reduce((acc, g) => acc + g.monto, 0);

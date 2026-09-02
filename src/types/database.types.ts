@@ -521,9 +521,6 @@ export interface Database {
           monto: number;
           fecha: string;
           notas: string | null;
-          archivo_path: string | null;
-          archivo_nombre: string | null;
-          archivo_tipo: string | null;
           creado_por: string;
           creado_en: string;
         };
@@ -533,9 +530,6 @@ export interface Database {
           monto: number;
           fecha?: string;
           notas?: string | null;
-          archivo_path?: string | null;
-          archivo_nombre?: string | null;
-          archivo_tipo?: string | null;
           creado_por: string;
           creado_en?: string;
         };
@@ -545,10 +539,61 @@ export interface Database {
           monto?: number;
           fecha?: string;
           notas?: string | null;
-          archivo_path?: string | null;
-          archivo_nombre?: string | null;
-          archivo_tipo?: string | null;
           creado_por?: string;
+          creado_en?: string;
+        };
+        Relationships: [];
+      };
+      gasto_archivos: {
+        Row: {
+          id: string;
+          gasto_id: string;
+          archivo_path: string;
+          archivo_nombre: string;
+          archivo_tipo: string | null;
+          creado_en: string;
+        };
+        Insert: {
+          id?: string;
+          gasto_id: string;
+          archivo_path: string;
+          archivo_nombre: string;
+          archivo_tipo?: string | null;
+          creado_en?: string;
+        };
+        Update: {
+          id?: string;
+          gasto_id?: string;
+          archivo_path?: string;
+          archivo_nombre?: string;
+          archivo_tipo?: string | null;
+          creado_en?: string;
+        };
+        Relationships: [];
+      };
+      gasto_items: {
+        Row: {
+          id: string;
+          gasto_id: string;
+          producto: string;
+          cantidad: number;
+          precio_unitario: number;
+          creado_en: string;
+        };
+        Insert: {
+          id?: string;
+          gasto_id: string;
+          producto: string;
+          cantidad: number;
+          precio_unitario: number;
+          creado_en?: string;
+        };
+        Update: {
+          id?: string;
+          gasto_id?: string;
+          producto?: string;
+          cantidad?: number;
+          precio_unitario?: number;
           creado_en?: string;
         };
         Relationships: [];

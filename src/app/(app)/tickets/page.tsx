@@ -185,25 +185,16 @@ export default async function TicketsPage() {
 
     const entregadosHoy = (ticketsHoy ?? []).filter((t) => t.hora_salida);
 
-    // Tiempo de espera: desde que el auto entra (en espera) hasta que un
-    // lavador de verdad empieza a lavarlo — no hasta que se entrega. Sirve
-    // para poder decirle a quien va llegando cuánto tiene que esperar
-    // aprox., así que se mide con TODOS los autos que ya empezaron a
-    // lavarse hoy (no solo los ya entregados) para reflejar la espera real
-    // del momento, no solo la de servicios ya cerrados por completo.
-    const { data: ticketsIniciadosHoy } = await supabase
-      .from("tickets")
-      .select("hora_entrada, hora_inicio_lavado")
-      .gte("hora_inicio_lavado", inicioDeDiaMX(0).toISOString());
-
-    const iniciadosHoy = (ticketsIniciadosHoy ?? []).filter((t) => t.hora_inicio_lavado);
+    // Tiempo de espera: desde que el auto llega hasta que se le entrega —
+    // todo el tiempo que el cliente pasa esperando su auto, no solo hasta
+    // que empieza a lavarse.
     const tiempoEsperaMin =
-      iniciadosHoy.length > 0
-        ? iniciadosHoy.reduce(
-            (suma, t) => suma + (new Date(t.hora_inicio_lavado!).getTime() - new Date(t.hora_entrada).getTime()),
+      entregadosHoy.length > 0
+        ? entregadosHoy.reduce(
+            (suma, t) => suma + (new Date(t.hora_salida!).getTime() - new Date(t.hora_entrada).getTime()),
             0
           ) /
-          iniciadosHoy.length /
+          entregadosHoy.length /
           60000
         : null;
 

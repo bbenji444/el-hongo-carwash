@@ -47,6 +47,7 @@ export function AjustesClient({ configuracion }: { configuracion: ConfiguracionA
     color_warning: configuracion.color_warning,
     semaforo_alerta_min: configuracion.semaforo_alerta_min,
     semaforo_critico_min: configuracion.semaforo_critico_min,
+    lealtad_sexta_lavada_activa: configuracion.lealtad_sexta_lavada_activa,
   }));
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -281,6 +282,22 @@ export function AjustesClient({ configuracion }: { configuracion: ConfiguracionA
             />
           </Campo>
         </div>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="font-semibold text-foreground">Promociones</h2>
+        <label className="flex items-center gap-2.5 text-sm text-foreground">
+          <input
+            type="checkbox"
+            checked={form.lealtad_sexta_lavada_activa}
+            onChange={(e) => set("lealtad_sexta_lavada_activa", e.target.checked)}
+          />
+          6ª lavada gratis activa
+        </label>
+        <p className="text-xs text-muted">
+          Si está apagada, ningún ticket se marca como lavada gratis por lealtad — se puede seguir dando un
+          descuento manual desde Tickets cuando haga falta.
+        </p>
       </section>
 
       {error && (

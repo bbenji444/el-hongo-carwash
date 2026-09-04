@@ -45,6 +45,28 @@ export function CobroModal({
 
   function handleSubmit() {
     setError(null);
+
+    // La lavada gratis no muestra método de pago ni "¿con cuánto paga?"
+    // (esos campos ni existen en ese caso) — de ahí para abajo no hay nada
+    // que validar, se manda derecho con monto 0.
+    if (esGratis) {
+      startTransition(async () => {
+        const result = await registrarPago({
+          ticketId: ticket.id,
+          turnoId,
+          metodo,
+          monto: 0,
+          montoRecibido: null,
+        });
+        if (result.error) {
+          setError(result.error);
+          return;
+        }
+        onPagado();
+      });
+      return;
+    }
+
     if (!Number.isFinite(montoNum) || montoNum < 0) {
       setError("Ingresa un monto válido.");
       return;

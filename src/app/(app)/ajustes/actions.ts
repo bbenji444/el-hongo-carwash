@@ -52,6 +52,7 @@ export async function restablecerConfiguracion() {
     color_warning: CONFIGURACION_DEFAULT.color_warning,
     semaforo_alerta_min: CONFIGURACION_DEFAULT.semaforo_alerta_min,
     semaforo_critico_min: CONFIGURACION_DEFAULT.semaforo_critico_min,
+    lealtad_sexta_lavada_activa: CONFIGURACION_DEFAULT.lealtad_sexta_lavada_activa,
   };
 
   const { error } = await supabase.from("configuracion_app").update(defaults).eq("id", true);

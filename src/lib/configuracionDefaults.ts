@@ -32,6 +32,7 @@ export const CONFIGURACION_DEFAULT: ConfiguracionApp = {
   color_warning: "#b45309",
   semaforo_alerta_min: 25,
   semaforo_critico_min: 35,
+  lealtad_sexta_lavada_activa: true,
 };
 
 export function emojiPorTamano(config: ConfiguracionApp, tamano: string): string {

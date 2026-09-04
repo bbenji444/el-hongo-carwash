@@ -353,6 +353,7 @@ export interface Database {
           color_warning: string;
           semaforo_alerta_min: number;
           semaforo_critico_min: number;
+          lealtad_sexta_lavada_activa: boolean;
         };
         Insert: {
           id?: boolean;
@@ -379,6 +380,7 @@ export interface Database {
           color_warning?: string;
           semaforo_alerta_min?: number;
           semaforo_critico_min?: number;
+          lealtad_sexta_lavada_activa?: boolean;
         };
         Update: {
           id?: boolean;
@@ -405,6 +407,7 @@ export interface Database {
           color_warning?: string;
           semaforo_alerta_min?: number;
           semaforo_critico_min?: number;
+          lealtad_sexta_lavada_activa?: boolean;
         };
         Relationships: [];
       };

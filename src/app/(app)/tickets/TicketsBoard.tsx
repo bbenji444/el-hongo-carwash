@@ -11,7 +11,7 @@ import { EditarTicketModal } from "./EditarTicketModal";
 import { CobroModal } from "./CobroModal";
 import { DescuentoModal } from "./DescuentoModal";
 import { ClienteDetalleModal } from "./ClienteDetalleModal";
-import { actualizarEstadoTicket } from "./actions";
+import { actualizarEstadoTicket, retrocederEstadoTicket } from "./actions";
 import { useRealtimeRefresh } from "@/lib/useRealtimeRefresh";
 
 const COLUMNAS: { estado: TicketConDetalle["estado"]; titulo: string }[] = [
@@ -186,6 +186,16 @@ export function TicketsBoard({
     setErrorAvance(null);
     startTransition(async () => {
       const result = await actualizarEstadoTicket(ticket.id, nuevoEstado);
+      if (result.error) {
+        setErrorAvance(result.error);
+      }
+    });
+  }
+
+  function regresar(ticket: TicketConDetalle, estadoAnterior: "en_espera" | "en_proceso") {
+    setErrorAvance(null);
+    startTransition(async () => {
+      const result = await retrocederEstadoTicket(ticket.id, estadoAnterior);
       if (result.error) {
         setErrorAvance(result.error);
       }
@@ -403,6 +413,24 @@ export function TicketsBoard({
                           className="rounded-lg bg-accent/15 px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent/25 disabled:opacity-60"
                         >
                           Terminar
+                        </button>
+                      )}
+                      {puedeEditarTickets && col.estado === "en_proceso" && (
+                        <button
+                          onClick={() => regresar(ticket, "en_espera")}
+                          disabled={pending}
+                          className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted hover:text-foreground disabled:opacity-60"
+                        >
+                          ↩ Regresar
+                        </button>
+                      )}
+                      {puedeEditarTickets && col.estado === "terminado" && (
+                        <button
+                          onClick={() => regresar(ticket, "en_proceso")}
+                          disabled={pending}
+                          className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted hover:text-foreground disabled:opacity-60"
+                        >
+                          ↩ Regresar
                         </button>
                       )}
                       {col.estado === "terminado" && (

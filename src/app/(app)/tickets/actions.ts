@@ -270,6 +270,30 @@ export async function actualizarEstadoTicket(ticketId: string, estado: TicketEst
   return { error: null };
 }
 
+// Regresar una etapa (para corregir un avance por error antes de editar
+// precio/servicio/etc.) — a propósito NO deja regresar desde "entregado":
+// entregar dispara el descuento de inventario y exige un pago ya registrado
+// (tr_ticket_consumo_inventario / tr_ticket_requiere_pago), así que
+// reabrirlo y volver a entregarlo descontaría el inventario dos veces. Para
+// corregir un ticket ya entregado se usa "Editar" (solo dueño), no esto.
+// Tampoco se toca hora_inicio_lavado/hora_fin_lavado aquí (a diferencia de
+// actualizarEstadoTicket): son el instante real en que se empezó/terminó a
+// lavar, y regresar de etapa no debe corromperlas con la hora actual.
+export async function retrocederEstadoTicket(ticketId: string, estado: "en_espera" | "en_proceso") {
+  const { supabase, error: permisoError } = await requierePermisoEditarTickets();
+  if (permisoError) return { error: permisoError };
+
+  const { error } = await supabase
+    .from("tickets")
+    .update({ estado, hora_cambio_estado: new Date().toISOString() })
+    .eq("id", ticketId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/", "layout");
+  return { error: null };
+}
+
 export async function registrarPago(input: {
   ticketId: string;
   turnoId: string;

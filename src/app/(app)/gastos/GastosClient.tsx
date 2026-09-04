@@ -65,6 +65,45 @@ async function convertirSiEsHeic(archivo: File): Promise<File> {
   return new File([jpegBlob], nuevoNombre, { type: "image/jpeg" });
 }
 
+// Las fotos de cámaras de celulares modernos (sobre todo Android de gama
+// alta, 50-200MP) pueden pesar 20-50MB+, muy por encima de lo que acepta el
+// servidor — eso hacía que la subida fallara en silencio (se veía como un
+// error de conexión, no un error de la app). Se reducen a un tamaño
+// razonable para leer un ticket antes de subirlas.
+const TAMANO_MAX_LADO_PX = 1920;
+const CALIDAD_JPEG = 0.82;
+async function comprimirImagen(archivo: File): Promise<File> {
+  if (!archivo.type.startsWith("image/")) return archivo;
+  try {
+    const bitmap = await createImageBitmap(archivo);
+    const escala = Math.min(1, TAMANO_MAX_LADO_PX / Math.max(bitmap.width, bitmap.height));
+    const ancho = Math.max(1, Math.round(bitmap.width * escala));
+    const alto = Math.max(1, Math.round(bitmap.height * escala));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = ancho;
+    canvas.height = alto;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return archivo;
+    ctx.drawImage(bitmap, 0, 0, ancho, alto);
+
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", CALIDAD_JPEG));
+    if (!blob || blob.size >= archivo.size) return archivo;
+
+    const nuevoNombre = archivo.name.replace(/\.[^.]+$/, ".jpg");
+    return new File([blob], nuevoNombre, { type: "image/jpeg" });
+  } catch {
+    // Si algo falla comprimiendo (formato raro, navegador viejo, etc.), se
+    // sube el original tal cual — mejor eso que bloquear la subida entera.
+    return archivo;
+  }
+}
+
+async function prepararArchivo(archivo: File): Promise<File> {
+  const convertido = await convertirSiEsHeic(archivo);
+  return comprimirImagen(convertido);
+}
+
 function nuevoRenglonItem(): ItemForm {
   return { key: crypto.randomUUID(), id: null, producto: "", cantidad: "1", precioUnitario: "" };
 }
@@ -146,13 +185,11 @@ export function GastosClient({ gastos }: { gastos: Gasto[] }) {
     setError(null);
     for (const original of Array.from(files)) {
       let archivo = original;
-      if (esHeic(archivo)) {
-        try {
-          archivo = await convertirSiEsHeic(archivo);
-        } catch {
-          setError(`No se pudo convertir "${original.name}" (HEIC). Intenta subirla como JPG.`);
-          continue;
-        }
+      try {
+        archivo = await prepararArchivo(original);
+      } catch {
+        setError(`No se pudo procesar "${original.name}". Intenta con otra foto.`);
+        continue;
       }
       const datosArchivo = new FormData();
       datosArchivo.set("archivo", archivo);
@@ -269,13 +306,11 @@ export function GastosClient({ gastos }: { gastos: Gasto[] }) {
         setConvirtiendo(true);
         for (const original of archivosAsubir) {
           let archivo = original;
-          if (esHeic(archivo)) {
-            try {
-              archivo = await convertirSiEsHeic(archivo);
-            } catch {
-              setError(`El gasto se guardó, pero "${original.name}" (HEIC) no se pudo convertir.`);
-              continue;
-            }
+          try {
+            archivo = await prepararArchivo(original);
+          } catch {
+            setError(`El gasto se guardó, pero "${original.name}" no se pudo procesar.`);
+            continue;
           }
           const datosArchivo = new FormData();
           datosArchivo.set("archivo", archivo);
@@ -513,8 +548,9 @@ export function GastosClient({ gastos }: { gastos: Gasto[] }) {
                       </ul>
                     )}
                     <p className="text-[11px] text-muted">
-                      Foto(s) o PDF del ticket de compra — puedes subir varias a la vez. Si tu celular guarda fotos
-                      en HEIC, se convierten solas a JPG al guardar para que se puedan previsualizar.
+                      Foto(s) o PDF del ticket de compra — puedes subir varias a la vez. Las fotos se optimizan
+                      solas antes de subir (se reduce su tamaño, incluso si tu celular las guarda en HEIC) para
+                      que carguen rápido y no fallen por ser muy pesadas.
                     </p>
                   </>
                 )}
@@ -528,7 +564,7 @@ export function GastosClient({ gastos }: { gastos: Gasto[] }) {
                 className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:opacity-60"
               >
                 {convirtiendo
-                  ? "Convirtiendo foto..."
+                  ? "Optimizando foto(s)..."
                   : pending
                     ? "Guardando..."
                     : editandoId

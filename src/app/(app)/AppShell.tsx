@@ -32,6 +32,7 @@ export function AppShell({
     { label: config.nav_inventario, href: "/inventario" },
     { label: config.nav_reportes, href: "/reportes" },
     { label: config.nav_gastos, href: "/gastos" },
+    { label: config.nav_ingresos, href: "/ingresos" },
     ...(esDueno ? [{ label: "Usuarios", href: "/usuarios" }, { label: "Ajustes", href: "/ajustes" }] : []),
   ];
 

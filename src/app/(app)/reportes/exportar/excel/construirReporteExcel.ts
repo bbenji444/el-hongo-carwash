@@ -62,6 +62,7 @@ export function construirReporteExcel(datos: DatosReporte): ExcelJS.Workbook {
     ["Diferencia acumulada de caja", datos.diferenciaAcumulada],
     ["Turnos con diferencia", datos.turnosConAlerta],
     ["Gastos", datos.totalGastos],
+    ["Ingresos extra", datos.totalIngresosExtra],
     ["Ganancia neta", datos.gananciaNeta],
   ];
   const conceptosMoneda = [
@@ -70,6 +71,7 @@ export function construirReporteExcel(datos: DatosReporte): ExcelJS.Workbook {
     "descuentos otorgados",
     "diferencia acumulada de caja",
     "gastos",
+    "ingresos extra",
     "ganancia neta",
   ];
   for (const [concepto, valor] of filasResumen) {
@@ -142,6 +144,26 @@ export function construirReporteExcel(datos: DatosReporte): ExcelJS.Workbook {
   }
   hojaGastos.getColumn("monto").numFmt = FORMATO_MONEDA;
   sombrearFilasAlternas(hojaGastos);
+
+  // --- Ingresos extra ---
+  const hojaIngresos = workbook.addWorksheet("Ingresos extra");
+  hojaIngresos.columns = [
+    { header: "Fecha", key: "fecha", width: 16 },
+    { header: "Concepto", key: "concepto", width: 24 },
+    { header: "Notas", key: "notas", width: 30 },
+    { header: "Monto", key: "monto", width: 14 },
+  ];
+  estiloEncabezado(hojaIngresos.getRow(1));
+  for (const i of datos.ingresos) {
+    hojaIngresos.addRow({
+      fecha: new Date(i.fecha).toLocaleDateString("es-MX"),
+      concepto: i.concepto,
+      notas: i.notas ?? "",
+      monto: i.monto,
+    });
+  }
+  hojaIngresos.getColumn("monto").numFmt = FORMATO_MONEDA;
+  sombrearFilasAlternas(hojaIngresos);
 
   // --- Cierres de turno ---
   const hojaTurnos = workbook.addWorksheet("Cierres de turno");

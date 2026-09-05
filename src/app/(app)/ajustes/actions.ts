@@ -38,6 +38,7 @@ export async function restablecerConfiguracion() {
     nav_inventario: CONFIGURACION_DEFAULT.nav_inventario,
     nav_reportes: CONFIGURACION_DEFAULT.nav_reportes,
     nav_gastos: CONFIGURACION_DEFAULT.nav_gastos,
+    nav_ingresos: CONFIGURACION_DEFAULT.nav_ingresos,
     emoji_saludo: CONFIGURACION_DEFAULT.emoji_saludo,
     emoji_lavador: CONFIGURACION_DEFAULT.emoji_lavador,
     emoji_automovil: CONFIGURACION_DEFAULT.emoji_automovil,

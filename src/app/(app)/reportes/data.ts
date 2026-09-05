@@ -26,6 +26,14 @@ export type GastoDetalle = {
   monto: number;
 };
 
+export type IngresoDetalle = {
+  id: string;
+  fecha: string;
+  concepto: string;
+  notas: string | null;
+  monto: number;
+};
+
 export type CierreTurno = {
   id: string;
   horaCierre: string | null;
@@ -62,6 +70,8 @@ export type DatosReporte = {
   turnos: CierreTurno[];
   gastos: GastoDetalle[];
   totalGastos: number;
+  ingresos: IngresoDetalle[];
+  totalIngresosExtra: number;
   gananciaNeta: number;
   generadoEn: string;
 };
@@ -96,15 +106,27 @@ export async function obtenerDatosReporte(rango: RangoResuelto): Promise<DatosRe
   if (rango.desdeIso) gastosQuery.gte("fecha", rango.desdeIso);
   if (rango.hastaIso) gastosQuery.lte("fecha", rango.hastaIso);
 
-  const [{ data: turnosRaw }, { data: tickets }, { data: pagos }, { data: servicios }, { data: usuarios }, { data: gastosRaw }] =
-    await Promise.all([
-      turnosQuery,
-      ticketsQuery,
-      pagosQuery,
-      supabase.from("servicios_catalogo").select("id, nombre"),
-      supabase.from("usuarios").select("id, nombre"),
-      gastosQuery,
-    ]);
+  const ingresosQuery = supabase.from("ingresos_extra").select("*").order("fecha", { ascending: false });
+  if (rango.desdeIso) ingresosQuery.gte("fecha", rango.desdeIso);
+  if (rango.hastaIso) ingresosQuery.lte("fecha", rango.hastaIso);
+
+  const [
+    { data: turnosRaw },
+    { data: tickets },
+    { data: pagos },
+    { data: servicios },
+    { data: usuarios },
+    { data: gastosRaw },
+    { data: ingresosRaw },
+  ] = await Promise.all([
+    turnosQuery,
+    ticketsQuery,
+    pagosQuery,
+    supabase.from("servicios_catalogo").select("id, nombre"),
+    supabase.from("usuarios").select("id, nombre"),
+    gastosQuery,
+    ingresosQuery,
+  ]);
 
   const nombrePorUsuario = new Map((usuarios ?? []).map((u) => [u.id, u.nombre]));
   const nombrePorServicio = new Map((servicios ?? []).map((s) => [s.id, s.nombre]));
@@ -149,7 +171,17 @@ export async function obtenerDatosReporte(rango: RangoResuelto): Promise<DatosRe
     monto: g.monto,
   }));
   const totalGastos = gastos.reduce((acc, g) => acc + g.monto, 0);
-  const gananciaNeta = ventasTotales - totalGastos;
+
+  const ingresos: IngresoDetalle[] = (ingresosRaw ?? []).map((i) => ({
+    id: i.id,
+    fecha: i.fecha,
+    concepto: i.concepto,
+    notas: i.notas,
+    monto: i.monto,
+  }));
+  const totalIngresosExtra = ingresos.reduce((acc, i) => acc + i.monto, 0);
+
+  const gananciaNeta = ventasTotales + totalIngresosExtra - totalGastos;
 
   const descuentos: DescuentoDetalle[] = (tickets ?? [])
     .filter((t) => t.descuento_monto > 0)
@@ -197,6 +229,8 @@ export async function obtenerDatosReporte(rango: RangoResuelto): Promise<DatosRe
     turnos,
     gastos,
     totalGastos,
+    ingresos,
+    totalIngresosExtra,
     gananciaNeta,
     generadoEn: new Date().toISOString(),
   };

@@ -18,6 +18,7 @@ export const CONFIGURACION_DEFAULT: ConfiguracionApp = {
   nav_inventario: "Inventario",
   nav_reportes: "Reportes",
   nav_gastos: "Gastos",
+  nav_ingresos: "Ingresos extra",
   emoji_saludo: "👋🏻",
   emoji_lavador: "🧑🏻‍🔧",
   emoji_automovil: "🚗",

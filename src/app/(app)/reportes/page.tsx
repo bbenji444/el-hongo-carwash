@@ -52,6 +52,8 @@ export default async function ReportesPage({
     turnos,
     gastos,
     totalGastos,
+    ingresos,
+    totalIngresosExtra,
     gananciaNeta,
   } = await obtenerDatosReporte(rango);
 
@@ -183,12 +185,19 @@ export default async function ReportesPage({
           </p>
           <p className="mt-1 text-xs text-muted">{gastos.length} gastos registrados</p>
         </div>
+        <div className="hover-lift animate-in rounded-xl border border-success/40 bg-success/5 p-5" style={{ animationDelay: "270ms" }}>
+          <p className="text-xs uppercase tracking-wide text-muted">Ingresos extra</p>
+          <p className="mt-1 text-2xl font-bold text-success">
+            <AnimatedNumber value={totalIngresosExtra} format="dinero" />
+          </p>
+          <p className="mt-1 text-xs text-muted">{ingresos.length} ingresos registrados</p>
+        </div>
         <div className="hover-lift animate-in rounded-xl border border-success/40 bg-success/5 p-5" style={{ animationDelay: "300ms" }}>
           <p className="text-xs uppercase tracking-wide text-muted">Ganancia neta</p>
           <p className="mt-1 text-2xl font-bold text-success">
             <AnimatedNumber value={gananciaNeta} format="dinero" />
           </p>
-          <p className="mt-1 text-xs text-muted">Ventas menos gastos</p>
+          <p className="mt-1 text-xs text-muted">Ventas + ingresos extra menos gastos</p>
         </div>
       </div>
 
@@ -288,6 +297,44 @@ export default async function ReportesPage({
                 <tr>
                   <td colSpan={4} className="px-4 py-6 text-center text-muted">
                     Sin gastos en este período.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h2 className="font-semibold text-foreground">Ingresos extra</h2>
+          <Link href="/ingresos" className="text-xs text-accent hover:underline">
+            Administrar ingresos extra →
+          </Link>
+        </div>
+        <div className="overflow-hidden rounded-xl border border-border bg-surface">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-surface-hover text-xs uppercase tracking-wide text-muted">
+              <tr>
+                <th className="px-4 py-3">Fecha</th>
+                <th className="px-4 py-3">Concepto</th>
+                <th className="px-4 py-3">Notas</th>
+                <th className="px-4 py-3">Monto</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ingresos.map((i) => (
+                <tr key={i.id} className="border-t border-border transition-colors hover:bg-surface-hover">
+                  <td className="px-4 py-3 text-muted">{new Date(i.fecha).toLocaleDateString("es-MX")}</td>
+                  <td className="px-4 py-3 text-foreground">{i.concepto}</td>
+                  <td className="px-4 py-3 text-muted">{i.notas ?? "—"}</td>
+                  <td className="px-4 py-3 text-success">{money(i.monto)}</td>
+                </tr>
+              ))}
+              {ingresos.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-6 text-center text-muted">
+                    Sin ingresos extra en este período.
                   </td>
                 </tr>
               )}

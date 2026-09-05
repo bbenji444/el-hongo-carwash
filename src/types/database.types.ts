@@ -339,6 +339,7 @@ export interface Database {
           nav_inventario: string;
           nav_reportes: string;
           nav_gastos: string;
+          nav_ingresos: string;
           emoji_saludo: string;
           emoji_lavador: string;
           emoji_automovil: string;
@@ -366,6 +367,7 @@ export interface Database {
           nav_inventario?: string;
           nav_reportes?: string;
           nav_gastos?: string;
+          nav_ingresos?: string;
           emoji_saludo?: string;
           emoji_lavador?: string;
           emoji_automovil?: string;
@@ -393,6 +395,7 @@ export interface Database {
           nav_inventario?: string;
           nav_reportes?: string;
           nav_gastos?: string;
+          nav_ingresos?: string;
           emoji_saludo?: string;
           emoji_lavador?: string;
           emoji_automovil?: string;
@@ -518,6 +521,36 @@ export interface Database {
         Relationships: [];
       };
       gastos: {
+        Row: {
+          id: string;
+          concepto: string;
+          monto: number;
+          fecha: string;
+          notas: string | null;
+          creado_por: string;
+          creado_en: string;
+        };
+        Insert: {
+          id?: string;
+          concepto: string;
+          monto: number;
+          fecha?: string;
+          notas?: string | null;
+          creado_por: string;
+          creado_en?: string;
+        };
+        Update: {
+          id?: string;
+          concepto?: string;
+          monto?: number;
+          fecha?: string;
+          notas?: string | null;
+          creado_por?: string;
+          creado_en?: string;
+        };
+        Relationships: [];
+      };
+      ingresos_extra: {
         Row: {
           id: string;
           concepto: string;

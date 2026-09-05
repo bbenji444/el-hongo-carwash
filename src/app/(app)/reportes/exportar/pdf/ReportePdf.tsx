@@ -141,6 +141,12 @@ const styles = StyleSheet.create({
     color: ROJO,
     fontWeight: 700,
   },
+  celdaVerde: {
+    padding: 5,
+    fontSize: 8,
+    color: VERDE,
+    fontWeight: 700,
+  },
   vacio: {
     padding: 10,
     textAlign: "center",
@@ -227,6 +233,13 @@ export function ReportePdf({ datos }: { datos: DatosReporte }) {
             <Text style={[styles.resumenValor, styles.resumenValorRojo]}>{money(datos.totalGastos)}</Text>
           </View>
           <View style={styles.resumenCaja}>
+            <Text style={styles.resumenLabel}>Ingresos extra</Text>
+            <Text style={[styles.resumenValor, styles.resumenValorVerde]}>{money(datos.totalIngresosExtra)}</Text>
+          </View>
+        </View>
+
+        <View style={styles.resumenFila}>
+          <View style={styles.resumenCaja}>
             <Text style={styles.resumenLabel}>Ganancia neta</Text>
             <Text style={[styles.resumenValor, styles.resumenValorVerde]}>{money(datos.gananciaNeta)}</Text>
           </View>
@@ -312,6 +325,29 @@ export function ReportePdf({ datos }: { datos: DatosReporte }) {
               </View>
             ))}
             {datos.gastos.length === 0 && <Text style={styles.vacio}>Sin gastos en este período.</Text>}
+          </View>
+        </View>
+
+        <View style={styles.seccion} wrap={false}>
+          <Text style={styles.seccionTitulo}>Ingresos extra</Text>
+          <View style={styles.tabla}>
+            <View style={styles.filaEncabezado}>
+              <Text style={[styles.celdaEncabezado, { flex: 1.4 }]}>Fecha</Text>
+              <Text style={[styles.celdaEncabezado, { flex: 2 }]}>Concepto</Text>
+              <Text style={[styles.celdaEncabezado, { flex: 2 }]}>Notas</Text>
+              <Text style={[styles.celdaEncabezado, { flex: 1 }]}>Monto</Text>
+            </View>
+            {datos.ingresos.map((ing, i) => (
+              <View key={ing.id} style={[styles.fila, i % 2 === 1 ? styles.filaAlterna : undefined]}>
+                <Text style={[styles.celdaMuted, { flex: 1.4 }]}>
+                  {new Date(ing.fecha).toLocaleDateString("es-MX")}
+                </Text>
+                <Text style={[styles.celda, { flex: 2 }]}>{ing.concepto}</Text>
+                <Text style={[styles.celdaMuted, { flex: 2 }]}>{ing.notas ?? "—"}</Text>
+                <Text style={[styles.celdaVerde, { flex: 1 }]}>{money(ing.monto)}</Text>
+              </View>
+            ))}
+            {datos.ingresos.length === 0 && <Text style={styles.vacio}>Sin ingresos extra en este período.</Text>}
           </View>
         </View>
 

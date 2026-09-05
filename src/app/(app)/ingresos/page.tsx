@@ -73,20 +73,67 @@ export default async function IngresosPage({
         </p>
       </div>
 
-      <div className="flex gap-2">
-        {PERIODOS.map((p) => (
-          <Link
-            key={p.value}
-            href={`/ingresos?periodo=${p.value}`}
-            className={`rounded-lg border px-3 py-1.5 text-sm transition ${
-              !rango.personalizado && p.value === rango.periodo
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex gap-2">
+          {PERIODOS.map((p) => (
+            <Link
+              key={p.value}
+              href={`/ingresos?periodo=${p.value}`}
+              className={`rounded-lg border px-3 py-1.5 text-sm transition ${
+                !rango.personalizado && p.value === rango.periodo
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border text-muted hover:text-foreground"
+              }`}
+            >
+              {p.label}
+            </Link>
+          ))}
+        </div>
+
+        <form className="flex flex-wrap items-end gap-2 rounded-lg border border-border bg-surface px-3 py-2">
+          <div className="flex flex-col gap-1">
+            <label htmlFor="desde" className="text-[11px] text-muted">
+              Desde
+            </label>
+            <input
+              id="desde"
+              type="date"
+              name="desde"
+              defaultValue={rango.desdeInput}
+              className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none focus:border-accent"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label htmlFor="hasta" className="text-[11px] text-muted">
+              Hasta
+            </label>
+            <input
+              id="hasta"
+              type="date"
+              name="hasta"
+              defaultValue={rango.hastaInput}
+              className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none focus:border-accent"
+            />
+          </div>
+          <button
+            type="submit"
+            className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
+              rango.personalizado
                 ? "border-primary bg-primary/10 text-primary"
                 : "border-border text-muted hover:text-foreground"
             }`}
           >
-            {p.label}
-          </Link>
-        ))}
+            Filtrar
+          </button>
+          {rango.personalizado && (
+            <Link
+              href="/ingresos"
+              className="rounded-lg border border-border px-3 py-1.5 text-sm text-muted hover:text-foreground"
+            >
+              Quitar filtro
+            </Link>
+          )}
+        </form>
       </div>
 
       <div className="rounded-xl border border-border bg-surface p-5">

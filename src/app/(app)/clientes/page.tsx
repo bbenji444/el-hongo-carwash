@@ -1,16 +1,19 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { TAMANOS_VEHICULO } from "@/lib/servicios";
 import { ClientesClient } from "./ClientesClient";
 
 const POR_PAGINA = 50;
 
+type Orden = "nombre" | "visitas_desc" | "visitas_asc";
+
 export default async function ClientesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; tipo?: string; orden?: string; page?: string }>;
 }) {
-  const { q, page: pageParam } = await searchParams;
+  const { q, tipo, orden: ordenParam, page: pageParam } = await searchParams;
   const supabase = await createClient();
 
   const {
@@ -21,65 +24,35 @@ export default async function ClientesPage({
     redirect("/login");
   }
 
+  const orden: Orden = ordenParam === "visitas_desc" || ordenParam === "visitas_asc" ? ordenParam : "nombre";
+
   const pagina = Math.max(1, Number(pageParam) || 1);
   const desde = (pagina - 1) * POR_PAGINA;
   const hasta = desde + POR_PAGINA - 1;
 
   let query = supabase
-    .from("clientes")
-    .select("id, nombre, telefono", { count: "exact" })
-    .order("nombre")
-    .range(desde, hasta);
-  if (q) {
-    query = query.ilike("nombre", `%${q}%`);
-  }
-  const { data: clientes, count: totalClientes } = await query;
+    .from("clientes_con_stats")
+    .select("id, nombre, telefono, total_visitas, ultima_lavada, tipos_vehiculo, placas", { count: "exact" });
+
+  if (q) query = query.ilike("nombre", `%${q}%`);
+  if (tipo) query = query.overlaps("tipos_vehiculo", [tipo]);
+
+  if (orden === "visitas_desc") query = query.order("total_visitas", { ascending: false });
+  else if (orden === "visitas_asc") query = query.order("total_visitas", { ascending: true });
+  else query = query.order("nombre", { ascending: true });
+
+  const { data: clientes, count: totalClientes } = await query.range(desde, hasta);
 
   const totalPaginas = Math.max(1, Math.ceil((totalClientes ?? 0) / POR_PAGINA));
 
-  const clienteIds = (clientes ?? []).map((c) => c.id);
-
-  const [{ data: vehiculos }, { data: ticketsEntregados }] = await Promise.all([
-    clienteIds.length
-      ? supabase.from("vehiculos").select("cliente_id, placas").in("cliente_id", clienteIds)
-      : Promise.resolve({ data: [] }),
-    clienteIds.length
-      ? supabase
-          .from("tickets")
-          .select("cliente_id, hora_salida")
-          .eq("estado", "entregado")
-          .in("cliente_id", clienteIds)
-      : Promise.resolve({ data: [] }),
-  ]);
-
-  const placasPorCliente = new Map<string, string[]>();
-  for (const v of vehiculos ?? []) {
-    if (!v.placas) continue;
-    const lista = placasPorCliente.get(v.cliente_id) ?? [];
-    lista.push(v.placas);
-    placasPorCliente.set(v.cliente_id, lista);
-  }
-
-  const ultimaLavadaPorCliente = new Map<string, string>();
-  const lavadasPorCliente = new Map<string, number>();
-  for (const t of ticketsEntregados ?? []) {
-    if (!t.cliente_id) continue;
-    // Se cuentan TODAS las lavadas entregadas (gratis o no): cada ciclo son
-    // 6 lavadas exactas, el residuo módulo 6 vuelve a 0 solo después de la gratis.
-    lavadasPorCliente.set(t.cliente_id, (lavadasPorCliente.get(t.cliente_id) ?? 0) + 1);
-    if (t.hora_salida) {
-      const actual = ultimaLavadaPorCliente.get(t.cliente_id);
-      if (!actual || t.hora_salida > actual) {
-        ultimaLavadaPorCliente.set(t.cliente_id, t.hora_salida);
-      }
-    }
-  }
-
   const clientesConDetalle = (clientes ?? []).map((c) => ({
-    ...c,
-    placas: placasPorCliente.get(c.id) ?? [],
-    ultimaLavada: ultimaLavadaPorCliente.get(c.id) ?? null,
-    lavadasEnCiclo: (lavadasPorCliente.get(c.id) ?? 0) % 6,
+    id: c.id,
+    nombre: c.nombre,
+    telefono: c.telefono,
+    placas: c.placas,
+    totalVisitas: c.total_visitas,
+    ultimaLavada: c.ultima_lavada,
+    lavadasEnCiclo: c.total_visitas % 6,
   }));
 
   return (
@@ -92,20 +65,50 @@ export default async function ClientesPage({
         </p>
       </div>
 
-      <form className="flex gap-2">
-        <input
-          name="q"
-          defaultValue={q ?? ""}
-          placeholder="Buscar por nombre..."
-          className="w-full max-w-sm rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
-        />
+      <form className="flex flex-wrap items-end gap-2">
+        <div className="flex flex-col gap-1">
+          <label className="text-[11px] font-medium text-muted">Buscar por nombre</label>
+          <input
+            name="q"
+            defaultValue={q ?? ""}
+            placeholder="Ej. Mazda, Juan Pérez..."
+            className="w-full max-w-xs rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-[11px] font-medium text-muted">Tipo de vehículo</label>
+          <select
+            name="tipo"
+            defaultValue={tipo ?? ""}
+            className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+          >
+            <option value="">Todos</option>
+            {TAMANOS_VEHICULO.map((t) => (
+              <option key={t.value} value={t.label}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-[11px] font-medium text-muted">Ordenar por</label>
+          <select
+            name="orden"
+            defaultValue={orden}
+            className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+          >
+            <option value="nombre">Nombre (A-Z)</option>
+            <option value="visitas_desc">Más visitas primero</option>
+            <option value="visitas_asc">Menos visitas primero</option>
+          </select>
+        </div>
         <button
           type="submit"
           className="rounded-lg border border-border px-4 py-2 text-sm text-muted transition hover:text-foreground"
         >
-          Buscar
+          Filtrar
         </button>
-        {q && (
+        {(q || tipo || (ordenParam && ordenParam !== "nombre")) && (
           <Link
             href="/clientes"
             className="rounded-lg border border-border px-4 py-2 text-sm text-muted transition hover:text-foreground"
@@ -120,7 +123,7 @@ export default async function ClientesPage({
       {totalPaginas > 1 && (
         <div className="flex flex-wrap items-center justify-center gap-1.5">
           <Link
-            href={hrefPagina(Math.max(1, pagina - 1), q)}
+            href={hrefPagina(Math.max(1, pagina - 1), { q, tipo, orden })}
             aria-disabled={pagina === 1}
             className={`rounded-lg border border-border px-3 py-1.5 text-sm transition ${
               pagina === 1 ? "pointer-events-none opacity-40" : "text-muted hover:text-foreground"
@@ -137,7 +140,7 @@ export default async function ClientesPage({
             ) : (
               <Link
                 key={p}
-                href={hrefPagina(p, q)}
+                href={hrefPagina(p, { q, tipo, orden })}
                 className={`rounded-lg border px-3 py-1.5 text-sm transition ${
                   p === pagina
                     ? "border-primary bg-primary/10 text-primary"
@@ -150,7 +153,7 @@ export default async function ClientesPage({
           )}
 
           <Link
-            href={hrefPagina(Math.min(totalPaginas, pagina + 1), q)}
+            href={hrefPagina(Math.min(totalPaginas, pagina + 1), { q, tipo, orden })}
             aria-disabled={pagina === totalPaginas}
             className={`rounded-lg border border-border px-3 py-1.5 text-sm transition ${
               pagina === totalPaginas ? "pointer-events-none opacity-40" : "text-muted hover:text-foreground"
@@ -164,9 +167,11 @@ export default async function ClientesPage({
   );
 }
 
-function hrefPagina(pagina: number, q: string | undefined) {
+function hrefPagina(pagina: number, filtros: { q?: string; tipo?: string; orden?: Orden }) {
   const params = new URLSearchParams();
-  if (q) params.set("q", q);
+  if (filtros.q) params.set("q", filtros.q);
+  if (filtros.tipo) params.set("tipo", filtros.tipo);
+  if (filtros.orden && filtros.orden !== "nombre") params.set("orden", filtros.orden);
   if (pagina > 1) params.set("page", String(pagina));
   const qs = params.toString();
   return qs ? `/clientes?${qs}` : "/clientes";

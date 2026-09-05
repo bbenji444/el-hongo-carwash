@@ -10,6 +10,7 @@ type ClienteConDetalle = {
   nombre: string;
   telefono: string | null;
   placas: string[];
+  totalVisitas: number;
   ultimaLavada: string | null;
   lavadasEnCiclo: number;
 };
@@ -110,6 +111,7 @@ export function ClientesClient({ clientes }: { clientes: ClienteConDetalle[] }) 
               <th className="px-4 py-3">Nombre</th>
               <th className="px-4 py-3">Teléfono</th>
               <th className="px-4 py-3">Placas</th>
+              <th className="px-4 py-3">Visitas</th>
               <th className="px-4 py-3">Última lavada</th>
               <th className="px-4 py-3">Lealtad</th>
             </tr>
@@ -126,6 +128,7 @@ export function ClientesClient({ clientes }: { clientes: ClienteConDetalle[] }) 
                 <td className="px-4 py-3 text-muted">
                   {cliente.placas.length > 0 ? cliente.placas.join(", ") : "—"}
                 </td>
+                <td className="px-4 py-3 text-foreground">{cliente.totalVisitas}</td>
                 <td className="px-4 py-3 text-muted">
                   {cliente.ultimaLavada
                     ? new Date(cliente.ultimaLavada).toLocaleDateString("es-MX", {
@@ -150,7 +153,7 @@ export function ClientesClient({ clientes }: { clientes: ClienteConDetalle[] }) 
             ))}
             {clientes.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-muted">
+                <td colSpan={6} className="px-4 py-6 text-center text-muted">
                   Sin clientes registrados.
                 </td>
               </tr>

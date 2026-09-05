@@ -279,6 +279,36 @@ export interface Database {
       // 20260913010000_busqueda_vehiculos_rapida.sql) — mismo motivo que
       // usuarios_con_correo arriba: tipos inline bajo Tables, no Views.
       // Solo se usa para SELECT.
+      clientes_con_stats: {
+        Row: {
+          id: string;
+          nombre: string;
+          telefono: string | null;
+          total_visitas: number;
+          ultima_lavada: string | null;
+          tipos_vehiculo: string[];
+          placas: string[];
+        };
+        Insert: {
+          id?: string;
+          nombre?: string;
+          telefono?: string | null;
+          total_visitas?: number;
+          ultima_lavada?: string | null;
+          tipos_vehiculo?: string[];
+          placas?: string[];
+        };
+        Update: {
+          id?: string;
+          nombre?: string;
+          telefono?: string | null;
+          total_visitas?: number;
+          ultima_lavada?: string | null;
+          tipos_vehiculo?: string[];
+          placas?: string[];
+        };
+        Relationships: [];
+      };
       vehiculos_con_cliente: {
         Row: {
           vehiculo_id: string;

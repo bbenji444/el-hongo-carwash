@@ -347,6 +347,30 @@ export async function retrocederEstadoTicket(ticketId: string, estado: "en_esper
   return { error: null };
 }
 
+// Calificación del cliente (1-10) al entregar — nuevo KPI de satisfacción,
+// opcional a propósito (rollout gradual): quien entrega puede omitirla sin
+// que eso bloquee la entrega del ticket.
+export async function registrarCalificacion(ticketId: string, calificacion: number) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return { error: "Sesión no válida." };
+
+  if (!Number.isInteger(calificacion) || calificacion < 1 || calificacion > 10) {
+    return { error: "La calificación debe ser un número entero del 1 al 10." };
+  }
+
+  const { error } = await supabase.from("tickets").update({ calificacion }).eq("id", ticketId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/", "layout");
+  return { error: null };
+}
+
 export async function registrarPago(input: {
   ticketId: string;
   turnoId: string;

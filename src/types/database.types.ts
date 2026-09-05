@@ -467,6 +467,7 @@ export interface Database {
           hora_inicio_lavado: string | null;
           hora_fin_lavado: string | null;
           creado_por: string;
+          calificacion: number | null;
         };
         Insert: {
           id?: string;
@@ -490,6 +491,7 @@ export interface Database {
           hora_inicio_lavado?: string | null;
           hora_fin_lavado?: string | null;
           creado_por?: string;
+          calificacion?: number | null;
         };
         Update: {
           id?: string;
@@ -513,6 +515,7 @@ export interface Database {
           hora_inicio_lavado?: string | null;
           hora_fin_lavado?: string | null;
           creado_por?: string;
+          calificacion?: number | null;
         };
         Relationships: [];
       };

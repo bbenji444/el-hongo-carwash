@@ -138,8 +138,17 @@ export default async function DashboardPage() {
     .sort((a, b) => b.autosLavados - a.autosLavados)
     .map((l) => ({ nombre: l.nombre, autos: l.autosLavados }));
   const relacionLavadores = lavadoresActivos
-    .filter((l) => l.tiempoPromedioLavadoMin !== null)
-    .map((l) => ({ nombre: l.nombre, autos: l.autosLavados, tiempoMin: l.tiempoPromedioLavadoMin! }));
+    .filter((l) => l.eficiencia !== null && l.volumenAjustadoMin !== null)
+    .map((l) => ({
+      nombre: l.nombre,
+      eficiencia: l.eficiencia!,
+      volumenAjustadoMin: l.volumenAjustadoMin!,
+      satisfaccionProm: l.satisfaccionProm,
+      calificaciones: l.calificaciones,
+    }));
+  const rankingLavadores = [...lavadoresActivos]
+    .filter((l) => l.puntaje !== null)
+    .sort((a, b) => (b.puntaje ?? 0) - (a.puntaje ?? 0));
 
   return (
     <div className="flex flex-col gap-6">
@@ -231,13 +240,62 @@ export default async function DashboardPage() {
           className="hover-lift animate-in rounded-xl border border-border bg-surface p-5"
           style={{ animationDelay: "420ms" }}
         >
-          <h2 className="font-semibold text-foreground">Rendimiento: velocidad vs volumen (últimos 7 días)</h2>
-          <p className="text-xs text-muted">Arriba-izquierda es lo mejor: rápido y con muchos autos.</p>
+          <h2 className="font-semibold text-foreground">Rendimiento: eficiencia vs volumen (últimos 7 días)</h2>
+          <p className="text-xs text-muted">
+            Arriba-izquierda es lo mejor: más rápido que sus compañeros en trabajos de dificultad equivalente, con
+            más volumen ajustado. El color de la burbuja es la satisfacción del cliente; el tamaño, cuántas
+            calificaciones tiene.
+          </p>
           <div className="mt-3">
             <RelacionLavadoresChart data={relacionLavadores} />
           </div>
         </div>
       </div>
+
+      {rankingLavadores.length > 0 && (
+        <div className="hover-lift animate-in rounded-xl border border-border bg-surface p-5" style={{ animationDelay: "480ms" }}>
+          <h2 className="font-semibold text-foreground">Ranking de lavadores (últimos 7 días)</h2>
+          <p className="text-xs text-muted">
+            Puntaje combinado (eficiencia + volumen ajustado + satisfacción). Con pocas calificaciones, la
+            satisfacción pesa menos en el puntaje hasta acumular más datos.
+          </p>
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="text-xs uppercase tracking-wide text-muted">
+                <tr>
+                  <th className="px-3 py-2">Lavador</th>
+                  <th className="px-3 py-2 text-right">Autos</th>
+                  <th className="px-3 py-2 text-right">Volumen ajustado</th>
+                  <th className="px-3 py-2 text-right">Eficiencia</th>
+                  <th className="px-3 py-2 text-right">Satisfacción</th>
+                  <th className="px-3 py-2 text-right">Puntaje</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rankingLavadores.map((l, i) => (
+                  <tr key={l.id} className="border-t border-border">
+                    <td className="px-3 py-2 font-medium text-foreground">
+                      {i === 0 ? "🏆 " : ""}
+                      {l.nombre}
+                    </td>
+                    <td className="px-3 py-2 text-right text-muted">{l.autosLavados}</td>
+                    <td className="px-3 py-2 text-right text-muted">
+                      {l.volumenAjustadoMin !== null ? `${Math.round(l.volumenAjustadoMin)} min` : "—"}
+                    </td>
+                    <td className="px-3 py-2 text-right text-muted">
+                      {l.eficiencia !== null ? l.eficiencia.toFixed(2) : "—"}
+                    </td>
+                    <td className="px-3 py-2 text-right text-muted">
+                      {l.satisfaccionProm !== null ? `${l.satisfaccionProm.toFixed(1)} (n=${l.calificaciones})` : "—"}
+                    </td>
+                    <td className="px-3 py-2 text-right text-lg font-bold text-primary">{l.puntaje}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

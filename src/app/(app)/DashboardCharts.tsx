@@ -178,10 +178,28 @@ export function AutosPorLavadorChart({ data }: { data: { nombre: string; autos: 
   );
 }
 
+// Rojo (mala satisfacción) -> verde (buena), interpolado sobre la
+// calificación promedio 1-10. Gris si el lavador todavía no tiene ninguna
+// calificación (rollout gradual del KPI).
+function colorPorSatisfaccion(valor: number | null) {
+  if (valor === null) return "var(--muted)";
+  const t = Math.max(0, Math.min(1, (valor - 1) / 9));
+  const r = Math.round(220 + t * (22 - 220));
+  const g = Math.round(38 + t * (163 - 38));
+  const b = Math.round(38 + t * (74 - 38));
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
 export function RelacionLavadoresChart({
   data,
 }: {
-  data: { nombre: string; autos: number; tiempoMin: number }[];
+  data: {
+    nombre: string;
+    eficiencia: number;
+    volumenAjustadoMin: number;
+    satisfaccionProm: number | null;
+    calificaciones: number;
+  }[];
 }) {
   if (data.length === 0) {
     return (
@@ -191,59 +209,90 @@ export function RelacionLavadoresChart({
     );
   }
 
-  const promedioAutos = data.reduce((acc, d) => acc + d.autos, 0) / data.length;
-  const promedioTiempo = data.reduce((acc, d) => acc + d.tiempoMin, 0) / data.length;
+  const promedioVolumen = data.reduce((acc, d) => acc + d.volumenAjustadoMin, 0) / data.length;
+  const promedioEficiencia = data.reduce((acc, d) => acc + d.eficiencia, 0) / data.length;
 
   return (
-    <ResponsiveContainer width="100%" height={260}>
-      <ScatterChart margin={{ top: 16, right: 24, left: 0, bottom: 8 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-        <XAxis
-          type="number"
-          dataKey="tiempoMin"
-          name="Tiempo promedio"
-          unit=" min"
-          stroke="var(--muted)"
-          fontSize={12}
-          tickLine={false}
-          axisLine={false}
-          label={{ value: "Tiempo promedio (min) — menos es mejor", position: "insideBottom", offset: -4, fontSize: 10, fill: "var(--muted)" }}
-        />
-        <YAxis
-          type="number"
-          dataKey="autos"
-          name="Autos lavados"
-          allowDecimals={false}
-          stroke="var(--muted)"
-          fontSize={12}
-          tickLine={false}
-          axisLine={false}
-          width={40}
-        />
-        <ZAxis range={[120, 120]} />
-        <ReferenceLine x={promedioTiempo} stroke="var(--border)" strokeDasharray="4 4" />
-        <ReferenceLine y={promedioAutos} stroke="var(--border)" strokeDasharray="4 4" />
-        <Tooltip
-          cursor={{ strokeDasharray: "3 3", stroke: "var(--muted)" }}
-          content={({ active, payload }) => {
-            if (!active || !payload?.length) return null;
-            const p = payload[0].payload as { nombre: string; autos: number; tiempoMin: number };
-            return (
-              <div className="rounded-lg border border-border bg-surface px-3 py-2 text-xs shadow-lg">
-                <p className="mb-0.5 font-medium text-foreground">{p.nombre}</p>
-                <p className="text-muted">{p.autos} autos lavados</p>
-                <p className="text-muted">{p.tiempoMin.toFixed(0)} min promedio</p>
-              </div>
-            );
-          }}
-        />
-        <Scatter data={data} animationDuration={700} animationEasing="ease-out">
-          {data.map((d, i) => (
-            <Cell key={d.nombre} fill={COLORES_LAVADORES[i % COLORES_LAVADORES.length]} />
-          ))}
-          <LabelList dataKey="nombre" position="top" fontSize={11} fill="var(--foreground)" />
-        </Scatter>
-      </ScatterChart>
-    </ResponsiveContainer>
+    <div className="flex flex-col gap-2">
+      <ResponsiveContainer width="100%" height={260}>
+        <ScatterChart margin={{ top: 16, right: 24, left: 0, bottom: 8 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+          <XAxis
+            type="number"
+            dataKey="eficiencia"
+            name="Eficiencia"
+            stroke="var(--muted)"
+            fontSize={12}
+            tickLine={false}
+            axisLine={false}
+            label={{
+              value: "Índice de eficiencia — menos es mejor (1.0 = como el promedio)",
+              position: "insideBottom",
+              offset: -4,
+              fontSize: 10,
+              fill: "var(--muted)",
+            }}
+          />
+          <YAxis
+            type="number"
+            dataKey="volumenAjustadoMin"
+            name="Volumen ajustado"
+            unit=" min"
+            stroke="var(--muted)"
+            fontSize={12}
+            tickLine={false}
+            axisLine={false}
+            width={50}
+          />
+          <ZAxis dataKey="calificaciones" range={[80, 320]} />
+          <ReferenceLine x={promedioEficiencia} stroke="var(--border)" strokeDasharray="4 4" />
+          <ReferenceLine y={promedioVolumen} stroke="var(--border)" strokeDasharray="4 4" />
+          <Tooltip
+            cursor={{ strokeDasharray: "3 3", stroke: "var(--muted)" }}
+            content={({ active, payload }) => {
+              if (!active || !payload?.length) return null;
+              const p = payload[0].payload as {
+                nombre: string;
+                eficiencia: number;
+                volumenAjustadoMin: number;
+                satisfaccionProm: number | null;
+                calificaciones: number;
+              };
+              return (
+                <div className="rounded-lg border border-border bg-surface px-3 py-2 text-xs shadow-lg">
+                  <p className="mb-0.5 font-medium text-foreground">{p.nombre}</p>
+                  <p className="text-muted">Eficiencia: {p.eficiencia.toFixed(2)}</p>
+                  <p className="text-muted">Volumen ajustado: {p.volumenAjustadoMin.toFixed(0)} min</p>
+                  <p className="text-muted">
+                    Satisfacción:{" "}
+                    {p.satisfaccionProm !== null ? `${p.satisfaccionProm.toFixed(1)}/10 (n=${p.calificaciones})` : "sin datos"}
+                  </p>
+                </div>
+              );
+            }}
+          />
+          <Scatter data={data} animationDuration={700} animationEasing="ease-out">
+            {data.map((d) => (
+              <Cell key={d.nombre} fill={colorPorSatisfaccion(d.satisfaccionProm)} />
+            ))}
+            <LabelList dataKey="nombre" position="top" fontSize={11} fill="var(--foreground)" />
+          </Scatter>
+        </ScatterChart>
+      </ResponsiveContainer>
+      <div className="flex items-center justify-center gap-3 text-[10px] text-muted">
+        <span className="flex items-center gap-1">
+          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: colorPorSatisfaccion(2) }} /> Baja
+          satisfacción
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: colorPorSatisfaccion(9) }} /> Alta
+          satisfacción
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="h-2.5 w-2.5 rounded-full bg-muted" /> Sin calificaciones aún
+        </span>
+        <span>· Tamaño de burbuja = número de calificaciones</span>
+      </div>
+    </div>
   );
 }

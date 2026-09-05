@@ -2,8 +2,53 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { PRECIOS_MOTO_FIJOS } from "@/lib/servicios";
+import { PRECIOS_MOTO_FIJOS, nombreTamano } from "@/lib/servicios";
 import type { TicketEstado, PagoMetodo, TamanoVehiculo } from "@/types/database.types";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/types/database.types";
+
+// Registro automático de cliente: si un ticket trae distintivo Y placa pero
+// nadie escogió/creó un cliente a mano, se registra solo — usando el
+// distintivo como nombre provisional (se puede corregir después desde
+// Editar ticket sin perder el distintivo, que vive aparte en el ticket) —
+// para que un registro rápido de "solo carro y placa" no se pierda y sí
+// aparezca en Clientes / acumule su lealtad. Si la placa ya estaba
+// vinculada a un cliente existente, se reutiliza ese cliente en vez de
+// crear uno nuevo, para no fragmentar su historial.
+async function resolverClienteAutomatico(
+  supabase: SupabaseClient<Database>,
+  distintivo: string,
+  placa: string,
+  tamanoVehiculo: TamanoVehiculo
+): Promise<{ clienteId: string | null; vehiculoId: string | null }> {
+  const placasNorm = placa.trim();
+
+  const { data: vehiculoExistente } = await supabase
+    .from("vehiculos")
+    .select("id, cliente_id")
+    .ilike("placas", placasNorm)
+    .maybeSingle();
+
+  if (vehiculoExistente) {
+    return { clienteId: vehiculoExistente.cliente_id, vehiculoId: vehiculoExistente.id };
+  }
+
+  const { data: cliente } = await supabase
+    .from("clientes")
+    .insert({ nombre: distintivo.trim(), telefono: null })
+    .select("id")
+    .single();
+
+  if (!cliente) return { clienteId: null, vehiculoId: null };
+
+  const { data: vehiculo } = await supabase
+    .from("vehiculos")
+    .insert({ cliente_id: cliente.id, placas: placasNorm, tipo_vehiculo: nombreTamano(tamanoVehiculo) })
+    .select("id")
+    .single();
+
+  return { clienteId: cliente.id, vehiculoId: vehiculo?.id ?? null };
+}
 
 export async function abrirTurno(efectivoInicial: number) {
   const supabase = await createClient();
@@ -173,6 +218,14 @@ export async function crearTicket(input: {
 
   if (!user) return { error: "Sesión no válida." };
 
+  let clienteId = input.clienteId;
+  let vehiculoId = input.vehiculoId;
+  if (!clienteId && input.distintivo?.trim() && input.placa?.trim()) {
+    const resuelto = await resolverClienteAutomatico(supabase, input.distintivo, input.placa, input.tamanoVehiculo);
+    clienteId = resuelto.clienteId;
+    vehiculoId = resuelto.vehiculoId ?? vehiculoId;
+  }
+
   // El descuento de la 6ta lavada gratis lo calcula y valida por completo el
   // trigger tr_ticket_descuento_autorizado del lado del servidor (cuenta las
   // lavadas previas del cliente) — aquí no se manda ni se confía en ningún
@@ -180,8 +233,8 @@ export async function crearTicket(input: {
   const { data: ticket, error } = await supabase
     .from("tickets")
     .insert({
-      cliente_id: input.clienteId,
-      vehiculo_id: input.vehiculoId,
+      cliente_id: clienteId,
+      vehiculo_id: vehiculoId,
       distintivo: input.distintivo,
       placa: input.placa,
       servicio_id: input.servicioId,
@@ -441,6 +494,14 @@ export async function actualizarTicket(
     }
   }
 
+  let clienteId = input.clienteId;
+  let vehiculoId = input.vehiculoId;
+  if (!clienteId && input.distintivo?.trim() && input.placa?.trim()) {
+    const resuelto = await resolverClienteAutomatico(supabase, input.distintivo, input.placa, input.tamanoVehiculo);
+    clienteId = resuelto.clienteId;
+    vehiculoId = resuelto.vehiculoId ?? vehiculoId;
+  }
+
   const { error } = await supabase
     .from("tickets")
     .update({
@@ -449,8 +510,8 @@ export async function actualizarTicket(
       lavador_id: input.lavadorId,
       distintivo: input.distintivo,
       placa: input.placa,
-      vehiculo_id: input.vehiculoId,
-      cliente_id: input.clienteId,
+      vehiculo_id: vehiculoId,
+      cliente_id: clienteId,
     })
     .eq("id", ticketId);
 

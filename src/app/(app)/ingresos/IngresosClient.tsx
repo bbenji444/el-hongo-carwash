@@ -191,7 +191,7 @@ export function IngresosClient({ ingresos }: { ingresos: Ingreso[] }) {
           <tbody>
             {ingresos.map((i) => (
               <tr key={i.id} className="border-t border-border transition-colors hover:bg-surface-hover">
-                <td className="px-4 py-3 text-muted">{new Date(i.fecha).toLocaleDateString("es-MX")}</td>
+                <td className="px-4 py-3 text-muted">{new Date(i.fecha).toLocaleDateString("es-MX", { timeZone: "America/Mexico_City" })}</td>
                 <td className="px-4 py-3 text-foreground">{i.concepto}</td>
                 <td className="px-4 py-3 text-muted">{i.notas ?? "—"}</td>
                 <td className="px-4 py-3 text-muted">{i.creadoPor}</td>

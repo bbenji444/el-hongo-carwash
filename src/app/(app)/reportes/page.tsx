@@ -248,7 +248,7 @@ export default async function ReportesPage({
             <tbody>
               {descuentos.map((d) => (
                 <tr key={d.id} className="border-t border-border transition-colors hover:bg-surface-hover">
-                  <td className="px-4 py-3 text-muted">{new Date(d.fecha).toLocaleString("es-MX")}</td>
+                  <td className="px-4 py-3 text-muted">{new Date(d.fecha).toLocaleString("es-MX", { timeZone: "America/Mexico_City" })}</td>
                   <td className="px-4 py-3 text-foreground">{d.servicio}</td>
                   <td className="px-4 py-3 text-foreground">{d.empleado}</td>
                   <td className="px-4 py-3 text-foreground">{d.autorizadoPor}</td>
@@ -287,7 +287,7 @@ export default async function ReportesPage({
             <tbody>
               {gastos.map((g) => (
                 <tr key={g.id} className="border-t border-border transition-colors hover:bg-surface-hover">
-                  <td className="px-4 py-3 text-muted">{new Date(g.fecha).toLocaleDateString("es-MX")}</td>
+                  <td className="px-4 py-3 text-muted">{new Date(g.fecha).toLocaleDateString("es-MX", { timeZone: "America/Mexico_City" })}</td>
                   <td className="px-4 py-3 text-foreground">{g.concepto}</td>
                   <td className="px-4 py-3 text-muted">{g.notas ?? "—"}</td>
                   <td className="px-4 py-3 text-primary">{money(g.monto)}</td>
@@ -325,7 +325,7 @@ export default async function ReportesPage({
             <tbody>
               {ingresos.map((i) => (
                 <tr key={i.id} className="border-t border-border transition-colors hover:bg-surface-hover">
-                  <td className="px-4 py-3 text-muted">{new Date(i.fecha).toLocaleDateString("es-MX")}</td>
+                  <td className="px-4 py-3 text-muted">{new Date(i.fecha).toLocaleDateString("es-MX", { timeZone: "America/Mexico_City" })}</td>
                   <td className="px-4 py-3 text-foreground">{i.concepto}</td>
                   <td className="px-4 py-3 text-muted">{i.notas ?? "—"}</td>
                   <td className="px-4 py-3 text-success">{money(i.monto)}</td>
@@ -366,7 +366,7 @@ export default async function ReportesPage({
                 <tr key={t.id} className="border-t border-border transition-colors hover:bg-surface-hover">
                   <td className="px-4 py-3">
                     <Link href={`/reportes/turnos/${t.id}`} className="text-muted hover:text-accent hover:underline">
-                      {t.horaCierre ? new Date(t.horaCierre).toLocaleString("es-MX") : "—"}
+                      {t.horaCierre ? new Date(t.horaCierre).toLocaleString("es-MX", { timeZone: "America/Mexico_City" }) : "—"}
                     </Link>
                   </td>
                   <td className="px-4 py-3 text-foreground">{t.abrio}</td>

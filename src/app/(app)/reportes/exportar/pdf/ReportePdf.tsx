@@ -180,6 +180,7 @@ export function ReportePdf({ datos }: { datos: DatosReporte }) {
   const generado = new Date(datos.generadoEn).toLocaleString("es-MX", {
     dateStyle: "long",
     timeStyle: "short",
+    timeZone: "America/Mexico_City",
   });
 
   return (
@@ -293,7 +294,11 @@ export function ReportePdf({ datos }: { datos: DatosReporte }) {
             {datos.descuentos.map((d, i) => (
               <View key={d.id} style={[styles.fila, i % 2 === 1 ? styles.filaAlterna : undefined]}>
                 <Text style={[styles.celdaMuted, { flex: 1.6 }]}>
-                  {new Date(d.fecha).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" })}
+                  {new Date(d.fecha).toLocaleString("es-MX", {
+                    dateStyle: "short",
+                    timeStyle: "short",
+                    timeZone: "America/Mexico_City",
+                  })}
                 </Text>
                 <Text style={[styles.celda, { flex: 1.6 }]}>{d.servicio}</Text>
                 <Text style={[styles.celda, { flex: 1.4 }]}>{d.empleado}</Text>
@@ -317,7 +322,7 @@ export function ReportePdf({ datos }: { datos: DatosReporte }) {
             {datos.gastos.map((g, i) => (
               <View key={g.id} style={[styles.fila, i % 2 === 1 ? styles.filaAlterna : undefined]}>
                 <Text style={[styles.celdaMuted, { flex: 1.4 }]}>
-                  {new Date(g.fecha).toLocaleDateString("es-MX")}
+                  {new Date(g.fecha).toLocaleDateString("es-MX", { timeZone: "America/Mexico_City" })}
                 </Text>
                 <Text style={[styles.celda, { flex: 2 }]}>{g.concepto}</Text>
                 <Text style={[styles.celdaMuted, { flex: 2 }]}>{g.notas ?? "—"}</Text>
@@ -340,7 +345,7 @@ export function ReportePdf({ datos }: { datos: DatosReporte }) {
             {datos.ingresos.map((ing, i) => (
               <View key={ing.id} style={[styles.fila, i % 2 === 1 ? styles.filaAlterna : undefined]}>
                 <Text style={[styles.celdaMuted, { flex: 1.4 }]}>
-                  {new Date(ing.fecha).toLocaleDateString("es-MX")}
+                  {new Date(ing.fecha).toLocaleDateString("es-MX", { timeZone: "America/Mexico_City" })}
                 </Text>
                 <Text style={[styles.celda, { flex: 2 }]}>{ing.concepto}</Text>
                 <Text style={[styles.celdaMuted, { flex: 2 }]}>{ing.notas ?? "—"}</Text>
@@ -369,7 +374,11 @@ export function ReportePdf({ datos }: { datos: DatosReporte }) {
               <View key={t.id} style={[styles.fila, i % 2 === 1 ? styles.filaAlterna : undefined]}>
                 <Text style={[styles.celdaMuted, { flex: 1.6 }]}>
                   {t.horaCierre
-                    ? new Date(t.horaCierre).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" })
+                    ? new Date(t.horaCierre).toLocaleString("es-MX", {
+                        dateStyle: "short",
+                        timeStyle: "short",
+                        timeZone: "America/Mexico_City",
+                      })
                     : "—"}
                 </Text>
                 <Text style={[styles.celda, { flex: 1.2 }]}>{t.abrio}</Text>

@@ -366,6 +366,7 @@ export function TicketsBoard({
                           {new Date(ticket.hora_salida ?? ticket.hora_cambio_estado).toLocaleTimeString("es-MX", {
                             hour: "2-digit",
                             minute: "2-digit",
+                            timeZone: "America/Mexico_City",
                           })}
                         </span>
                         {ticket.hora_inicio_lavado && ticket.hora_fin_lavado && (

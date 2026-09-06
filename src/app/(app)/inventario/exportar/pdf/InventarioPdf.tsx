@@ -165,6 +165,7 @@ export function InventarioPdf({ datos }: { datos: DatosInventario }) {
   const generado = new Date(datos.generadoEn).toLocaleString("es-MX", {
     dateStyle: "long",
     timeStyle: "short",
+    timeZone: "America/Mexico_City",
   });
 
   return (

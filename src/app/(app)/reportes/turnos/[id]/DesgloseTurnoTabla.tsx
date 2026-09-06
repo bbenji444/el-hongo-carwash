@@ -101,7 +101,11 @@ export function DesgloseTurnoTabla({
             {tickets.map((t) => (
               <tr key={t.id} className="border-t border-border transition-colors hover:bg-surface-hover">
                 <td className="px-4 py-3 text-muted">
-                  {new Date(t.hora_entrada).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}
+                  {new Date(t.hora_entrada).toLocaleTimeString("es-MX", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    timeZone: "America/Mexico_City",
+                  })}
                 </td>
                 <td className="px-4 py-3 text-foreground">
                   {t.cliente ? t.cliente.nombre : (t.distintivo ?? "Mostrador")}

@@ -604,7 +604,7 @@ export function GastosClient({ gastos }: { gastos: Gasto[] }) {
           <tbody>
             {gastos.map((g) => (
               <tr key={g.id} className="border-t border-border transition-colors hover:bg-surface-hover">
-                <td className="px-4 py-3 text-muted">{new Date(g.fecha).toLocaleDateString("es-MX")}</td>
+                <td className="px-4 py-3 text-muted">{new Date(g.fecha).toLocaleDateString("es-MX", { timeZone: "America/Mexico_City" })}</td>
                 <td className="px-4 py-3 text-foreground">
                   {g.concepto}
                   {g.items.length > 0 && (

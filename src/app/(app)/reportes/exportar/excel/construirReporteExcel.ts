@@ -45,7 +45,7 @@ export function construirReporteExcel(datos: DatosReporte): ExcelJS.Workbook {
   hojaResumen.addRow([`Período: ${datos.rango.etiqueta}`]);
   hojaResumen.mergeCells("A2:B2");
   hojaResumen.getCell("A2").font = { italic: true, color: { argb: "FF767676" } };
-  hojaResumen.addRow([`Generado: ${new Date(datos.generadoEn).toLocaleString("es-MX")}`]);
+  hojaResumen.addRow([`Generado: ${new Date(datos.generadoEn).toLocaleString("es-MX", { timeZone: "America/Mexico_City" })}`]);
   hojaResumen.mergeCells("A3:B3");
   hojaResumen.getCell("A3").font = { italic: true, color: { argb: "FF767676" } };
   hojaResumen.addRow([]);
@@ -115,7 +115,7 @@ export function construirReporteExcel(datos: DatosReporte): ExcelJS.Workbook {
   estiloEncabezado(hojaDescuentos.getRow(1));
   for (const d of datos.descuentos) {
     hojaDescuentos.addRow({
-      fecha: new Date(d.fecha).toLocaleString("es-MX"),
+      fecha: new Date(d.fecha).toLocaleString("es-MX", { timeZone: "America/Mexico_City" }),
       servicio: d.servicio,
       empleado: d.empleado,
       autorizadoPor: d.autorizadoPor,
@@ -136,7 +136,7 @@ export function construirReporteExcel(datos: DatosReporte): ExcelJS.Workbook {
   estiloEncabezado(hojaGastos.getRow(1));
   for (const g of datos.gastos) {
     hojaGastos.addRow({
-      fecha: new Date(g.fecha).toLocaleDateString("es-MX"),
+      fecha: new Date(g.fecha).toLocaleDateString("es-MX", { timeZone: "America/Mexico_City" }),
       concepto: g.concepto,
       notas: g.notas ?? "",
       monto: g.monto,
@@ -156,7 +156,7 @@ export function construirReporteExcel(datos: DatosReporte): ExcelJS.Workbook {
   estiloEncabezado(hojaIngresos.getRow(1));
   for (const i of datos.ingresos) {
     hojaIngresos.addRow({
-      fecha: new Date(i.fecha).toLocaleDateString("es-MX"),
+      fecha: new Date(i.fecha).toLocaleDateString("es-MX", { timeZone: "America/Mexico_City" }),
       concepto: i.concepto,
       notas: i.notas ?? "",
       monto: i.monto,
@@ -181,7 +181,7 @@ export function construirReporteExcel(datos: DatosReporte): ExcelJS.Workbook {
   estiloEncabezado(hojaTurnos.getRow(1));
   for (const t of datos.turnos) {
     const row = hojaTurnos.addRow({
-      cierre: t.horaCierre ? new Date(t.horaCierre).toLocaleString("es-MX") : "—",
+      cierre: t.horaCierre ? new Date(t.horaCierre).toLocaleString("es-MX", { timeZone: "America/Mexico_City" }) : "—",
       abrio: t.abrio,
       cerro: t.cerro,
       inicial: t.inicial,

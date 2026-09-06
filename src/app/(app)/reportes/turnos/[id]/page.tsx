@@ -181,8 +181,8 @@ export default async function DesgloseTurnoPage({
         </Link>
         <h1 className="mt-2 text-2xl font-bold text-foreground">Desglose del turno</h1>
         <p className="text-sm text-muted">
-          Abierto el {new Date(turno.hora_apertura).toLocaleString("es-MX")}
-          {turno.hora_cierre && ` · Cerrado el ${new Date(turno.hora_cierre).toLocaleString("es-MX")}`}
+          Abierto el {new Date(turno.hora_apertura).toLocaleString("es-MX", { timeZone: "America/Mexico_City" })}
+          {turno.hora_cierre && ` · Cerrado el ${new Date(turno.hora_cierre).toLocaleString("es-MX", { timeZone: "America/Mexico_City" })}`}
         </p>
       </div>
 

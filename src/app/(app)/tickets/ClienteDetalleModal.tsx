@@ -114,9 +114,10 @@ export function ClienteDetalleModal({
               {new Date(detalle.cliente.creado_en).toLocaleDateString("es-MX", {
                 year: "numeric",
                 month: "long",
+                timeZone: "America/Mexico_City",
               })}
               {detalle.ultimaVisita &&
-                ` · última visita ${new Date(detalle.ultimaVisita).toLocaleDateString("es-MX")}`}
+                ` · última visita ${new Date(detalle.ultimaVisita).toLocaleDateString("es-MX", { timeZone: "America/Mexico_City" })}`}
             </p>
           </div>
         )}

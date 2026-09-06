@@ -135,6 +135,7 @@ export function ClientesClient({ clientes }: { clientes: ClienteConDetalle[] }) 
                         day: "numeric",
                         month: "short",
                         year: "numeric",
+                        timeZone: "America/Mexico_City",
                       })
                     : "—"}
                 </td>

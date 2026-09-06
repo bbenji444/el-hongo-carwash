@@ -34,7 +34,7 @@ export function HistorialTurnos({
   function handleEliminar(t: TurnoConNombres) {
     if (
       !window.confirm(
-        `¿Eliminar por completo el turno del ${new Date(t.hora_apertura).toLocaleString("es-MX")}? Esto borra también todos sus tickets y pagos. Esta acción no se puede deshacer.`
+        `¿Eliminar por completo el turno del ${new Date(t.hora_apertura).toLocaleString("es-MX", { timeZone: "America/Mexico_City" })}? Esto borra también todos sus tickets y pagos. Esta acción no se puede deshacer.`
       )
     ) {
       return;
@@ -70,9 +70,9 @@ export function HistorialTurnos({
           <tbody>
             {historial.map((t) => (
               <tr key={t.id} className={`border-t border-border ${t.alerta_diferencia ? "bg-primary/5" : ""}`}>
-                <td className="px-3 py-2 text-muted">{new Date(t.hora_apertura).toLocaleString("es-MX")}</td>
+                <td className="px-3 py-2 text-muted">{new Date(t.hora_apertura).toLocaleString("es-MX", { timeZone: "America/Mexico_City" })}</td>
                 <td className="px-3 py-2 text-muted">
-                  {t.hora_cierre ? new Date(t.hora_cierre).toLocaleString("es-MX") : "—"}
+                  {t.hora_cierre ? new Date(t.hora_cierre).toLocaleString("es-MX", { timeZone: "America/Mexico_City" }) : "—"}
                 </td>
                 <td className="px-3 py-2 text-foreground">{t.nombreApertura}</td>
                 <td className="px-3 py-2 text-foreground">{t.nombreCierre}</td>

@@ -32,7 +32,12 @@ export default async function DashboardPage() {
   const esCajero = usuario.rol === "cajero";
   const hoy = inicioDeDiaMX(0);
   const hace7dias = inicioDeDiaMX(6);
-  const fechaHoy = new Date().toLocaleDateString("es-MX", { weekday: "long", day: "numeric", month: "long" });
+  const fechaHoy = new Date().toLocaleDateString("es-MX", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    timeZone: "America/Mexico_City",
+  });
 
   const [{ data: turnoAbierto }, { data: ticketsHoy }, { data: pagosSemana }, { data: servicios }] =
     await Promise.all([
@@ -68,7 +73,12 @@ export default async function DashboardPage() {
               Abierto
             </p>
             <p className="mt-1 text-sm text-muted">
-              Desde las {new Date(turnoAbierto.hora_apertura).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}
+              Desde las{" "}
+              {new Date(turnoAbierto.hora_apertura).toLocaleTimeString("es-MX", {
+                hour: "2-digit",
+                minute: "2-digit",
+                timeZone: "America/Mexico_City",
+              })}
             </p>
           </div>
         ) : (
@@ -126,7 +136,11 @@ export default async function DashboardPage() {
     }
   }
   const tendenciaVentas = Array.from(totalesPorDia, ([dia, total]) => ({
-    etiqueta: new Date(`${dia}T12:00:00`).toLocaleDateString("es-MX", { weekday: "short", day: "numeric" }),
+    etiqueta: new Date(`${dia}T12:00:00`).toLocaleDateString("es-MX", {
+      weekday: "short",
+      day: "numeric",
+      timeZone: "America/Mexico_City",
+    }),
     total,
   }));
 

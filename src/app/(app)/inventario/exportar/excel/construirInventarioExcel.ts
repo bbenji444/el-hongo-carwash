@@ -31,7 +31,7 @@ export function construirInventarioExcel(datos: DatosInventario): ExcelJS.Workbo
   hojaResumen.addRow([datos.soloBajo ? "Solo insumos con stock bajo" : "Todos los insumos"]);
   hojaResumen.mergeCells("A2:B2");
   hojaResumen.getCell("A2").font = { italic: true, color: { argb: "FF767676" } };
-  hojaResumen.addRow([`Generado: ${new Date(datos.generadoEn).toLocaleString("es-MX")}`]);
+  hojaResumen.addRow([`Generado: ${new Date(datos.generadoEn).toLocaleString("es-MX", { timeZone: "America/Mexico_City" })}`]);
   hojaResumen.mergeCells("A3:B3");
   hojaResumen.getCell("A3").font = { italic: true, color: { argb: "FF767676" } };
   hojaResumen.addRow([]);

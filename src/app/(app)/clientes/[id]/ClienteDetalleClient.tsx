@@ -157,7 +157,12 @@ function HistorialLavadosSection({
         <p className="text-xs text-muted">
           Última lavada:{" "}
           {ultimaLavada
-            ? new Date(ultimaLavada).toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" })
+            ? new Date(ultimaLavada).toLocaleDateString("es-MX", {
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+                timeZone: "America/Mexico_City",
+              })
             : "Sin registro"}
         </p>
       </div>
@@ -176,7 +181,12 @@ function HistorialLavadosSection({
               )}
             </div>
             <p className="text-xs text-muted">
-              {new Date(h.horaEntrada).toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" })}
+              {new Date(h.horaEntrada).toLocaleDateString("es-MX", {
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+                timeZone: "America/Mexico_City",
+              })}
               {" · "}
               {h.estado === "entregado" ? "Entregado" : "En curso"}
               {h.descuentoMonto > 0 && ` · -$${h.descuentoMonto.toFixed(2)}`}

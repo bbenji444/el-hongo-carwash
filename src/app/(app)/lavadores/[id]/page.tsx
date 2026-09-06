@@ -158,7 +158,7 @@ export default async function DesgloseLavadorPage({
           {config.emoji_lavador} {lavador.nombre}
         </h1>
         <p className="text-sm text-muted">
-          {lavador.activo ? "Activo" : "Inactivo"} · Registrado el {new Date(lavador.creado_en).toLocaleDateString("es-MX")}
+          {lavador.activo ? "Activo" : "Inactivo"} · Registrado el {new Date(lavador.creado_en).toLocaleDateString("es-MX", { timeZone: "America/Mexico_City" })}
         </p>
       </div>
 
@@ -274,7 +274,7 @@ export default async function DesgloseLavadorPage({
           <tbody>
             {filaTickets.map((t) => (
               <tr key={t.id} className="border-t border-border transition-colors hover:bg-surface-hover">
-                <td className="px-4 py-3 text-muted">{new Date(t.horaEntrada).toLocaleString("es-MX")}</td>
+                <td className="px-4 py-3 text-muted">{new Date(t.horaEntrada).toLocaleString("es-MX", { timeZone: "America/Mexico_City" })}</td>
                 <td className="px-4 py-3 text-foreground">{t.cliente}</td>
                 <td className="px-4 py-3 text-muted">{t.placas ?? "—"}</td>
                 <td className="px-4 py-3 text-foreground">{t.servicio}</td>

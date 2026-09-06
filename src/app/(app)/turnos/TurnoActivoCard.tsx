@@ -74,7 +74,11 @@ export function TurnoActivoCard({
           <p className="text-sm text-muted">
             Turno abierto desde{" "}
             <span className="text-foreground">
-              {new Date(turno.hora_apertura).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}
+              {new Date(turno.hora_apertura).toLocaleTimeString("es-MX", {
+                hour: "2-digit",
+                minute: "2-digit",
+                timeZone: "America/Mexico_City",
+              })}
             </span>
           </p>
           <p className="text-xs text-muted">Efectivo inicial: ${turno.efectivo_inicial.toFixed(2)}</p>

@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { diaMX, inicioDeDiaMX } from "@/lib/fecha";
+import { diaMX, inicioDeDiaMX, inicioDeDiaMXDesdeFecha } from "@/lib/fecha";
 import { obtenerConfiguracion } from "@/lib/configuracion";
-import { resolverRango } from "@/lib/rangoFechas";
+import { resolverRango, type RangoResuelto } from "@/lib/rangoFechas";
 import { obtenerDatosLavadores } from "./lavadores/data";
 import { AnimatedNumber } from "@/components/AnimatedNumber";
 import { VentasPorServicioChart, TendenciaVentasChart, AutosPorLavadorChart, RelacionLavadoresChart } from "./DashboardCharts";
@@ -130,14 +130,32 @@ export default async function DashboardPage() {
     total,
   }));
 
-  // Rendimiento de lavadores (últimos 7 días): quién lava más autos y qué
-  // tan rápido, para poder comparar entre ellos de un vistazo.
+  // Autos lavados por lavador (últimos 7 días): igual que siempre, ventana
+  // móvil de 7 días.
   const { lavadores: lavadoresStats } = await obtenerDatosLavadores(resolverRango({ periodo: "7d" }));
   const lavadoresActivos = lavadoresStats.filter((l) => l.activo);
   const autosPorLavador = [...lavadoresActivos]
     .sort((a, b) => b.autosLavados - a.autosLavados)
     .map((l) => ({ nombre: l.nombre, autos: l.autosLavados }));
-  const relacionLavadores = lavadoresActivos
+
+  // Eficiencia/volumen ajustado/satisfacción: métricas nuevas (fase 38) —
+  // se cuentan desde esta fecha fija en vez de los últimos 7 días, para no
+  // mezclar datos de antes de que existiera el ajuste por dificultad ni la
+  // calificación del cliente.
+  const INICIO_METRICA_RENDIMIENTO = "2026-09-06";
+  const rangoRendimiento: RangoResuelto = {
+    desdeIso: inicioDeDiaMXDesdeFecha(INICIO_METRICA_RENDIMIENTO).toISOString(),
+    hastaIso: null,
+    personalizado: true,
+    periodo: "todo",
+    etiqueta: `desde el ${INICIO_METRICA_RENDIMIENTO}`,
+    desdeInput: INICIO_METRICA_RENDIMIENTO,
+    hastaInput: "",
+  };
+  const { lavadores: lavadoresRendimiento } = await obtenerDatosLavadores(rangoRendimiento);
+  const lavadoresRendimientoActivos = lavadoresRendimiento.filter((l) => l.activo);
+
+  const relacionLavadores = lavadoresRendimientoActivos
     .filter((l) => l.eficiencia !== null && l.volumenAjustadoMin !== null)
     .map((l) => ({
       nombre: l.nombre,
@@ -146,7 +164,7 @@ export default async function DashboardPage() {
       satisfaccionProm: l.satisfaccionProm,
       calificaciones: l.calificaciones,
     }));
-  const rankingLavadores = [...lavadoresActivos]
+  const rankingLavadores = [...lavadoresRendimientoActivos]
     .filter((l) => l.puntaje !== null)
     .sort((a, b) => (b.puntaje ?? 0) - (a.puntaje ?? 0));
 
@@ -240,7 +258,7 @@ export default async function DashboardPage() {
           className="hover-lift animate-in rounded-xl border border-border bg-surface p-5"
           style={{ animationDelay: "420ms" }}
         >
-          <h2 className="font-semibold text-foreground">Rendimiento: eficiencia vs volumen (últimos 7 días)</h2>
+          <h2 className="font-semibold text-foreground">Rendimiento: eficiencia vs volumen (desde el 6 sep 2026)</h2>
           <p className="text-xs text-muted">
             Arriba-izquierda es lo mejor: más rápido que sus compañeros en trabajos de dificultad equivalente, con
             más volumen ajustado. El color de la burbuja es la satisfacción del cliente; el tamaño, cuántas
@@ -254,7 +272,7 @@ export default async function DashboardPage() {
 
       {rankingLavadores.length > 0 && (
         <div className="hover-lift animate-in rounded-xl border border-border bg-surface p-5" style={{ animationDelay: "480ms" }}>
-          <h2 className="font-semibold text-foreground">Ranking de lavadores (últimos 7 días)</h2>
+          <h2 className="font-semibold text-foreground">Ranking de lavadores (desde el 6 sep 2026)</h2>
           <p className="text-xs text-muted">
             Puntaje combinado (eficiencia + volumen ajustado + satisfacción). Con pocas calificaciones, la
             satisfacción pesa menos en el puntaje hasta acumular más datos.

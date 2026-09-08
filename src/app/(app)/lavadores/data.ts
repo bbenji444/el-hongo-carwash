@@ -265,3 +265,62 @@ export async function obtenerDatosLavadores(rango: RangoResuelto): Promise<Datos
 
   return { rango, lavadores, generadoEn: new Date().toISOString() };
 }
+
+export type TiempoPorPaqueteCelda = {
+  servicioId: string;
+  tamano: TamanoVehiculo;
+  promedioMin: number | null;
+  minMin: number | null;
+  maxMin: number | null;
+  n: number;
+};
+
+// Tamaños que van en el rótulo físico de paquetes (Básico/Plus/Premium/Max)
+// — las motos tienen precio y tabla aparte, no viven en esa tabla.
+const TAMANOS_TABLA_PAQUETES: TamanoVehiculo[] = [
+  "automovil",
+  "camioneta_chica",
+  "camioneta_grande",
+  "camioneta_extra_grande",
+];
+
+export async function obtenerTiemposPorPaquete(rango: RangoResuelto): Promise<{
+  servicios: { id: string; nombre: string }[];
+  tamanos: TamanoVehiculo[];
+  celdas: TiempoPorPaqueteCelda[];
+}> {
+  const supabase = await createClient();
+
+  const [{ data: serviciosRaw }, tickets] = await Promise.all([
+    supabase.from("servicios_catalogo").select("id, nombre").eq("activo", true).order("orden").order("nombre"),
+    ticketsLavadosEnRango(rango),
+  ]);
+
+  const grupos = new Map<string, number[]>();
+  for (const t of tickets) {
+    if (t.tiempoLavadoMin === null) continue;
+    if (!TAMANOS_TABLA_PAQUETES.includes(t.tamanoVehiculo)) continue;
+    const clave = `${t.servicioId}::${t.tamanoVehiculo}`;
+    const lista = grupos.get(clave) ?? [];
+    lista.push(t.tiempoLavadoMin);
+    grupos.set(clave, lista);
+  }
+
+  const servicios = serviciosRaw ?? [];
+  const celdas: TiempoPorPaqueteCelda[] = [];
+  for (const s of servicios) {
+    for (const tamano of TAMANOS_TABLA_PAQUETES) {
+      const lista = grupos.get(`${s.id}::${tamano}`) ?? [];
+      celdas.push({
+        servicioId: s.id,
+        tamano,
+        promedioMin: lista.length > 0 ? lista.reduce((a, b) => a + b, 0) / lista.length : null,
+        minMin: lista.length > 0 ? Math.min(...lista) : null,
+        maxMin: lista.length > 0 ? Math.max(...lista) : null,
+        n: lista.length,
+      });
+    }
+  }
+
+  return { servicios, tamanos: TAMANOS_TABLA_PAQUETES, celdas };
+}

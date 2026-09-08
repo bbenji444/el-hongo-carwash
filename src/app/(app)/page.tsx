@@ -3,9 +3,10 @@ import { createClient } from "@/lib/supabase/server";
 import { diaMX, inicioDeDiaMX, inicioDeDiaMXDesdeFecha } from "@/lib/fecha";
 import { obtenerConfiguracion } from "@/lib/configuracion";
 import { resolverRango, type RangoResuelto } from "@/lib/rangoFechas";
-import { obtenerDatosLavadores } from "./lavadores/data";
+import { obtenerDatosLavadores, obtenerTiemposPorPaquete } from "./lavadores/data";
 import { AnimatedNumber } from "@/components/AnimatedNumber";
 import { VentasPorServicioChart, TendenciaVentasChart, AutosPorLavadorChart, RelacionLavadoresChart } from "./DashboardCharts";
+import { TiemposPorPaqueteGrid } from "./TiemposPorPaqueteGrid";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -168,6 +169,7 @@ export default async function DashboardPage() {
   };
   const { lavadores: lavadoresRendimiento } = await obtenerDatosLavadores(rangoRendimiento);
   const lavadoresRendimientoActivos = lavadoresRendimiento.filter((l) => l.activo);
+  const tiemposPorPaquete = await obtenerTiemposPorPaquete(rangoRendimiento);
 
   const relacionLavadores = lavadoresRendimientoActivos
     .filter((l) => l.eficiencia !== null && l.volumenAjustadoMin !== null)
@@ -281,6 +283,22 @@ export default async function DashboardPage() {
           <div className="mt-3">
             <RelacionLavadoresChart data={relacionLavadores} />
           </div>
+        </div>
+      </div>
+
+      <div className="hover-lift animate-in rounded-xl border border-border bg-surface p-5" style={{ animationDelay: "450ms" }}>
+        <h2 className="font-semibold text-foreground">Tiempo promedio por paquete y tamaño (desde el 6 sep 2026)</h2>
+        <p className="text-xs text-muted">
+          Igual que el rótulo de precios, pero con el tiempo real que se está tardando cada combinación — verde es
+          más rápido, rojo es más lento (comparado entre sí, no contra un número fijo).
+        </p>
+        <div className="mt-3">
+          <TiemposPorPaqueteGrid
+            servicios={tiemposPorPaquete.servicios}
+            tamanos={tiemposPorPaquete.tamanos}
+            celdas={tiemposPorPaquete.celdas}
+            config={config}
+          />
         </div>
       </div>
 

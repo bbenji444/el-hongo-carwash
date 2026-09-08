@@ -178,16 +178,20 @@ export function AutosPorLavadorChart({ data }: { data: { nombre: string; autos: 
   );
 }
 
-// Rojo (mala satisfacción) -> verde (buena), interpolado sobre la
-// calificación promedio 1-10. Gris si el lavador todavía no tiene ninguna
-// calificación (rollout gradual del KPI).
-function colorPorSatisfaccion(valor: number | null) {
+// Escala de 6 colores (rojo -> naranja -> amarillo -> verde claro -> verde
+// -> verde oscuro), repartida sobre el rango REAL que se observa entre los
+// lavadores del período (no una escala fija 1-10) — así siempre se ve
+// diferencia visual entre ellos, aunque todos anden en la parte alta de la
+// calificación (que es lo esperado la mayoría del tiempo). Gris si el
+// lavador todavía no tiene ninguna calificación (rollout gradual del KPI).
+const PALETA_SATISFACCION = ["#dc2626", "#ea580c", "#facc15", "#a3e635", "#4ade80", "#16a34a"];
+
+function colorPorSatisfaccion(valor: number | null, min: number, max: number) {
   if (valor === null) return "var(--muted)";
-  const t = Math.max(0, Math.min(1, (valor - 1) / 9));
-  const r = Math.round(220 + t * (22 - 220));
-  const g = Math.round(38 + t * (163 - 38));
-  const b = Math.round(38 + t * (74 - 38));
-  return `rgb(${r}, ${g}, ${b})`;
+  if (max === min) return PALETA_SATISFACCION[PALETA_SATISFACCION.length - 1];
+  const t = Math.max(0, Math.min(1, (valor - min) / (max - min)));
+  const idx = Math.min(PALETA_SATISFACCION.length - 1, Math.floor(t * PALETA_SATISFACCION.length));
+  return PALETA_SATISFACCION[idx];
 }
 
 export function RelacionLavadoresChart({
@@ -211,6 +215,9 @@ export function RelacionLavadoresChart({
 
   const promedioVolumen = data.reduce((acc, d) => acc + d.volumenAjustadoMin, 0) / data.length;
   const promedioEficiencia = data.reduce((acc, d) => acc + d.eficiencia, 0) / data.length;
+  const satisfacciones = data.map((d) => d.satisfaccionProm).filter((v): v is number => v !== null);
+  const minSatisfaccion = satisfacciones.length ? Math.min(...satisfacciones) : 0;
+  const maxSatisfaccion = satisfacciones.length ? Math.max(...satisfacciones) : 0;
 
   return (
     <div className="flex flex-col gap-2">
@@ -273,20 +280,22 @@ export function RelacionLavadoresChart({
           />
           <Scatter data={data} animationDuration={700} animationEasing="ease-out">
             {data.map((d) => (
-              <Cell key={d.nombre} fill={colorPorSatisfaccion(d.satisfaccionProm)} />
+              <Cell
+                key={d.nombre}
+                fill={colorPorSatisfaccion(d.satisfaccionProm, minSatisfaccion, maxSatisfaccion)}
+              />
             ))}
             <LabelList dataKey="nombre" position="top" fontSize={11} fill="var(--foreground)" />
           </Scatter>
         </ScatterChart>
       </ResponsiveContainer>
-      <div className="flex items-center justify-center gap-3 text-[10px] text-muted">
+      <div className="flex flex-wrap items-center justify-center gap-3 text-[10px] text-muted">
         <span className="flex items-center gap-1">
-          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: colorPorSatisfaccion(2) }} /> Baja
-          satisfacción
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: colorPorSatisfaccion(9) }} /> Alta
-          satisfacción
+          Baja
+          {PALETA_SATISFACCION.map((c) => (
+            <span key={c} className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: c }} />
+          ))}
+          Alta (satisfacción relativa al grupo)
         </span>
         <span className="flex items-center gap-1">
           <span className="h-2.5 w-2.5 rounded-full bg-muted" /> Sin calificaciones aún

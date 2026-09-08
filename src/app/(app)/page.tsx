@@ -1,14 +1,20 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { diaMX, inicioDeDiaMX, inicioDeDiaMXDesdeFecha } from "@/lib/fecha";
 import { obtenerConfiguracion } from "@/lib/configuracion";
-import { resolverRango, type RangoResuelto } from "@/lib/rangoFechas";
+import { resolverRango, PERIODOS, type RangoResuelto } from "@/lib/rangoFechas";
 import { obtenerDatosLavadores, obtenerTiemposPorPaquete } from "./lavadores/data";
 import { AnimatedNumber } from "@/components/AnimatedNumber";
 import { VentasPorServicioChart, TendenciaVentasChart, AutosPorLavadorChart, RelacionLavadoresChart } from "./DashboardCharts";
 import { TiemposPorPaqueteGrid } from "./TiemposPorPaqueteGrid";
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tperiodo?: string; tdesde?: string; thasta?: string }>;
+}) {
+  const paramsTiempos = await searchParams;
   const supabase = await createClient();
 
   const {
@@ -169,7 +175,17 @@ export default async function DashboardPage() {
   };
   const { lavadores: lavadoresRendimiento } = await obtenerDatosLavadores(rangoRendimiento);
   const lavadoresRendimientoActivos = lavadoresRendimiento.filter((l) => l.activo);
-  const tiemposPorPaquete = await obtenerTiemposPorPaquete(rangoRendimiento);
+
+  // Esta tarjeta sí tiene su propio filtro de período (independiente del
+  // resto de las métricas de rendimiento, que se cuentan desde el 6 sep
+  // fijo) — el dueño quiere poder ver "hoy" o un rango específico solo
+  // para los tiempos por paquete.
+  const rangoTiempos = resolverRango({
+    periodo: paramsTiempos.tperiodo,
+    desde: paramsTiempos.tdesde,
+    hasta: paramsTiempos.thasta,
+  });
+  const tiemposPorPaquete = await obtenerTiemposPorPaquete(rangoTiempos);
 
   const relacionLavadores = lavadoresRendimientoActivos
     .filter((l) => l.eficiencia !== null && l.volumenAjustadoMin !== null)
@@ -287,11 +303,81 @@ export default async function DashboardPage() {
       </div>
 
       <div className="hover-lift animate-in rounded-xl border border-border bg-surface p-5" style={{ animationDelay: "450ms" }}>
-        <h2 className="font-semibold text-foreground">Tiempo promedio por paquete y tamaño (desde el 6 sep 2026)</h2>
-        <p className="text-xs text-muted">
-          Igual que el rótulo de precios, pero con el tiempo real que se está tardando cada combinación — verde es
-          más rápido, rojo es más lento (comparado entre sí, no contra un número fijo).
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="font-semibold text-foreground">
+              Tiempo promedio por paquete y tamaño ({rangoTiempos.etiqueta})
+            </h2>
+            <p className="text-xs text-muted">
+              Igual que el rótulo de precios, pero con el tiempo real que se está tardando cada combinación — verde
+              es más rápido, rojo es más lento (comparado entre sí, no contra un número fijo).
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <div className="flex gap-2">
+            {PERIODOS.map((p) => (
+              <Link
+                key={p.value}
+                href={hrefTiempos({ tperiodo: p.value })}
+                className={`rounded-lg border px-3 py-1.5 text-sm transition ${
+                  !rangoTiempos.personalizado && p.value === rangoTiempos.periodo
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border text-muted hover:text-foreground"
+                }`}
+              >
+                {p.label}
+              </Link>
+            ))}
+          </div>
+
+          <form className="flex flex-wrap items-end gap-2 rounded-lg border border-border bg-background px-3 py-2">
+            <div className="flex flex-col gap-1">
+              <label htmlFor="tdesde" className="text-[11px] text-muted">
+                Desde
+              </label>
+              <input
+                id="tdesde"
+                type="date"
+                name="tdesde"
+                defaultValue={rangoTiempos.desdeInput}
+                className="rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-foreground outline-none focus:border-accent"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label htmlFor="thasta" className="text-[11px] text-muted">
+                Hasta
+              </label>
+              <input
+                id="thasta"
+                type="date"
+                name="thasta"
+                defaultValue={rangoTiempos.hastaInput}
+                className="rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-foreground outline-none focus:border-accent"
+              />
+            </div>
+            <button
+              type="submit"
+              className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
+                rangoTiempos.personalizado
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border text-muted hover:text-foreground"
+              }`}
+            >
+              Filtrar
+            </button>
+            {rangoTiempos.personalizado && (
+              <Link
+                href="/"
+                className="rounded-lg border border-border px-3 py-1.5 text-sm text-muted hover:text-foreground"
+              >
+                Quitar filtro
+              </Link>
+            )}
+          </form>
+        </div>
+
         <div className="mt-3">
           <TiemposPorPaqueteGrid
             servicios={tiemposPorPaquete.servicios}
@@ -348,4 +434,13 @@ export default async function DashboardPage() {
       )}
     </div>
   );
+}
+
+function hrefTiempos(params: { tperiodo?: string; tdesde?: string; thasta?: string }) {
+  const qs = new URLSearchParams();
+  if (params.tperiodo) qs.set("tperiodo", params.tperiodo);
+  if (params.tdesde) qs.set("tdesde", params.tdesde);
+  if (params.thasta) qs.set("thasta", params.thasta);
+  const s = qs.toString();
+  return s ? `/?${s}` : "/";
 }

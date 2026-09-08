@@ -3,6 +3,9 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { PERIODOS, resolverRango, queryStringRango, obtenerDatosReporte } from "./data";
 import { AnimatedNumber } from "@/components/AnimatedNumber";
+import { buscarTicketsDetalle } from "@/lib/ticketsDetalle";
+import { TicketsDetalleSeccion } from "@/components/TicketsDetalleSeccion";
+import type { TamanoVehiculo, PagoMetodo } from "@/types/database.types";
 
 function money(n: number) {
   return `$${n.toFixed(2)}`;
@@ -11,7 +14,16 @@ function money(n: number) {
 export default async function ReportesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ periodo?: string; desde?: string; hasta?: string }>;
+  searchParams: Promise<{
+    periodo?: string;
+    desde?: string;
+    hasta?: string;
+    servicio?: string;
+    tamano?: string;
+    metodo?: string;
+    lavador?: string;
+    q?: string;
+  }>;
 }) {
   const params = await searchParams;
 
@@ -56,6 +68,20 @@ export default async function ReportesPage({
     totalIngresosExtra,
     gananciaNeta,
   } = await obtenerDatosReporte(rango);
+
+  const filtrosTicketsDetalle = {
+    servicio: params.servicio ?? "",
+    tamano: (params.tamano ?? "") as TamanoVehiculo | "",
+    metodo: (params.metodo ?? "") as PagoMetodo | "",
+    lavador: params.lavador ?? "",
+    q: params.q ?? "",
+  };
+  const {
+    filas: ticketsDetalle,
+    totalCoincidencias: totalTicketsDetalle,
+    lavadoresPresentes,
+    serviciosPresentes: serviciosPresentesDetalle,
+  } = await buscarTicketsDetalle(rango, filtrosTicketsDetalle);
 
   const qs = queryStringRango(rango);
 
@@ -342,6 +368,17 @@ export default async function ReportesPage({
           </table>
         </div>
       </div>
+
+      <TicketsDetalleSeccion
+        basePath="/reportes"
+        rango={rango}
+        filtros={filtrosTicketsDetalle}
+        filas={ticketsDetalle}
+        totalCoincidencias={totalTicketsDetalle}
+        lavadoresPresentes={lavadoresPresentes}
+        serviciosPresentes={serviciosPresentesDetalle}
+        incluirPeriodo={false}
+      />
 
       <div className="flex flex-col gap-3">
         <h2 className="font-semibold text-foreground">Historial de cierres de turno</h2>

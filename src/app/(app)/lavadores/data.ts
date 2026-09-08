@@ -271,7 +271,9 @@ export type TiempoPorPaqueteCelda = {
   tamano: TamanoVehiculo;
   promedioMin: number | null;
   minMin: number | null;
+  minLavador: string | null;
   maxMin: number | null;
+  maxLavador: string | null;
   n: number;
 };
 
@@ -291,18 +293,21 @@ export async function obtenerTiemposPorPaquete(rango: RangoResuelto): Promise<{
 }> {
   const supabase = await createClient();
 
-  const [{ data: serviciosRaw }, tickets] = await Promise.all([
+  const [{ data: serviciosRaw }, { data: lavadoresRaw }, tickets] = await Promise.all([
     supabase.from("servicios_catalogo").select("id, nombre").eq("activo", true).order("orden").order("nombre"),
+    supabase.from("lavadores").select("id, nombre"),
     ticketsLavadosEnRango(rango),
   ]);
 
-  const grupos = new Map<string, number[]>();
+  const nombrePorLavador = new Map((lavadoresRaw ?? []).map((l) => [l.id, l.nombre]));
+
+  const grupos = new Map<string, { tiempoLavadoMin: number; lavadorId: string }[]>();
   for (const t of tickets) {
     if (t.tiempoLavadoMin === null) continue;
     if (!TAMANOS_TABLA_PAQUETES.includes(t.tamanoVehiculo)) continue;
     const clave = `${t.servicioId}::${t.tamanoVehiculo}`;
     const lista = grupos.get(clave) ?? [];
-    lista.push(t.tiempoLavadoMin);
+    lista.push({ tiempoLavadoMin: t.tiempoLavadoMin, lavadorId: t.lavadorId });
     grupos.set(clave, lista);
   }
 
@@ -311,12 +316,17 @@ export async function obtenerTiemposPorPaquete(rango: RangoResuelto): Promise<{
   for (const s of servicios) {
     for (const tamano of TAMANOS_TABLA_PAQUETES) {
       const lista = grupos.get(`${s.id}::${tamano}`) ?? [];
+      const masRapida = lista.length > 0 ? lista.reduce((a, b) => (b.tiempoLavadoMin < a.tiempoLavadoMin ? b : a)) : null;
+      const masLenta = lista.length > 0 ? lista.reduce((a, b) => (b.tiempoLavadoMin > a.tiempoLavadoMin ? b : a)) : null;
       celdas.push({
         servicioId: s.id,
         tamano,
-        promedioMin: lista.length > 0 ? lista.reduce((a, b) => a + b, 0) / lista.length : null,
-        minMin: lista.length > 0 ? Math.min(...lista) : null,
-        maxMin: lista.length > 0 ? Math.max(...lista) : null,
+        promedioMin:
+          lista.length > 0 ? lista.reduce((a, b) => a + b.tiempoLavadoMin, 0) / lista.length : null,
+        minMin: masRapida?.tiempoLavadoMin ?? null,
+        minLavador: masRapida ? (nombrePorLavador.get(masRapida.lavadorId) ?? null) : null,
+        maxMin: masLenta?.tiempoLavadoMin ?? null,
+        maxLavador: masLenta ? (nombrePorLavador.get(masLenta.lavadorId) ?? null) : null,
         n: lista.length,
       });
     }

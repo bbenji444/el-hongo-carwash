@@ -74,7 +74,7 @@ export function TiemposPorPaqueteGrid({
           <tbody>
             {tamanos.map((tamano) => (
               <tr key={tamano}>
-                <th className="whitespace-nowrap px-1 py-1 text-left text-xs font-medium text-muted">
+                <th className="whitespace-nowrap px-1 py-1 text-left text-sm font-medium text-foreground">
                   {emojiPorTamano(config, tamano)} {nombreTamano(tamano)}
                 </th>
                 {servicios.map((s) => {
@@ -129,8 +129,11 @@ export function TiemposPorPaqueteGrid({
           <span className="font-medium text-foreground">
             {servicioSeleccionado?.nombre} · {nombreTamano(celdaSeleccionada.tamano)}:
           </span>{" "}
-          promedio {formatearMin(celdaSeleccionada.promedioMin)} · más rápida {formatearMin(celdaSeleccionada.minMin!)}{" "}
-          · más lenta {formatearMin(celdaSeleccionada.maxMin!)} · basado en {celdaSeleccionada.n} lavada
+          promedio {formatearMin(celdaSeleccionada.promedioMin)} · más rápida {formatearMin(celdaSeleccionada.minMin!)}
+          {celdaSeleccionada.minLavador && ` (${celdaSeleccionada.minLavador})`} · más lenta{" "}
+          {formatearMin(celdaSeleccionada.maxMin!)}
+          {celdaSeleccionada.maxLavador && ` (${celdaSeleccionada.maxLavador})`} · basado en {celdaSeleccionada.n}{" "}
+          lavada
           {celdaSeleccionada.n === 1 ? "" : "s"}
         </div>
       )}

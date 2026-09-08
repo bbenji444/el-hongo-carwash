@@ -6,6 +6,13 @@ import { emojiPorTamano } from "@/lib/configuracionDefaults";
 import type { TamanoVehiculo, ConfiguracionApp } from "@/types/database.types";
 import type { TiempoPorPaqueteCelda } from "./lavadores/data";
 
+// Solo para esta tabla: "Hongo Premium"/"Hongo Max" se acortan a
+// "Premium"/"Max" para que quepan mejor en las columnas — el nombre
+// completo del paquete no cambia en ningún otro lado de la app.
+function nombreCortoServicio(nombre: string) {
+  return nombre.replace(/^Hongo\s+/i, "");
+}
+
 function formatearMin(min: number) {
   const redondeado = Math.round(min);
   if (redondeado < 60) return `${redondeado} min`;
@@ -66,7 +73,7 @@ export function TiemposPorPaqueteGrid({
               <th className="w-28 text-left text-xs font-medium text-muted">Tamaño \ Paquete</th>
               {servicios.map((s) => (
                 <th key={s.id} className="px-1 py-1 text-center text-xs font-semibold text-foreground">
-                  {s.nombre}
+                  {nombreCortoServicio(s.nombre)}
                 </th>
               ))}
             </tr>

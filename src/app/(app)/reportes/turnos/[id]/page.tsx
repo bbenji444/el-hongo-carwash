@@ -23,7 +23,7 @@ export default async function DesgloseTurnoPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ servicio?: string; tamano?: string; metodo?: string }>;
+  searchParams: Promise<{ servicio?: string; tamano?: string; metodo?: string; lavador?: string; q?: string }>;
 }) {
   const { id } = await params;
   const filtros = await searchParams;
@@ -158,20 +158,35 @@ export default async function DesgloseTurnoPage({
   });
 
   const serviciosPresentes = [...nombrePorServicio.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  const lavadoresPresentes = [...nombrePorLavador.entries()]
+    .map(([lid, l]) => [lid, l.nombre] as [string, string])
+    .sort((a, b) => a[1].localeCompare(b[1]));
 
   const filtroServicio = filtros.servicio ?? "";
   const filtroTamano = (filtros.tamano ?? "") as TamanoVehiculo | "";
   const filtroMetodo = (filtros.metodo ?? "") as PagoMetodo | "";
+  const filtroLavador = filtros.lavador ?? "";
+  const filtroQ = (filtros.q ?? "").trim().toLowerCase();
 
   const ticketsFiltrados = ticketsConDetalle.filter((t) => {
     if (filtroServicio && t.servicio_id !== filtroServicio) return false;
     if (filtroTamano && t.tamano_vehiculo !== filtroTamano) return false;
     if (filtroMetodo && !t.pagos.some((p) => p.metodo === filtroMetodo)) return false;
+    if (filtroLavador && t.lavador_id !== filtroLavador) return false;
+    if (filtroQ) {
+      // Busca coincidencias tanto en el distintivo (descripción del carro)
+      // como en la placa, en el mismo cuadro — no hace falta saber cuál de
+      // los dos vas a escribir.
+      const candidatos = [t.distintivo, t.placa, t.vehiculo?.placas]
+        .filter((v): v is string => Boolean(v))
+        .map((v) => v.toLowerCase());
+      if (!candidatos.some((c) => c.includes(filtroQ))) return false;
+    }
     return true;
   });
 
   const totalFiltrado = ticketsFiltrados.reduce((acc, t) => acc + t.montoTotal, 0);
-  const hayFiltro = Boolean(filtroServicio || filtroTamano || filtroMetodo);
+  const hayFiltro = Boolean(filtroServicio || filtroTamano || filtroMetodo || filtroLavador || filtroQ);
 
   return (
     <div className="flex flex-col gap-6">
@@ -274,6 +289,36 @@ export default async function DesgloseTurnoPage({
               </option>
             ))}
           </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="lavador" className="text-[11px] text-muted">
+            Lavador
+          </label>
+          <select
+            id="lavador"
+            name="lavador"
+            defaultValue={filtroLavador}
+            className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none focus:border-accent"
+          >
+            <option value="">Todos</option>
+            {lavadoresPresentes.map(([lid, nombre]) => (
+              <option key={lid} value={lid}>
+                {nombre}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="q" className="text-[11px] text-muted">
+            Buscar carro o placa
+          </label>
+          <input
+            id="q"
+            name="q"
+            defaultValue={filtros.q ?? ""}
+            placeholder="Ej. Jetta o ABC-123"
+            className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none focus:border-accent"
+          />
         </div>
         <button
           type="submit"

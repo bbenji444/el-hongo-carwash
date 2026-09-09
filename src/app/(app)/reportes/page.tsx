@@ -52,6 +52,22 @@ export default async function ReportesPage({
   }
 
   const rango = resolverRango(params);
+  const filtrosTicketsDetalle = {
+    servicio: params.servicio ?? "",
+    tamano: (params.tamano ?? "") as TamanoVehiculo | "",
+    metodo: (params.metodo ?? "") as PagoMetodo | "",
+    lavador: params.lavador ?? "",
+    q: params.q ?? "",
+  };
+
+  // Las dos consultas no dependen entre sí (la segunda solo usa params, no
+  // el resultado de la primera) — se piden juntas en vez de una tras otra
+  // para no sumar sus tiempos de espera.
+  const [datosReporte, datosTicketsDetalle] = await Promise.all([
+    obtenerDatosReporte(rango),
+    buscarTicketsDetalle(rango, filtrosTicketsDetalle),
+  ]);
+
   const {
     ventasTotales,
     numTickets,
@@ -67,21 +83,14 @@ export default async function ReportesPage({
     ingresos,
     totalIngresosExtra,
     gananciaNeta,
-  } = await obtenerDatosReporte(rango);
+  } = datosReporte;
 
-  const filtrosTicketsDetalle = {
-    servicio: params.servicio ?? "",
-    tamano: (params.tamano ?? "") as TamanoVehiculo | "",
-    metodo: (params.metodo ?? "") as PagoMetodo | "",
-    lavador: params.lavador ?? "",
-    q: params.q ?? "",
-  };
   const {
     filas: ticketsDetalle,
     totalCoincidencias: totalTicketsDetalle,
     lavadoresPresentes,
     serviciosPresentes: serviciosPresentesDetalle,
-  } = await buscarTicketsDetalle(rango, filtrosTicketsDetalle);
+  } = datosTicketsDetalle;
 
   const qs = queryStringRango(rango);
 

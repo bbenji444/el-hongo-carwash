@@ -151,14 +151,6 @@ export default async function DashboardPage({
     total,
   }));
 
-  // Autos lavados por lavador (últimos 7 días): igual que siempre, ventana
-  // móvil de 7 días.
-  const { lavadores: lavadoresStats } = await obtenerDatosLavadores(resolverRango({ periodo: "7d" }));
-  const lavadoresActivos = lavadoresStats.filter((l) => l.activo);
-  const autosPorLavador = [...lavadoresActivos]
-    .sort((a, b) => b.autosLavados - a.autosLavados)
-    .map((l) => ({ nombre: l.nombre, autos: l.autosLavados }));
-
   // Eficiencia/volumen ajustado/satisfacción: métricas nuevas (fase 38) —
   // se cuentan desde esta fecha fija en vez de los últimos 7 días, para no
   // mezclar datos de antes de que existiera el ajuste por dificultad ni la
@@ -173,8 +165,6 @@ export default async function DashboardPage({
     desdeInput: INICIO_METRICA_RENDIMIENTO,
     hastaInput: "",
   };
-  const { lavadores: lavadoresRendimiento } = await obtenerDatosLavadores(rangoRendimiento);
-  const lavadoresRendimientoActivos = lavadoresRendimiento.filter((l) => l.activo);
 
   // Esta tarjeta sí tiene su propio filtro de período (independiente del
   // resto de las métricas de rendimiento, que se cuentan desde el 6 sep
@@ -185,7 +175,24 @@ export default async function DashboardPage({
     desde: paramsTiempos.tdesde,
     hasta: paramsTiempos.thasta,
   });
-  const tiemposPorPaquete = await obtenerTiemposPorPaquete(rangoTiempos);
+
+  // Ninguna de estas tres consultas depende de las otras — se piden todas
+  // a la vez en vez de una tras otra (antes tardaban lo que suman las tres
+  // juntas; era la causa real de que el Dashboard se sintiera lento).
+  const [{ lavadores: lavadoresStats }, { lavadores: lavadoresRendimiento }, tiemposPorPaquete] = await Promise.all([
+    obtenerDatosLavadores(resolverRango({ periodo: "7d" })),
+    obtenerDatosLavadores(rangoRendimiento),
+    obtenerTiemposPorPaquete(rangoTiempos),
+  ]);
+
+  // Autos lavados por lavador (últimos 7 días): igual que siempre, ventana
+  // móvil de 7 días.
+  const lavadoresActivos = lavadoresStats.filter((l) => l.activo);
+  const autosPorLavador = [...lavadoresActivos]
+    .sort((a, b) => b.autosLavados - a.autosLavados)
+    .map((l) => ({ nombre: l.nombre, autos: l.autosLavados }));
+
+  const lavadoresRendimientoActivos = lavadoresRendimiento.filter((l) => l.activo);
 
   const relacionLavadores = lavadoresRendimientoActivos
     .filter((l) => l.eficiencia !== null && l.volumenAjustadoMin !== null)

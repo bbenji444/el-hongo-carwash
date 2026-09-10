@@ -147,6 +147,10 @@ export function TicketsBoard({
   // en ese instante, y se le suma siempre al "ahora" del cronómetro.
   const [offsetMs, setOffsetMs] = useState(0);
   useEffect(() => {
+    // Date.now() es impuro a propósito aquí: el efecto sincroniza el offset
+    // contra la hora real del reloj del navegador en el momento en que
+    // cambia serverAhora, no algo derivable de forma pura durante el render.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setOffsetMs(new Date(serverAhora).getTime() - Date.now());
   }, [serverAhora]);
   const ahoraCorregido = ahora + offsetMs;
@@ -156,8 +160,10 @@ export function TicketsBoard({
   const enProcesoPorLavador = useMemo(() => {
     const mapa: Record<string, number> = {};
     for (const t of tickets) {
-      if (t.estado !== "entregado" && t.lavador?.id) {
-        mapa[t.lavador.id] = (mapa[t.lavador.id] ?? 0) + 1;
+      if (t.estado !== "entregado") {
+        for (const l of t.lavadores) {
+          mapa[l.id] = (mapa[l.id] ?? 0) + 1;
+        }
       }
     }
     return mapa;
@@ -342,9 +348,9 @@ export function TicketsBoard({
                         + {ticket.extras.map((e) => e.nombre).join(", ")} · ${sumaExtras(ticket.extras).toFixed(2)}
                       </p>
                     )}
-                    {ticket.lavador && (
+                    {ticket.lavadores.length > 0 && (
                       <p className="text-xs text-muted">
-                        {config.emoji_lavador} {ticket.lavador.nombre}
+                        {config.emoji_lavador} {ticket.lavadores.map((l) => l.nombre).join(", ")}
                       </p>
                     )}
 
@@ -558,7 +564,10 @@ export function TicketsBoard({
           ticketActual={{
             servicioNombre: clienteDetalleTicket.servicio?.nombre ?? null,
             empleadoNombre: clienteDetalleTicket.empleado?.nombre ?? null,
-            lavadorNombre: clienteDetalleTicket.lavador?.nombre ?? null,
+            lavadorNombre:
+              clienteDetalleTicket.lavadores.length > 0
+                ? clienteDetalleTicket.lavadores.map((l) => l.nombre).join(", ")
+                : null,
             distintivo: clienteDetalleTicket.distintivo,
             placa: clienteDetalleTicket.placa ?? clienteDetalleTicket.vehiculo?.placas ?? null,
           }}

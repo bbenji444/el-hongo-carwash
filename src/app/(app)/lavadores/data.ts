@@ -58,36 +58,50 @@ async function ticketsLavadosEnRango(rango: RangoResuelto) {
 
   const ticketsQuery = supabase
     .from("tickets")
-    .select("id, lavador_id, servicio_id, tamano_vehiculo, hora_entrada, hora_inicio_lavado, hora_fin_lavado, calificacion")
-    .eq("estado", "entregado")
-    .not("lavador_id", "is", null);
+    .select("id, servicio_id, tamano_vehiculo, hora_entrada, hora_inicio_lavado, hora_fin_lavado, calificacion")
+    .eq("estado", "entregado");
   if (rango.desdeIso) ticketsQuery.gte("hora_entrada", rango.desdeIso);
   if (rango.hastaIso) ticketsQuery.lte("hora_entrada", rango.hastaIso);
 
-  const { data: tickets } = await ticketsQuery;
-  const ticketIds = (tickets ?? []).map((t) => t.id);
+  const { data: ticketsRaw } = await ticketsQuery;
+  const ticketIds = (ticketsRaw ?? []).map((t) => t.id);
 
-  const { data: pagos } = ticketIds.length
-    ? await supabase.from("pagos").select("ticket_id, monto").in("ticket_id", ticketIds)
-    : { data: [] };
+  const [{ data: pagos }, { data: asignaciones }] = await Promise.all([
+    ticketIds.length
+      ? supabase.from("pagos").select("ticket_id, monto").in("ticket_id", ticketIds)
+      : Promise.resolve({ data: [] }),
+    ticketIds.length
+      ? supabase.from("ticket_lavadores").select("ticket_id, lavador_id").in("ticket_id", ticketIds)
+      : Promise.resolve({ data: [] }),
+  ]);
 
   const montoPorTicket = new Map<string, number>();
   for (const p of pagos ?? []) {
     montoPorTicket.set(p.ticket_id, (montoPorTicket.get(p.ticket_id) ?? 0) + p.monto);
   }
 
-  return (tickets ?? []).map((t) => ({
-    id: t.id,
-    lavadorId: t.lavador_id as string,
-    servicioId: t.servicio_id,
-    tamanoVehiculo: t.tamano_vehiculo,
-    monto: montoPorTicket.get(t.id) ?? 0,
-    calificacion: t.calificacion,
-    tiempoLavadoMin:
-      t.hora_inicio_lavado && t.hora_fin_lavado
-        ? (new Date(t.hora_fin_lavado).getTime() - new Date(t.hora_inicio_lavado).getTime()) / 60000
-        : null,
-  }));
+  // Uno o más lavadores por ticket (empiezan a lavar en pareja a veces).
+  const lavadorIdsPorTicket = new Map<string, string[]>();
+  for (const a of asignaciones ?? []) {
+    const lista = lavadorIdsPorTicket.get(a.ticket_id) ?? [];
+    lista.push(a.lavador_id);
+    lavadorIdsPorTicket.set(a.ticket_id, lista);
+  }
+
+  return (ticketsRaw ?? [])
+    .map((t) => ({
+      id: t.id,
+      lavadorIds: lavadorIdsPorTicket.get(t.id) ?? [],
+      servicioId: t.servicio_id,
+      tamanoVehiculo: t.tamano_vehiculo,
+      monto: montoPorTicket.get(t.id) ?? 0,
+      calificacion: t.calificacion,
+      tiempoLavadoMin:
+        t.hora_inicio_lavado && t.hora_fin_lavado
+          ? (new Date(t.hora_fin_lavado).getTime() - new Date(t.hora_inicio_lavado).getTime()) / 60000
+          : null,
+    }))
+    .filter((t) => t.lavadorIds.length > 0);
 }
 
 // Mínimo de tickets con tiempo cronometrado que debe tener una combinación
@@ -167,40 +181,47 @@ export async function obtenerDatosLavadores(rango: RangoResuelto): Promise<Datos
     }
   >();
   for (const t of tickets) {
-    const entry =
-      statsPorLavador.get(t.lavadorId) ?? {
-        autos: 0,
-        ventas: 0,
-        porTamano: conteoVacio(),
-        sumaTiempoMin: 0,
-        conTiempo: 0,
-        sumaRatioEficiencia: 0,
-        conEficiencia: 0,
-        volumenAjustadoMin: 0,
-        sumaCalificacion: 0,
-        conCalificacion: 0,
-      };
-    entry.autos += 1;
-    entry.ventas += t.monto;
-    entry.porTamano[t.tamanoVehiculo] += 1;
-
+    // El tiempo esperado depende solo del combo servicio+tamaño del ticket,
+    // no de cuántos lavadores lo hicieron — se calcula una vez por ticket.
     const esperado = tiempoEsperado(t.servicioId, t.tamanoVehiculo);
-    if (esperado !== null && esperado > 0) {
-      entry.volumenAjustadoMin += esperado;
-      if (t.tiempoLavadoMin !== null) {
-        entry.sumaRatioEficiencia += t.tiempoLavadoMin / esperado;
-        entry.conEficiencia += 1;
+    // Cada lavador asignado recibe el crédito COMPLETO del ticket (autos,
+    // tiempo, ventas, calificación) — no se reparte entre quienes lavaron
+    // en pareja.
+    for (const lavadorId of t.lavadorIds) {
+      const entry =
+        statsPorLavador.get(lavadorId) ?? {
+          autos: 0,
+          ventas: 0,
+          porTamano: conteoVacio(),
+          sumaTiempoMin: 0,
+          conTiempo: 0,
+          sumaRatioEficiencia: 0,
+          conEficiencia: 0,
+          volumenAjustadoMin: 0,
+          sumaCalificacion: 0,
+          conCalificacion: 0,
+        };
+      entry.autos += 1;
+      entry.ventas += t.monto;
+      entry.porTamano[t.tamanoVehiculo] += 1;
+
+      if (esperado !== null && esperado > 0) {
+        entry.volumenAjustadoMin += esperado;
+        if (t.tiempoLavadoMin !== null) {
+          entry.sumaRatioEficiencia += t.tiempoLavadoMin / esperado;
+          entry.conEficiencia += 1;
+        }
       }
+      if (t.tiempoLavadoMin !== null) {
+        entry.sumaTiempoMin += t.tiempoLavadoMin;
+        entry.conTiempo += 1;
+      }
+      if (t.calificacion !== null) {
+        entry.sumaCalificacion += t.calificacion;
+        entry.conCalificacion += 1;
+      }
+      statsPorLavador.set(lavadorId, entry);
     }
-    if (t.tiempoLavadoMin !== null) {
-      entry.sumaTiempoMin += t.tiempoLavadoMin;
-      entry.conTiempo += 1;
-    }
-    if (t.calificacion !== null) {
-      entry.sumaCalificacion += t.calificacion;
-      entry.conCalificacion += 1;
-    }
-    statsPorLavador.set(t.lavadorId, entry);
   }
 
   const previos = Array.from(statsPorLavador.entries()).map(([id, s]) => ({
@@ -307,7 +328,12 @@ export async function obtenerTiemposPorPaquete(rango: RangoResuelto): Promise<{
     if (!TAMANOS_TABLA_PAQUETES.includes(t.tamanoVehiculo)) continue;
     const clave = `${t.servicioId}::${t.tamanoVehiculo}`;
     const lista = grupos.get(clave) ?? [];
-    lista.push({ tiempoLavadoMin: t.tiempoLavadoMin, lavadorId: t.lavadorId });
+    // Cada lavador asignado cuenta ese tiempo como propio (crédito
+    // completo, no repartido) — así "más rápida/lenta y quién" sigue
+    // funcionando bien con parejas.
+    for (const lavadorId of t.lavadorIds) {
+      lista.push({ tiempoLavadoMin: t.tiempoLavadoMin, lavadorId });
+    }
     grupos.set(clave, lista);
   }
 

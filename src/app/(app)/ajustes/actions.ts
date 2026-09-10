@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath, revalidateTag } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { CONFIGURACION_DEFAULT, TAG_CONFIGURACION } from "@/lib/configuracion";
 import type { ConfiguracionApp } from "@/types/database.types";
@@ -8,13 +8,15 @@ import type { ConfiguracionApp } from "@/types/database.types";
 export type ConfiguracionInput = Omit<ConfiguracionApp, "id">;
 
 function revalidarTodo() {
-  // revalidatePath refresca las páginas ya renderizadas; revalidateTag es
-  // lo que de verdad obliga a que obtenerConfiguracion() vuelva a leer de
+  // revalidatePath refresca las páginas ya renderizadas; updateTag es lo
+  // que de verdad obliga a que obtenerConfiguracion() vuelva a leer de
   // Supabase la próxima vez (vive en su propia Data Cache, ver
   // src/lib/configuracion.ts) — sin esto, un cambio aquí podía tardar
-  // hasta una hora en reflejarse en el resto de la app.
+  // hasta una hora en reflejarse en el resto de la app. updateTag (en vez
+  // de revalidateTag) porque esto corre dentro de un Server Action y
+  // queremos que el propio guardado ya vea el cambio de inmediato.
   revalidatePath("/", "layout");
-  revalidateTag(TAG_CONFIGURACION);
+  updateTag(TAG_CONFIGURACION);
 }
 
 export async function actualizarConfiguracion(input: ConfiguracionInput) {

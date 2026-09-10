@@ -38,7 +38,7 @@ export function EditarTicketModal({
 
   const [tamanoVehiculo, setTamanoVehiculo] = useState<TamanoVehiculo>(ticket.tamano_vehiculo);
   const [servicioId, setServicioId] = useState(ticket.servicio_id);
-  const [lavadorId, setLavadorId] = useState(ticket.lavador?.id ?? "");
+  const [lavadorIds, setLavadorIds] = useState<string[]>(ticket.lavadores.map((l) => l.id));
   const [distintivo, setDistintivo] = useState(ticket.distintivo ?? "");
   const [placa, setPlaca] = useState(ticket.placa ?? ticket.vehiculo?.placas ?? "");
   const [extraIds, setExtraIds] = useState<string[]>(ticket.extras.map((e) => e.extra_id));
@@ -47,6 +47,10 @@ export function EditarTicketModal({
 
   function toggleExtra(id: string) {
     setExtraIds((prev) => (prev.includes(id) ? prev.filter((e) => e !== id) : [...prev, id]));
+  }
+
+  function toggleLavador(id: string) {
+    setLavadorIds((prev) => (prev.includes(id) ? prev.filter((l) => l !== id) : [...prev, id]));
   }
 
   function handleGuardar() {
@@ -107,7 +111,7 @@ export function EditarTicketModal({
       const result = await actualizarTicket(ticket.id, {
         servicioId,
         tamanoVehiculo,
-        lavadorId: lavadorId || null,
+        lavadorIds,
         distintivo: distintivo.trim() || null,
         placa: placa.trim() || null,
         vehiculoId,
@@ -273,15 +277,17 @@ export function EditarTicketModal({
 
               {/* Lavador */}
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-muted">Lavador</label>
+                <label className="text-xs font-medium text-muted">
+                  Lavador (puedes seleccionar más de uno si van a lavar en pareja)
+                </label>
                 <div className="grid grid-cols-3 gap-2">
                   {lavadores.map((l) => {
                     const enProceso = enProcesoPorLavador[l.id] ?? 0;
                     return (
                       <BotonSeleccion
                         key={l.id}
-                        seleccionado={lavadorId === l.id}
-                        onClick={() => setLavadorId(l.id)}
+                        seleccionado={lavadorIds.includes(l.id)}
+                        onClick={() => toggleLavador(l.id)}
                       >
                         <span className="text-xl">{config.emoji_lavador}</span>
                         <span className="text-xs font-medium leading-tight">{l.nombre}</span>

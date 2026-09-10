@@ -76,7 +76,6 @@ export default async function TicketsPage() {
   const clienteIds = [...new Set((tickets ?? []).map((t) => t.cliente_id).filter(Boolean))] as string[];
   const vehiculoIds = [...new Set((tickets ?? []).map((t) => t.vehiculo_id).filter(Boolean))] as string[];
   const empleadoIds = [...new Set((tickets ?? []).map((t) => t.empleado_id).filter(Boolean))] as string[];
-  const lavadorIds = [...new Set((tickets ?? []).map((t) => t.lavador_id).filter(Boolean))] as string[];
 
   const ticketIds = (tickets ?? []).map((t) => t.id);
 
@@ -87,6 +86,7 @@ export default async function TicketsPage() {
     { data: lavadoresTickets },
     { data: pagos },
     { data: ticketExtras },
+    { data: asignacionesLavadores },
   ] = await Promise.all([
     clienteIds.length
       ? supabase.from("clientes").select("id, nombre, telefono").in("id", clienteIds)
@@ -97,14 +97,15 @@ export default async function TicketsPage() {
     empleadoIds.length
       ? supabase.from("usuarios").select("id, nombre").in("id", empleadoIds)
       : Promise.resolve({ data: [] }),
-    lavadorIds.length
-      ? supabase.from("lavadores").select("id, nombre").in("id", lavadorIds)
-      : Promise.resolve({ data: [] }),
+    supabase.from("lavadores").select("id, nombre"),
     turno
       ? supabase.from("pagos").select("ticket_id, monto, metodo").eq("turno_id", turno.id)
       : Promise.resolve({ data: [] }),
     ticketIds.length
       ? supabase.from("ticket_extras").select("*").in("ticket_id", ticketIds)
+      : Promise.resolve({ data: [] }),
+    ticketIds.length
+      ? supabase.from("ticket_lavadores").select("ticket_id, lavador_id").in("ticket_id", ticketIds)
       : Promise.resolve({ data: [] }),
   ]);
 
@@ -124,6 +125,15 @@ export default async function TicketsPage() {
     lista.push(extra);
     extrasPorTicket.set(extra.ticket_id, lista);
   }
+  // Uno o más lavadores por ticket (empiezan a lavar en pareja a veces).
+  const lavadoresPorTicket = new Map<string, { id: string; nombre: string }[]>();
+  for (const a of asignacionesLavadores ?? []) {
+    const lavador = lavadorMap.get(a.lavador_id);
+    if (!lavador) continue;
+    const lista = lavadoresPorTicket.get(a.ticket_id) ?? [];
+    lista.push(lavador);
+    lavadoresPorTicket.set(a.ticket_id, lista);
+  }
 
   const ticketsConDetalle = (tickets ?? []).map((t) => ({
     ...t,
@@ -131,7 +141,7 @@ export default async function TicketsPage() {
     cliente: t.cliente_id ? clienteMap.get(t.cliente_id) ?? null : null,
     vehiculo: t.vehiculo_id ? vehiculoMap.get(t.vehiculo_id) ?? null : null,
     empleado: t.empleado_id ? empleadoMap.get(t.empleado_id) ?? null : null,
-    lavador: t.lavador_id ? lavadorMap.get(t.lavador_id) ?? null : null,
+    lavadores: lavadoresPorTicket.get(t.id) ?? [],
     tienePago: (pagosPorTicket.get(t.id) ?? []).length > 0 || t.lavada_gratis,
     extras: extrasPorTicket.get(t.id) ?? [],
   }));

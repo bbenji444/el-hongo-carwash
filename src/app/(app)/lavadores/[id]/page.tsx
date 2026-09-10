@@ -65,17 +65,37 @@ export default async function DesgloseLavadorPage({
   const rango = resolverRango(searchParamsResueltos);
   const qs = queryStringRango(rango);
 
-  const ticketsQuery = supabase
-    .from("tickets")
-    .select(
-      "id, cliente_id, vehiculo_id, distintivo, placa, servicio_id, tamano_vehiculo, estado, hora_entrada, hora_inicio_lavado, hora_fin_lavado"
-    )
-    .eq("lavador_id", id)
-    .order("hora_entrada", { ascending: false });
-  if (rango.desdeIso) ticketsQuery.gte("hora_entrada", rango.desdeIso);
-  if (rango.hastaIso) ticketsQuery.lte("hora_entrada", rango.hastaIso);
+  const { data: asignaciones } = await supabase.from("ticket_lavadores").select("ticket_id").eq("lavador_id", id);
+  const ticketIdsAsignados = (asignaciones ?? []).map((a) => a.ticket_id);
 
-  const { data: tickets } = await ticketsQuery;
+  let tickets: Array<{
+    id: string;
+    cliente_id: string | null;
+    vehiculo_id: string | null;
+    distintivo: string | null;
+    placa: string | null;
+    servicio_id: string;
+    tamano_vehiculo: TamanoVehiculo;
+    estado: string;
+    hora_entrada: string;
+    hora_inicio_lavado: string | null;
+    hora_fin_lavado: string | null;
+  }> = [];
+
+  if (ticketIdsAsignados.length > 0) {
+    const ticketsQuery = supabase
+      .from("tickets")
+      .select(
+        "id, cliente_id, vehiculo_id, distintivo, placa, servicio_id, tamano_vehiculo, estado, hora_entrada, hora_inicio_lavado, hora_fin_lavado"
+      )
+      .in("id", ticketIdsAsignados)
+      .order("hora_entrada", { ascending: false });
+    if (rango.desdeIso) ticketsQuery.gte("hora_entrada", rango.desdeIso);
+    if (rango.hastaIso) ticketsQuery.lte("hora_entrada", rango.hastaIso);
+
+    const { data } = await ticketsQuery;
+    tickets = data ?? [];
+  }
 
   const servicioIds = [...new Set((tickets ?? []).map((t) => t.servicio_id))];
   const clienteIds = [...new Set((tickets ?? []).map((t) => t.cliente_id).filter(Boolean))] as string[];

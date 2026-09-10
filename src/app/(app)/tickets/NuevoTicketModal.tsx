@@ -50,11 +50,15 @@ export function NuevoTicketModal({
   const [tamanoVehiculo, setTamanoVehiculo] = useState<TamanoVehiculo>("automovil");
 
   const [servicioId, setServicioId] = useState(servicios[0]?.id ?? "");
-  const [lavadorId, setLavadorId] = useState("");
+  const [lavadorIds, setLavadorIds] = useState<string[]>([]);
   const [extraIds, setExtraIds] = useState<string[]>([]);
 
   function toggleExtra(id: string) {
     setExtraIds((prev) => (prev.includes(id) ? prev.filter((e) => e !== id) : [...prev, id]));
+  }
+
+  function toggleLavador(id: string) {
+    setLavadorIds((prev) => (prev.includes(id) ? prev.filter((l) => l !== id) : [...prev, id]));
   }
 
   const [lealtad, setLealtad] = useState<LealtadInfo | null>(null);
@@ -68,11 +72,14 @@ export function NuevoTicketModal({
   }, [clienteQuery, clienteSeleccionado]);
 
   useEffect(() => {
-    if (!clienteSeleccionado) {
-      setLealtad(null);
-      return;
-    }
-    progresoLealtadCliente(clienteSeleccionado.id).then((res) => setLealtad(res.data));
+    if (!clienteSeleccionado) return;
+    let cancelado = false;
+    progresoLealtadCliente(clienteSeleccionado.id).then((res) => {
+      if (!cancelado) setLealtad(res.data);
+    });
+    return () => {
+      cancelado = true;
+    };
   }, [clienteSeleccionado]);
 
   // Autocompletado por placa: conforme se va escribiendo, se buscan
@@ -154,7 +161,7 @@ export function NuevoTicketModal({
       setError("Selecciona un paquete.");
       return;
     }
-    if (!lavadorId) {
+    if (lavadorIds.length === 0) {
       setError("Selecciona quién va a lavar el auto.");
       return;
     }
@@ -205,7 +212,7 @@ export function NuevoTicketModal({
         servicioId,
         tamanoVehiculo,
         empleadoId: usuarioActualId,
-        lavadorId,
+        lavadorIds,
         turnoId,
         extraIds,
       });
@@ -297,7 +304,7 @@ export function NuevoTicketModal({
           </div>
 
           {/* Programa de lealtad */}
-          {lealtad && (
+          {clienteSeleccionado && lealtad && (
             <div
               className={`rounded-lg border px-3 py-2 text-sm ${
                 lealtad.proximaGratis
@@ -429,12 +436,18 @@ export function NuevoTicketModal({
 
           {/* Lavador */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-muted">Lavador</label>
+            <label className="text-xs font-medium text-muted">
+              Lavador (puedes seleccionar más de uno si van a lavar en pareja)
+            </label>
             <div className="grid grid-cols-3 gap-2">
               {lavadores.map((l) => {
                 const enProceso = enProcesoPorLavador[l.id] ?? 0;
                 return (
-                  <BotonSeleccion key={l.id} seleccionado={lavadorId === l.id} onClick={() => setLavadorId(l.id)}>
+                  <BotonSeleccion
+                    key={l.id}
+                    seleccionado={lavadorIds.includes(l.id)}
+                    onClick={() => toggleLavador(l.id)}
+                  >
                     <span className="text-xl">{config.emoji_lavador}</span>
                     <span className="text-xs font-medium leading-tight">{l.nombre}</span>
                     {enProceso > 0 && <span className="text-[10px] text-warning">{enProceso} en curso</span>}

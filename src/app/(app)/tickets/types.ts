@@ -7,7 +7,9 @@ export type TicketConDetalle = Ticket & {
   cliente: { id: string; nombre: string; telefono: string | null } | null;
   vehiculo: { id: string; placas: string | null; tipo_vehiculo: string | null } | null;
   empleado: { id: string; nombre: string } | null;
-  lavador: { id: string; nombre: string } | null;
+  // Uno o más lavadores asignados (empiezan a lavar en pareja a veces) —
+  // arreglo vacío si nadie está asignado todavía, nunca null.
+  lavadores: { id: string; nombre: string }[];
   tienePago: boolean;
   extras: TicketExtra[];
 };

@@ -206,7 +206,7 @@ export async function crearTicket(input: {
   servicioId: string;
   tamanoVehiculo: TamanoVehiculo;
   empleadoId: string;
-  lavadorId: string | null;
+  lavadorIds: string[];
   turnoId: string;
   extraIds?: string[];
 }) {
@@ -240,7 +240,6 @@ export async function crearTicket(input: {
       servicio_id: input.servicioId,
       tamano_vehiculo: input.tamanoVehiculo,
       empleado_id: input.empleadoId,
-      lavador_id: input.lavadorId,
       turno_id: input.turnoId,
       creado_por: user.id,
     })
@@ -249,6 +248,11 @@ export async function crearTicket(input: {
 
   if (error) return { error: error.message };
 
+  if (input.lavadorIds.length > 0) {
+    const errorLavadores = await sincronizarLavadoresTicket(supabase, ticket.id, input.lavadorIds);
+    if (errorLavadores) return { error: errorLavadores };
+  }
+
   if (input.extraIds && input.extraIds.length > 0) {
     const errorExtras = await sincronizarExtrasTicket(supabase, ticket.id, input.extraIds);
     if (errorExtras) return { error: errorExtras };
@@ -256,6 +260,28 @@ export async function crearTicket(input: {
 
   revalidatePath("/", "layout");
   return { error: null };
+}
+
+// Reemplaza TODOS los lavadores asignados a un ticket por el conjunto que
+// se manda (mismo patrón que sincronizarExtrasTicket: borra y vuelve a
+// insertar en vez de calcular un diff — la lista siempre es corta). Se usa
+// tanto al crear como al editar un ticket.
+async function sincronizarLavadoresTicket(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  ticketId: string,
+  lavadorIds: string[]
+): Promise<string | null> {
+  const { error: borrarError } = await supabase.from("ticket_lavadores").delete().eq("ticket_id", ticketId);
+  if (borrarError) return borrarError.message;
+
+  if (lavadorIds.length === 0) return null;
+
+  const { error: insertError } = await supabase
+    .from("ticket_lavadores")
+    .insert(lavadorIds.map((lavadorId) => ({ ticket_id: ticketId, lavador_id: lavadorId })));
+
+  if (insertError) return insertError.message;
+  return null;
 }
 
 // Copia nombre y precio del extra tal como están en el catálogo al momento
@@ -495,7 +521,7 @@ export async function actualizarTicket(
   input: {
     servicioId: string;
     tamanoVehiculo: TamanoVehiculo;
-    lavadorId: string | null;
+    lavadorIds: string[];
     distintivo: string | null;
     placa: string | null;
     vehiculoId: string | null;
@@ -531,7 +557,6 @@ export async function actualizarTicket(
     .update({
       servicio_id: input.servicioId,
       tamano_vehiculo: input.tamanoVehiculo,
-      lavador_id: input.lavadorId,
       distintivo: input.distintivo,
       placa: input.placa,
       vehiculo_id: vehiculoId,
@@ -540,6 +565,9 @@ export async function actualizarTicket(
     .eq("id", ticketId);
 
   if (error) return { error: error.message };
+
+  const errorLavadores = await sincronizarLavadoresTicket(supabase, ticketId, input.lavadorIds);
+  if (errorLavadores) return { error: errorLavadores };
 
   // Se reemplazan todos los extras del ticket por la selección actual (en
   // vez de calcular un diff) — es una lista corta y así siempre queda en

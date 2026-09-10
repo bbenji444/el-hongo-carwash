@@ -190,6 +190,21 @@ export interface Database {
         };
         Relationships: [];
       };
+      ticket_lavadores: {
+        Row: {
+          ticket_id: string;
+          lavador_id: string;
+        };
+        Insert: {
+          ticket_id: string;
+          lavador_id: string;
+        };
+        Update: {
+          ticket_id?: string;
+          lavador_id?: string;
+        };
+        Relationships: [];
+      };
       clientes: {
         Row: {
           id: string;

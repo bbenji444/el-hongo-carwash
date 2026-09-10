@@ -85,7 +85,6 @@ export default async function DesgloseTurnoPage({
   const clienteIds = [...new Set((tickets ?? []).map((t) => t.cliente_id).filter(Boolean))] as string[];
   const vehiculoIds = [...new Set((tickets ?? []).map((t) => t.vehiculo_id).filter(Boolean))] as string[];
   const empleadoIds = [...new Set((tickets ?? []).map((t) => t.empleado_id).filter(Boolean))] as string[];
-  const lavadorIds = [...new Set((tickets ?? []).map((t) => t.lavador_id).filter(Boolean))] as string[];
   const ticketIds = (tickets ?? []).map((t) => t.id);
 
   const [
@@ -96,6 +95,7 @@ export default async function DesgloseTurnoPage({
     { data: lavadoresTurno },
     { data: usuariosNombres },
     { data: ticketExtras },
+    { data: asignacionesLavadores },
   ] = await Promise.all([
     servicioIds.length
       ? supabase.from("servicios_catalogo").select("id, nombre").in("id", servicioIds)
@@ -109,12 +109,13 @@ export default async function DesgloseTurnoPage({
     empleadoIds.length
       ? supabase.from("usuarios").select("id, nombre").in("id", empleadoIds)
       : Promise.resolve({ data: [] }),
-    lavadorIds.length
-      ? supabase.from("lavadores").select("id, nombre").in("id", lavadorIds)
-      : Promise.resolve({ data: [] }),
+    supabase.from("lavadores").select("id, nombre"),
     supabase.from("usuarios").select("id, nombre").in("id", [turno.usuario_apertura_id, turno.usuario_cierre_id].filter(Boolean) as string[]),
     ticketIds.length
       ? supabase.from("ticket_extras").select("*").in("ticket_id", ticketIds)
+      : Promise.resolve({ data: [] }),
+    ticketIds.length
+      ? supabase.from("ticket_lavadores").select("ticket_id, lavador_id").in("ticket_id", ticketIds)
       : Promise.resolve({ data: [] }),
   ]);
 
@@ -130,6 +131,15 @@ export default async function DesgloseTurnoPage({
     const lista = extrasPorTicket.get(extra.ticket_id) ?? [];
     lista.push(extra);
     extrasPorTicket.set(extra.ticket_id, lista);
+  }
+  // Uno o más lavadores por ticket (empiezan a lavar en pareja a veces).
+  const lavadoresPorTicket = new Map<string, { id: string; nombre: string }[]>();
+  for (const a of asignacionesLavadores ?? []) {
+    const lavador = nombrePorLavador.get(a.lavador_id);
+    if (!lavador) continue;
+    const lista = lavadoresPorTicket.get(a.ticket_id) ?? [];
+    lista.push(lavador);
+    lavadoresPorTicket.set(a.ticket_id, lista);
   }
 
   const pagosPorTicket = new Map<string, { monto: number; metodo: PagoMetodo }[]>();
@@ -147,7 +157,7 @@ export default async function DesgloseTurnoPage({
       cliente: t.cliente_id ? clienteMap.get(t.cliente_id) ?? null : null,
       vehiculo: t.vehiculo_id ? vehiculoMap.get(t.vehiculo_id) ?? null : null,
       empleado: t.empleado_id ? nombrePorEmpleado.get(t.empleado_id) ?? null : null,
-      lavador: t.lavador_id ? nombrePorLavador.get(t.lavador_id) ?? null : null,
+      lavadores: lavadoresPorTicket.get(t.id) ?? [],
       tienePago: pagosTicket.length > 0 || t.lavada_gratis,
       extras: extrasPorTicket.get(t.id) ?? [],
       pagos: pagosTicket,
@@ -156,8 +166,12 @@ export default async function DesgloseTurnoPage({
   });
 
   const serviciosPresentes = [...nombrePorServicio.entries()].sort((a, b) => a[1].localeCompare(b[1]));
-  const lavadoresPresentes = [...nombrePorLavador.entries()]
-    .map(([lid, l]) => [lid, l.nombre] as [string, string])
+  const lavadorIdsPresentes = new Set<string>();
+  for (const lista of lavadoresPorTicket.values()) {
+    for (const l of lista) lavadorIdsPresentes.add(l.id);
+  }
+  const lavadoresPresentes = [...lavadorIdsPresentes]
+    .map((lid) => [lid, nombrePorLavador.get(lid)?.nombre ?? "—"] as [string, string])
     .sort((a, b) => a[1].localeCompare(b[1]));
 
   const filtroServicio = filtros.servicio ?? "";
@@ -170,7 +184,7 @@ export default async function DesgloseTurnoPage({
     if (filtroServicio && t.servicio_id !== filtroServicio) return false;
     if (filtroTamano && t.tamano_vehiculo !== filtroTamano) return false;
     if (filtroMetodo && !t.pagos.some((p) => p.metodo === filtroMetodo)) return false;
-    if (filtroLavador && t.lavador_id !== filtroLavador) return false;
+    if (filtroLavador && !t.lavadores.some((l) => l.id === filtroLavador)) return false;
     if (filtroQ) {
       // Busca coincidencias tanto en el distintivo (descripción del carro)
       // como en la placa, en el mismo cuadro — no hace falta saber cuál de

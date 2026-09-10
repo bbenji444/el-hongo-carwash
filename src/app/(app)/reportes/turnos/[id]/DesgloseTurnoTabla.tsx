@@ -70,8 +70,10 @@ export function DesgloseTurnoTabla({
   const enProcesoPorLavador = useMemo(() => {
     const mapa: Record<string, number> = {};
     for (const t of tickets) {
-      if (t.estado !== "entregado" && t.lavador?.id) {
-        mapa[t.lavador.id] = (mapa[t.lavador.id] ?? 0) + 1;
+      if (t.estado !== "entregado") {
+        for (const l of t.lavadores) {
+          mapa[l.id] = (mapa[l.id] ?? 0) + 1;
+        }
       }
     }
     return mapa;
@@ -119,7 +121,9 @@ export function DesgloseTurnoTabla({
                 </td>
                 <td className="px-4 py-3 text-muted">{nombreTamano(t.tamano_vehiculo)}</td>
                 <td className="px-4 py-3 text-foreground">{t.empleado?.nombre ?? "—"}</td>
-                <td className="px-4 py-3 text-muted">{t.lavador?.nombre ?? "—"}</td>
+                <td className="px-4 py-3 text-muted">
+                  {t.lavadores.length > 0 ? t.lavadores.map((l) => l.nombre).join(", ") : "—"}
+                </td>
                 <td className="px-4 py-3 text-muted">{duracionLavado(t) ?? "—"}</td>
                 <td className="px-4 py-3 text-muted">{ESTADO_LABEL[t.estado] ?? t.estado}</td>
                 <td className="px-4 py-3 text-muted">

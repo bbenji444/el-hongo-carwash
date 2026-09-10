@@ -38,7 +38,7 @@ export async function buscarTicketsDetalle(rango: RangoResuelto, filtros: Filtro
   let query = supabase
     .from("tickets")
     .select(
-      "id, turno_id, cliente_id, distintivo, placa, servicio_id, tamano_vehiculo, lavador_id, estado, hora_entrada, lavada_gratis"
+      "id, turno_id, cliente_id, distintivo, placa, servicio_id, tamano_vehiculo, estado, hora_entrada, lavada_gratis"
     )
     .order("hora_entrada", { ascending: false })
     .limit(TECHO_CONSULTA);
@@ -47,34 +47,46 @@ export async function buscarTicketsDetalle(rango: RangoResuelto, filtros: Filtro
   if (rango.hastaIso) query = query.lte("hora_entrada", rango.hastaIso);
   if (filtros.servicio) query = query.eq("servicio_id", filtros.servicio);
   if (filtros.tamano) query = query.eq("tamano_vehiculo", filtros.tamano);
-  if (filtros.lavador) query = query.eq("lavador_id", filtros.lavador);
 
   const { data: ticketsRaw } = await query;
-  const tickets = ticketsRaw ?? [];
+  const todosLosTickets = ticketsRaw ?? [];
 
-  const servicioIds = [...new Set(tickets.map((t) => t.servicio_id))];
-  const clienteIds = [...new Set(tickets.map((t) => t.cliente_id).filter(Boolean))] as string[];
-  const lavadorIds = [...new Set(tickets.map((t) => t.lavador_id).filter(Boolean))] as string[];
-  const ticketIds = tickets.map((t) => t.id);
+  const servicioIds = [...new Set(todosLosTickets.map((t) => t.servicio_id))];
+  const clienteIds = [...new Set(todosLosTickets.map((t) => t.cliente_id).filter(Boolean))] as string[];
+  const ticketIdsTodos = todosLosTickets.map((t) => t.id);
 
-  const [{ data: servicios }, { data: clientes }, { data: lavadores }, { data: pagos }] = await Promise.all([
-    servicioIds.length
-      ? supabase.from("servicios_catalogo").select("id, nombre").in("id", servicioIds)
-      : Promise.resolve({ data: [] }),
-    clienteIds.length
-      ? supabase.from("clientes").select("id, nombre").in("id", clienteIds)
-      : Promise.resolve({ data: [] }),
-    lavadorIds.length
-      ? supabase.from("lavadores").select("id, nombre").in("id", lavadorIds)
-      : Promise.resolve({ data: [] }),
-    ticketIds.length
-      ? supabase.from("pagos").select("ticket_id, monto, metodo").in("ticket_id", ticketIds)
-      : Promise.resolve({ data: [] }),
-  ]);
+  const [{ data: servicios }, { data: clientes }, { data: lavadores }, { data: pagos }, { data: asignaciones }] =
+    await Promise.all([
+      servicioIds.length
+        ? supabase.from("servicios_catalogo").select("id, nombre").in("id", servicioIds)
+        : Promise.resolve({ data: [] }),
+      clienteIds.length
+        ? supabase.from("clientes").select("id, nombre").in("id", clienteIds)
+        : Promise.resolve({ data: [] }),
+      supabase.from("lavadores").select("id, nombre"),
+      ticketIdsTodos.length
+        ? supabase.from("pagos").select("ticket_id, monto, metodo").in("ticket_id", ticketIdsTodos)
+        : Promise.resolve({ data: [] }),
+      ticketIdsTodos.length
+        ? supabase.from("ticket_lavadores").select("ticket_id, lavador_id").in("ticket_id", ticketIdsTodos)
+        : Promise.resolve({ data: [] }),
+    ]);
 
   const nombrePorServicio = new Map((servicios ?? []).map((s) => [s.id, s.nombre]));
   const nombrePorCliente = new Map((clientes ?? []).map((c) => [c.id, c.nombre]));
   const nombrePorLavador = new Map((lavadores ?? []).map((l) => [l.id, l.nombre]));
+
+  // Uno o más lavadores por ticket (empiezan a lavar en pareja a veces).
+  const lavadorIdsPorTicket = new Map<string, string[]>();
+  for (const a of asignaciones ?? []) {
+    const lista = lavadorIdsPorTicket.get(a.ticket_id) ?? [];
+    lista.push(a.lavador_id);
+    lavadorIdsPorTicket.set(a.ticket_id, lista);
+  }
+
+  const tickets = filtros.lavador
+    ? todosLosTickets.filter((t) => (lavadorIdsPorTicket.get(t.id) ?? []).includes(filtros.lavador!))
+    : todosLosTickets;
 
   const pagosPorTicket = new Map<string, { monto: number; metodo: PagoMetodo }[]>();
   for (const p of pagos ?? []) {
@@ -103,17 +115,27 @@ export async function buscarTicketsDetalle(rango: RangoResuelto, filtros: Filtro
       distintivoPlaca: [t.distintivo, t.placa].filter(Boolean).join(" · ") || "—",
       servicio: nombrePorServicio.get(t.servicio_id) ?? "—",
       tamanoVehiculo: t.tamano_vehiculo,
-      lavador: t.lavador_id ? nombrePorLavador.get(t.lavador_id) ?? "—" : "—",
+      lavador:
+        (lavadorIdsPorTicket.get(t.id) ?? [])
+          .map((id) => nombrePorLavador.get(id) ?? "—")
+          .join(", ") || "—",
       estado: t.estado,
       metodo: t.lavada_gratis ? "Gratis" : pagosTicket.map((p) => p.metodo).join(", ") || "—",
       monto: pagosTicket.reduce((acc, p) => acc + p.monto, 0),
     });
   }
 
+  const lavadorIdsPresentes = new Set<string>();
+  for (const ids of lavadorIdsPorTicket.values()) {
+    for (const id of ids) lavadorIdsPresentes.add(id);
+  }
+
   return {
     filas: filas.slice(0, LIMITE_MOSTRADO),
     totalCoincidencias: filas.length,
-    lavadoresPresentes: [...nombrePorLavador.entries()].sort((a, b) => a[1].localeCompare(b[1])) as [string, string][],
+    lavadoresPresentes: [...lavadorIdsPresentes]
+      .map((id) => [id, nombrePorLavador.get(id) ?? "—"] as [string, string])
+      .sort((a, b) => a[1].localeCompare(b[1])),
     serviciosPresentes: [...nombrePorServicio.entries()].sort((a, b) => a[1].localeCompare(b[1])) as [string, string][],
   };
 }

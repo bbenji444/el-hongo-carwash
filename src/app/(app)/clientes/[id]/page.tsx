@@ -14,27 +14,12 @@ export default async function ClienteDetallePage({ params }: { params: Promise<{
     redirect("/login");
   }
 
-  const { data: usuario } = await supabase
-    .from("usuarios")
-    .select("rol")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (!usuario) {
-    redirect("/login");
-  }
-
-  const { data: cliente } = await supabase
-    .from("clientes")
-    .select("id, nombre, telefono")
-    .eq("id", id)
-    .maybeSingle();
-
-  if (!cliente) {
-    notFound();
-  }
-
-  const [{ data: vehiculos }, { data: tickets }] = await Promise.all([
+  // Las cuatro son independientes entre sí (usuario solo necesita
+  // user.id; las otras tres solo necesitan el id de la URL) — antes se
+  // pedían en 3 pasos seguidos, ahora en uno.
+  const [{ data: usuario }, { data: cliente }, { data: vehiculos }, { data: tickets }] = await Promise.all([
+    supabase.from("usuarios").select("rol").eq("id", user.id).maybeSingle(),
+    supabase.from("clientes").select("id, nombre, telefono").eq("id", id).maybeSingle(),
     supabase.from("vehiculos").select("id, placas, tipo_vehiculo").eq("cliente_id", id).order("placas"),
     supabase
       .from("tickets")
@@ -42,6 +27,14 @@ export default async function ClienteDetallePage({ params }: { params: Promise<{
       .eq("cliente_id", id)
       .order("hora_entrada", { ascending: false }),
   ]);
+
+  if (!usuario) {
+    redirect("/login");
+  }
+
+  if (!cliente) {
+    notFound();
+  }
 
   const servicioIds = [...new Set((tickets ?? []).map((t) => t.servicio_id))];
   const { data: servicios } = servicioIds.length

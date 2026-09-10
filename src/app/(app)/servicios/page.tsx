@@ -14,23 +14,17 @@ export default async function ServiciosPage() {
     redirect("/login");
   }
 
-  const { data: usuario } = await supabase
-    .from("usuarios")
-    .select("rol")
-    .eq("id", user.id)
-    .maybeSingle();
+  // Las tres son independientes (precios trae toda la tabla, no filtra por
+  // los ids de serviciosBase).
+  const [{ data: usuario }, { data: serviciosBase }, { data: precios }] = await Promise.all([
+    supabase.from("usuarios").select("rol").eq("id", user.id).maybeSingle(),
+    supabase.from("servicios_catalogo").select("*").order("orden").order("nombre"),
+    supabase.from("servicios_precios").select("*"),
+  ]);
 
   if (!usuario) {
     redirect("/login");
   }
-
-  const { data: serviciosBase } = await supabase
-    .from("servicios_catalogo")
-    .select("*")
-    .order("orden")
-    .order("nombre");
-
-  const { data: precios } = await supabase.from("servicios_precios").select("*");
 
   const preciosPorServicio = new Map<string, ServicioPrecio[]>();
   for (const precio of precios ?? []) {

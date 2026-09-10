@@ -39,11 +39,11 @@ export default async function DesgloseTurnoPage({
     redirect("/login");
   }
 
-  const { data: usuario } = await supabase
-    .from("usuarios")
-    .select("id, rol, puede_editar_tickets")
-    .eq("id", user.id)
-    .maybeSingle();
+  // Independientes entre sí (turno solo usa el id de la URL).
+  const [{ data: usuario }, { data: turno }] = await Promise.all([
+    supabase.from("usuarios").select("id, rol, puede_editar_tickets").eq("id", user.id).maybeSingle(),
+    supabase.from("turnos").select("*").eq("id", id).maybeSingle(),
+  ]);
 
   if (!usuario) {
     redirect("/login");
@@ -55,8 +55,6 @@ export default async function DesgloseTurnoPage({
 
   const esDueno = usuario.rol === "dueno";
   const puedeEditarTickets = esDueno || usuario.puede_editar_tickets;
-
-  const { data: turno } = await supabase.from("turnos").select("*").eq("id", id).maybeSingle();
 
   if (!turno) {
     notFound();

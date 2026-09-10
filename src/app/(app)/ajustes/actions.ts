@@ -1,17 +1,20 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { CONFIGURACION_DEFAULT } from "@/lib/configuracion";
+import { CONFIGURACION_DEFAULT, TAG_CONFIGURACION } from "@/lib/configuracion";
 import type { ConfiguracionApp } from "@/types/database.types";
 
 export type ConfiguracionInput = Omit<ConfiguracionApp, "id">;
 
 function revalidarTodo() {
-  // La configuración se lee en casi toda la app (sidebar, colores, emojis,
-  // semáforo), así que se invalida todo en vez de tratar de enumerar cada
-  // ruta que la usa.
+  // revalidatePath refresca las páginas ya renderizadas; revalidateTag es
+  // lo que de verdad obliga a que obtenerConfiguracion() vuelva a leer de
+  // Supabase la próxima vez (vive en su propia Data Cache, ver
+  // src/lib/configuracion.ts) — sin esto, un cambio aquí podía tardar
+  // hasta una hora en reflejarse en el resto de la app.
   revalidatePath("/", "layout");
+  revalidateTag(TAG_CONFIGURACION);
 }
 
 export async function actualizarConfiguracion(input: ConfiguracionInput) {

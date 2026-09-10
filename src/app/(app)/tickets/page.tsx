@@ -30,18 +30,16 @@ export default async function TicketsPage() {
   const puedeEditarTickets = usuario.rol === "dueno" || usuario.puede_editar_tickets;
   const esDueno = usuario.rol === "dueno";
 
-  const { data: turno } = await supabase
-    .from("turnos")
-    .select("*")
-    .eq("estado", "abierto")
-    .maybeSingle();
-
-  const { data: serviciosBase } = await supabase
-    .from("servicios_catalogo")
-    .select("*")
-    .eq("activo", true)
-    .order("orden")
-    .order("nombre");
+  // Ninguna de estas cuatro depende de las otras — antes se pedían una
+  // tras otra (4 viajes de ida y vuelta seguidos) en la página que más se
+  // usa de toda la app.
+  const [{ data: turno }, { data: serviciosBase }, { data: lavadoresActivos }, { data: extrasActivos }] =
+    await Promise.all([
+      supabase.from("turnos").select("*").eq("estado", "abierto").maybeSingle(),
+      supabase.from("servicios_catalogo").select("*").eq("activo", true).order("orden").order("nombre"),
+      supabase.from("lavadores").select("*").eq("activo", true).order("nombre"),
+      supabase.from("extras_catalogo").select("*").eq("activo", true).order("orden").order("nombre"),
+    ]);
 
   const servicioIdsActivos = (serviciosBase ?? []).map((s) => s.id);
   const { data: preciosServicios } = servicioIdsActivos.length
@@ -59,19 +57,6 @@ export default async function TicketsPage() {
     ...s,
     precios: preciosPorServicio.get(s.id) ?? [],
   }));
-
-  const { data: lavadoresActivos } = await supabase
-    .from("lavadores")
-    .select("*")
-    .eq("activo", true)
-    .order("nombre");
-
-  const { data: extrasActivos } = await supabase
-    .from("extras_catalogo")
-    .select("*")
-    .eq("activo", true)
-    .order("orden")
-    .order("nombre");
 
   const tickets = turno
     ? (

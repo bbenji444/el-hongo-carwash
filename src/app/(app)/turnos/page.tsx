@@ -33,11 +33,42 @@ export default async function TurnosPage({
     redirect("/login");
   }
 
-  const { data: usuario } = await supabase
-    .from("usuarios")
-    .select("id, nombre, rol, puede_editar_turnos, puede_eliminar_turnos")
-    .eq("id", user.id)
-    .maybeSingle();
+  const rango = resolverRango(params);
+  const filtrosTicketsDetalle = {
+    servicio: params.servicio ?? "",
+    tamano: (params.tamano ?? "") as TamanoVehiculo | "",
+    metodo: (params.metodo ?? "") as PagoMetodo | "",
+    lavador: params.lavador ?? "",
+    q: params.q ?? "",
+  };
+
+  // Estas cuatro son independientes entre sí — antes se pedían una tras
+  // otra (junto con lo que sigue abajo, hasta 6+ viajes de ida y vuelta
+  // seguidos). buscarTicketsDetalle en particular no depende de nada de
+  // usuario/turnoAbierto/turnosCerrados, así que no tenía por qué esperar
+  // a que todo lo demás terminara primero.
+  const [
+    { data: usuario },
+    { data: turnoAbierto },
+    { data: turnosCerrados },
+    datosTicketsDetalle,
+  ] = await Promise.all([
+    supabase
+      .from("usuarios")
+      .select("id, nombre, rol, puede_editar_turnos, puede_eliminar_turnos")
+      .eq("id", user.id)
+      .maybeSingle(),
+    supabase.from("turnos").select("*").eq("estado", "abierto").maybeSingle(),
+    supabase.from("turnos").select("*").eq("estado", "cerrado").order("hora_cierre", { ascending: false }).limit(30),
+    buscarTicketsDetalle(rango, filtrosTicketsDetalle),
+  ]);
+
+  const {
+    filas: ticketsDetalle,
+    totalCoincidencias: totalTicketsDetalle,
+    lavadoresPresentes,
+    serviciosPresentes: serviciosPresentesDetalle,
+  } = datosTicketsDetalle;
 
   if (!usuario) {
     redirect("/login");
@@ -45,12 +76,6 @@ export default async function TurnosPage({
 
   const puedeEditarTurnos = usuario.rol === "dueno" || usuario.puede_editar_turnos;
   const puedeEliminarTurnos = usuario.rol === "dueno" || usuario.puede_eliminar_turnos;
-
-  const { data: turnoAbierto } = await supabase
-    .from("turnos")
-    .select("*")
-    .eq("estado", "abierto")
-    .maybeSingle();
 
   let resumen = null;
   if (turnoAbierto) {
@@ -83,29 +108,25 @@ export default async function TurnosPage({
     };
   }
 
-  const { data: turnosCerrados } = await supabase
-    .from("turnos")
-    .select("*")
-    .eq("estado", "cerrado")
-    .order("hora_cierre", { ascending: false })
-    .limit(30);
-
   const usuarioIds = [
     ...new Set(
       (turnosCerrados ?? []).flatMap((t) => [t.usuario_apertura_id, t.usuario_cierre_id]).filter(Boolean)
     ),
   ] as string[];
+  const turnoIds = (turnosCerrados ?? []).map((t) => t.id);
 
-  const { data: usuarios } = usuarioIds.length
-    ? await supabase.from("usuarios").select("id, nombre").in("id", usuarioIds)
-    : { data: [] };
+  // Ninguna de las dos depende de la otra (ambas solo usan ids derivados
+  // de turnosCerrados, no entre sí).
+  const [{ data: usuarios }, { data: pagosTurnos }] = await Promise.all([
+    usuarioIds.length
+      ? supabase.from("usuarios").select("id, nombre").in("id", usuarioIds)
+      : Promise.resolve({ data: [] }),
+    turnoIds.length
+      ? supabase.from("pagos").select("turno_id, monto, metodo").in("turno_id", turnoIds)
+      : Promise.resolve({ data: [] }),
+  ]);
 
   const usuarioMap = new Map((usuarios ?? []).map((u) => [u.id, u.nombre]));
-
-  const turnoIds = (turnosCerrados ?? []).map((t) => t.id);
-  const { data: pagosTurnos } = turnoIds.length
-    ? await supabase.from("pagos").select("turno_id, monto, metodo").in("turno_id", turnoIds)
-    : { data: [] };
 
   const transferenciaPorTurno = new Map<string, number>();
   const tarjetaPorTurno = new Map<string, number>();
@@ -137,21 +158,6 @@ export default async function TurnosPage({
       transferencia: transferenciaPorTurno.get(t.id) ?? 0,
     };
   });
-
-  const rango = resolverRango(params);
-  const filtrosTicketsDetalle = {
-    servicio: params.servicio ?? "",
-    tamano: (params.tamano ?? "") as TamanoVehiculo | "",
-    metodo: (params.metodo ?? "") as PagoMetodo | "",
-    lavador: params.lavador ?? "",
-    q: params.q ?? "",
-  };
-  const {
-    filas: ticketsDetalle,
-    totalCoincidencias: totalTicketsDetalle,
-    lavadoresPresentes,
-    serviciosPresentes: serviciosPresentesDetalle,
-  } = await buscarTicketsDetalle(rango, filtrosTicketsDetalle);
 
   return (
     <div className="flex flex-col gap-6">

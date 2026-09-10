@@ -45,23 +45,23 @@ export default async function DesgloseLavadorPage({
     redirect("/login");
   }
 
-  const { data: usuario } = await supabase
-    .from("usuarios")
-    .select("rol")
-    .eq("id", user.id)
-    .maybeSingle();
+  // Las tres son independientes entre sí (lavador solo usa el id de la
+  // URL; obtenerConfiguracion ya viene cacheada desde el layout, pero
+  // pedirla aquí junto con las demás no cuesta nada extra).
+  const [{ data: usuario }, { data: lavador }, config] = await Promise.all([
+    supabase.from("usuarios").select("rol").eq("id", user.id).maybeSingle(),
+    supabase.from("lavadores").select("*").eq("id", id).maybeSingle(),
+    obtenerConfiguracion(),
+  ]);
 
   if (!usuario) {
     redirect("/login");
   }
 
-  const { data: lavador } = await supabase.from("lavadores").select("*").eq("id", id).maybeSingle();
-
   if (!lavador) {
     notFound();
   }
 
-  const config = await obtenerConfiguracion();
   const rango = resolverRango(searchParamsResueltos);
   const qs = queryStringRango(rango);
 

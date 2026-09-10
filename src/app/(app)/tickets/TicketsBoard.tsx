@@ -256,13 +256,10 @@ export function TicketsBoard({
                 </div>
               ))}
               <div className="rounded-lg border border-success/40 bg-success/10 p-2.5">
-                <p className="text-[10px] uppercase tracking-wide text-muted">Total</p>
+                <p className="text-[10px] uppercase tracking-wide text-muted">Ganancia</p>
                 <p className="text-sm font-semibold text-success">
                   $
-                  {(
-                    (resumenCaja.ocultarEfectivo ? 0 : turno.efectivo_inicial) +
-                    Object.values(resumenCaja.totalesVisibles).reduce((suma, monto) => suma + monto, 0)
-                  ).toFixed(2)}
+                  {Object.values(resumenCaja.totalesVisibles).reduce((suma, monto) => suma + monto, 0).toFixed(2)}
                 </p>
               </div>
               <div className="rounded-lg border border-border bg-background p-2.5">

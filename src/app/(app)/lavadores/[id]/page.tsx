@@ -65,8 +65,11 @@ export default async function DesgloseLavadorPage({
   const rango = resolverRango(searchParamsResueltos);
   const qs = queryStringRango(rango);
 
-  const { data: asignaciones } = await supabase.from("ticket_lavadores").select("ticket_id").eq("lavador_id", id);
-  const ticketIdsAsignados = (asignaciones ?? []).map((a) => a.ticket_id);
+  const { data: asignacionesLavador } = await supabase
+    .from("ticket_lavadores")
+    .select("ticket_id")
+    .eq("lavador_id", id);
+  const ticketIdsAsignados = (asignacionesLavador ?? []).map((a) => a.ticket_id);
 
   let tickets: Array<{
     id: string;
@@ -102,27 +105,42 @@ export default async function DesgloseLavadorPage({
   const vehiculoIds = [...new Set((tickets ?? []).map((t) => t.vehiculo_id).filter(Boolean))] as string[];
   const ticketIds = (tickets ?? []).map((t) => t.id);
 
-  const [{ data: servicios }, { data: clientes }, { data: vehiculos }, { data: pagos }] = await Promise.all([
-    servicioIds.length
-      ? supabase.from("servicios_catalogo").select("id, nombre").in("id", servicioIds)
-      : Promise.resolve({ data: [] }),
-    clienteIds.length
-      ? supabase.from("clientes").select("id, nombre").in("id", clienteIds)
-      : Promise.resolve({ data: [] }),
-    vehiculoIds.length
-      ? supabase.from("vehiculos").select("id, placas").in("id", vehiculoIds)
-      : Promise.resolve({ data: [] }),
-    ticketIds.length
-      ? supabase.from("pagos").select("ticket_id, monto").in("ticket_id", ticketIds)
-      : Promise.resolve({ data: [] }),
-  ]);
+  const [{ data: servicios }, { data: clientes }, { data: vehiculos }, { data: pagos }, { data: lavadoresTodos }, { data: asignacionesTodas }] =
+    await Promise.all([
+      servicioIds.length
+        ? supabase.from("servicios_catalogo").select("id, nombre").in("id", servicioIds)
+        : Promise.resolve({ data: [] }),
+      clienteIds.length
+        ? supabase.from("clientes").select("id, nombre").in("id", clienteIds)
+        : Promise.resolve({ data: [] }),
+      vehiculoIds.length
+        ? supabase.from("vehiculos").select("id, placas").in("id", vehiculoIds)
+        : Promise.resolve({ data: [] }),
+      ticketIds.length
+        ? supabase.from("pagos").select("ticket_id, monto").in("ticket_id", ticketIds)
+        : Promise.resolve({ data: [] }),
+      supabase.from("lavadores").select("id, nombre"),
+      ticketIds.length
+        ? supabase.from("ticket_lavadores").select("ticket_id, lavador_id").in("ticket_id", ticketIds)
+        : Promise.resolve({ data: [] }),
+    ]);
 
   const nombrePorServicio = new Map((servicios ?? []).map((s) => [s.id, s.nombre]));
   const nombrePorCliente = new Map((clientes ?? []).map((c) => [c.id, c.nombre]));
   const placasPorVehiculo = new Map((vehiculos ?? []).map((v) => [v.id, v.placas]));
+  const nombrePorLavador = new Map((lavadoresTodos ?? []).map((l) => [l.id, l.nombre]));
   const montoPorTicket = new Map<string, number>();
   for (const p of pagos ?? []) {
     montoPorTicket.set(p.ticket_id, (montoPorTicket.get(p.ticket_id) ?? 0) + p.monto);
+  }
+  // Quiénes más (aparte de este lavador) quedaron asignados a cada ticket —
+  // para mostrar con quién hizo pareja en cada lavada.
+  const companerosPorTicket = new Map<string, string[]>();
+  for (const a of asignacionesTodas ?? []) {
+    if (a.lavador_id === id) continue;
+    const lista = companerosPorTicket.get(a.ticket_id) ?? [];
+    lista.push(nombrePorLavador.get(a.lavador_id) ?? "—");
+    companerosPorTicket.set(a.ticket_id, lista);
   }
 
   const filaTickets = (tickets ?? []).map((t) => ({
@@ -140,6 +158,7 @@ export default async function DesgloseLavadorPage({
     tamanoVehiculo: t.tamano_vehiculo,
     estado: t.estado,
     monto: montoPorTicket.get(t.id) ?? 0,
+    companeros: companerosPorTicket.get(t.id) ?? [],
     tiempoLavadoMin:
       t.hora_inicio_lavado && t.hora_fin_lavado
         ? (new Date(t.hora_fin_lavado).getTime() - new Date(t.hora_inicio_lavado).getTime()) / 60000
@@ -286,6 +305,7 @@ export default async function DesgloseLavadorPage({
               <th className="px-4 py-3">Distintivo</th>
               <th className="px-4 py-3">Paquete</th>
               <th className="px-4 py-3">Tamaño</th>
+              <th className="px-4 py-3">Compañero</th>
               <th className="px-4 py-3">Estado</th>
               <th className="px-4 py-3">Tiempo de lavada</th>
               <th className="px-4 py-3">Monto</th>
@@ -299,6 +319,9 @@ export default async function DesgloseLavadorPage({
                 <td className="px-4 py-3 text-muted">{t.placas ?? "—"}</td>
                 <td className="px-4 py-3 text-foreground">{t.servicio}</td>
                 <td className="px-4 py-3 text-muted">{nombreTamano(t.tamanoVehiculo)}</td>
+                <td className="px-4 py-3 text-muted">
+                  {t.companeros.length > 0 ? t.companeros.join(", ") : "—"}
+                </td>
                 <td className="px-4 py-3 text-muted">{ESTADO_LABEL[t.estado] ?? t.estado}</td>
                 <td className="px-4 py-3 text-muted">
                   {t.tiempoLavadoMin !== null ? formatearMinutos(t.tiempoLavadoMin) : "—"}
@@ -308,7 +331,7 @@ export default async function DesgloseLavadorPage({
             ))}
             {filaTickets.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-6 text-center text-muted">
+                <td colSpan={9} className="px-4 py-6 text-center text-muted">
                   Sin tickets asignados en este período.
                 </td>
               </tr>

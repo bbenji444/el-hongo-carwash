@@ -17,6 +17,10 @@ export function useRealtimeRefresh(tablas: string[]) {
     const supabase = createClient();
     let canal: RealtimeChannel | null = null;
     let vivo = true;
+    // true mientras la pestaña está en segundo plano — evita que el
+    // reconector automático (por CLOSED/CHANNEL_ERROR) pelee con el cierre
+    // intencional de abajo.
+    let pausado = false;
 
     // El token de sesión se renueva solo para las peticiones normales
     // (REST vía cookies), pero el canal de Realtime ya abierto se queda
@@ -42,48 +46,80 @@ export function useRealtimeRefresh(tablas: string[]) {
       timeout = setTimeout(() => router.refresh(), 300);
     }
 
+    function desuscribir() {
+      if (canal) {
+        supabase.removeChannel(canal);
+        canal = null;
+      }
+    }
+
     // El celular suspende la conexión de websocket cuando la pantalla se
     // bloquea, cambia de wifi a datos, o el navegador pasa la pestaña a
     // segundo plano — la librería de Realtime no siempre reconecta sola a
     // tiempo. Si el canal se cae, se vuelve a suscribir solo en vez de
     // quedarse muerto en silencio hasta que alguien recargue a mano.
     function suscribir() {
+      if (canal) return;
       canal = supabase.channel(`live-${tablasClave}`);
       for (const tabla of tablasClave.split(",")) {
         canal.on("postgres_changes", { event: "*", schema: "public", table: tabla }, refrescar);
       }
       canal.subscribe((status) => {
-        if (!vivo) return;
+        if (!vivo || pausado) return;
         if (status === "CLOSED" || status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-          if (canal) supabase.removeChannel(canal);
+          desuscribir();
           setTimeout(() => {
-            if (vivo) suscribir();
+            if (vivo && !pausado) suscribir();
           }, 2000);
         }
       });
     }
     suscribir();
 
-    // Además del canal en vivo, se fuerza un refresh cada vez que la
-    // pestaña vuelve a estar visible/con foco o el celular recupera
-    // conexión — cubre el hueco de lo que se haya perdido mientras la
-    // sesión estaba en segundo plano, sin esperar a que llegue un evento
-    // nuevo de Realtime.
-    function alVolver() {
-      if (document.visibilityState === "visible") refrescar();
+    // Un websocket abierto le impide a Chrome guardar la página en su
+    // "back/forward cache" (bfcache) — así que cada vez que se salía de la
+    // app (a otra app, o a bloquear pantalla) y se volvía, Chrome tenía que
+    // recargar todo por red desde cero en vez de restaurarla al instante
+    // desde memoria. Si esa recarga coincidía con el instante sin conexión
+    // de cambiar de app, salía la pantalla de "This page couldn't load".
+    // Por eso el canal se cierra a propósito al ocultarse la pestaña, y se
+    // vuelve a abrir (más un refresh, por si algo cambió mientras tanto) al
+    // regresar — la pestaña queda elegible para bfcache y el regreso es
+    // instantáneo la enorme mayoría de las veces.
+    function alCambiarVisibilidad() {
+      if (document.visibilityState === "hidden") {
+        pausado = true;
+        desuscribir();
+      } else {
+        pausado = false;
+        suscribir();
+        refrescar();
+      }
     }
-    document.addEventListener("visibilitychange", alVolver);
+    // Si Chrome sí llega a restaurar la página desde bfcache (persisted),
+    // el efecto de este componente no se vuelve a ejecutar — hay que
+    // reabrir el canal a mano aquí también.
+    function alMostrarPagina(e: PageTransitionEvent) {
+      if (e.persisted) {
+        pausado = false;
+        suscribir();
+        refrescar();
+      }
+    }
+    document.addEventListener("visibilitychange", alCambiarVisibilidad);
+    window.addEventListener("pageshow", alMostrarPagina);
     window.addEventListener("focus", refrescar);
     window.addEventListener("online", refrescar);
 
     return () => {
       vivo = false;
       if (timeout) clearTimeout(timeout);
-      document.removeEventListener("visibilitychange", alVolver);
+      document.removeEventListener("visibilitychange", alCambiarVisibilidad);
+      window.removeEventListener("pageshow", alMostrarPagina);
       window.removeEventListener("focus", refrescar);
       window.removeEventListener("online", refrescar);
       authListener.subscription.unsubscribe();
-      if (canal) supabase.removeChannel(canal);
+      desuscribir();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tablasClave]);

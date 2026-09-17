@@ -174,22 +174,25 @@ export default async function TicketsPage() {
     // hora de México) se contaban como del día siguiente.
     const { data: ticketsHoy } = await supabase
       .from("tickets")
-      .select("hora_entrada, hora_salida")
+      .select("hora_entrada, hora_fin_lavado, hora_salida")
       .eq("estado", "entregado")
       .gte("hora_salida", inicioDeDiaMX(0).toISOString());
 
     const entregadosHoy = (ticketsHoy ?? []).filter((t) => t.hora_salida);
 
-    // Tiempo de espera: desde que el auto llega hasta que se le entrega —
-    // todo el tiempo que el cliente pasa esperando su auto, no solo hasta
-    // que empieza a lavarse.
+    // Tiempo de espera: desde que el auto llega hasta que se TERMINA de
+    // lavar (hora_fin_lavado) — no hasta que se entrega (hora_salida),
+    // porque entre "terminado" y "entregado" puede pasar rato sin que sea
+    // por el lavado en sí (el cliente tarda en pasar a recogerlo, la caja
+    // está ocupada con otro cobro, etc.) y eso inflaba el número.
+    const conTiempoEspera = entregadosHoy.filter((t) => t.hora_fin_lavado);
     const tiempoEsperaMin =
-      entregadosHoy.length > 0
-        ? entregadosHoy.reduce(
-            (suma, t) => suma + (new Date(t.hora_salida!).getTime() - new Date(t.hora_entrada).getTime()),
+      conTiempoEspera.length > 0
+        ? conTiempoEspera.reduce(
+            (suma, t) => suma + (new Date(t.hora_fin_lavado!).getTime() - new Date(t.hora_entrada).getTime()),
             0
           ) /
-          entregadosHoy.length /
+          conTiempoEspera.length /
           60000
         : null;
 

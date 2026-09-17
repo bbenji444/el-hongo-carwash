@@ -46,18 +46,28 @@ export default async function DashboardPage({
     timeZone: "America/Mexico_City",
   });
 
-  const [{ data: turnoAbierto }, { data: ticketsHoy }, { data: pagosSemana }, { data: servicios }] =
+  // "Pendientes hoy" se mide por LLEGADA (hora_entrada) — autos que están
+  // hoy en el flujo de trabajo. "Entregados/ventas hoy" se mide por ENTREGA
+  // (hora_salida), igual que en Tickets (ver el mismo comentario ahí) —
+  // antes este dashboard contaba por llegada y Tickets por entrega, y un
+  // auto que llegó ayer pero se entregó hoy (o viceversa) salía contado
+  // distinto en cada pantalla.
+  const [{ data: ticketsLlegadaHoy }, { data: turnoAbierto }, { data: ticketsEntregadosHoyRaw }, { data: pagosSemana }, { data: servicios }] =
     await Promise.all([
+      supabase.from("tickets").select("id, estado").gte("hora_entrada", hoy.toISOString()),
       supabase.from("turnos").select("*").eq("estado", "abierto").maybeSingle(),
       supabase
         .from("tickets")
-        .select("id, servicio_id, estado, hora_entrada, descuento_monto")
-        .gte("hora_entrada", hoy.toISOString()),
+        .select("id, servicio_id, descuento_monto")
+        .eq("estado", "entregado")
+        .gte("hora_salida", hoy.toISOString()),
       supabase.from("pagos").select("ticket_id, monto, creado_en").gte("creado_en", hace7dias.toISOString()),
       supabase.from("servicios_catalogo").select("id, nombre"),
     ]);
 
-  const pendientesHoy = (ticketsHoy ?? []).filter((t) => t.estado !== "entregado").length;
+  const pendientesHoy = (ticketsLlegadaHoy ?? []).filter((t) => t.estado !== "entregado").length;
+  const ticketsEntregadosHoy = ticketsEntregadosHoyRaw ?? [];
+  const idsEntregadosHoy = new Set(ticketsEntregadosHoy.map((t) => t.id));
 
   if (esCajero) {
     return (
@@ -106,17 +116,20 @@ export default async function DashboardPage({
 
   const nombrePorServicio = new Map((servicios ?? []).map((s) => [s.id, s.nombre]));
 
-  const pagosHoy = (pagosSemana ?? []).filter((p) => p.creado_en >= hoy.toISOString());
+  // Los pagos "de hoy" son los que pertenecen a un ticket entregado hoy —
+  // no los que se registraron hoy (pago.creado_en), para que este número
+  // cuadre exactamente con numEntregadosHoy de abajo (mismo conjunto de
+  // tickets en los dos casos).
+  const pagosHoy = (pagosSemana ?? []).filter((p) => idsEntregadosHoy.has(p.ticket_id));
   const montoPorTicket = new Map<string, number>();
   for (const p of pagosHoy) {
     montoPorTicket.set(p.ticket_id, (montoPorTicket.get(p.ticket_id) ?? 0) + p.monto);
   }
 
   const ventasHoy = pagosHoy.reduce((acc, p) => acc + p.monto, 0);
-  const ticketsEntregadosHoy = (ticketsHoy ?? []).filter((t) => t.estado === "entregado");
   const numEntregadosHoy = ticketsEntregadosHoy.length;
   const ticketPromedioHoy = numEntregadosHoy > 0 ? ventasHoy / numEntregadosHoy : 0;
-  const descuentosHoy = (ticketsHoy ?? []).reduce((acc, t) => acc + t.descuento_monto, 0);
+  const descuentosHoy = ticketsEntregadosHoy.reduce((acc, t) => acc + t.descuento_monto, 0);
 
   const ventasPorServicioMap = new Map<string, { total: number; tickets: number }>();
   for (const t of ticketsEntregadosHoy) {

@@ -1,9 +1,27 @@
 "use client";
 
-import { Suspense, useState, type FormEvent } from "react";
+import { Suspense, useEffect, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
+
+// API nativa del navegador para guardar/recuperar credenciales — soportada
+// en Chrome/Edge, no en Firefox/Safari, por eso todo esto va detrás de
+// comprobar que exista antes de usarla.
+declare global {
+  interface Window {
+    PasswordCredential?: {
+      new (data: { id: string; password: string; name?: string }): Credential;
+    };
+  }
+  // TypeScript ya trae "mediation" en CredentialRequestOptions, pero no
+  // "password" (esa parte del spec es más nueva que sus tipos de DOM).
+  interface CredentialRequestOptions {
+    password?: boolean;
+  }
+}
+
+type CredencialGuardada = Credential & { id: string; password?: string };
 
 const MOTIVOS: Record<string, string> = {
   cuenta_inactiva: "Tu cuenta fue desactivada. Contacta al dueño.",
@@ -25,6 +43,27 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(motivo ? MOTIVOS[motivo] ?? null : null);
   const [loading, setLoading] = useState(false);
+
+  // Si el navegador ya tiene una credencial guardada para este sitio (por
+  // haber iniciado sesión antes), se rellenan solos correo y contraseña —
+  // así no hay que volver a escribirlos cada vez. mediation "optional" deja
+  // que el navegador decida si lo hace en silencio o pide confirmar.
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.PasswordCredential || !navigator.credentials) return;
+    navigator.credentials
+      .get({ password: true, mediation: "optional" })
+      .then((credencial) => {
+        const c = credencial as CredencialGuardada | null;
+        if (c && c.type === "password" && c.password) {
+          setEmail(c.id);
+          setPassword(c.password);
+        }
+      })
+      .catch(() => {
+        // El usuario pudo haber cancelado el selector, o el navegador no
+        // tiene nada guardado — no es un error real, se ignora.
+      });
+  }, []);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -55,6 +94,19 @@ function LoginForm() {
       setError("Tu cuenta no está autorizada en el sistema. Contacta al dueño.");
       setLoading(false);
       return;
+    }
+
+    // Le pide al navegador que guarde correo+contraseña para la próxima vez
+    // (equivalente a que aparezca el aviso de "¿Guardar contraseña?", pero
+    // sin depender de que el navegador lo detecte solo en un login por
+    // JavaScript en vez de un submit normal de formulario).
+    if (window.PasswordCredential) {
+      try {
+        await navigator.credentials.store(new window.PasswordCredential({ id: email, password, name: email }));
+      } catch {
+        // Si el navegador lo rechaza (p. ej. el usuario ya dijo "nunca para
+        // este sitio"), no es un error que deba bloquear el login.
+      }
     }
 
     router.replace("/");
@@ -102,6 +154,7 @@ function LoginForm() {
             </label>
             <input
               id="email"
+              name="email"
               type="email"
               required
               autoComplete="username"
@@ -118,6 +171,7 @@ function LoginForm() {
             </label>
             <input
               id="password"
+              name="password"
               type="password"
               required
               autoComplete="current-password"

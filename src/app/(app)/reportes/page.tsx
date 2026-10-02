@@ -23,6 +23,13 @@ export default async function ReportesPage({
     metodo?: string;
     lavador?: string;
     q?: string;
+    // "Buscar vehículo" tiene su propio rango de fechas, independiente del
+    // período del resto del Reportes — así se puede ver el historial
+    // completo de un carro sin tener que cambiar "Hoy" por "Todo" arriba
+    // (lo que de paso cambiaría los números del resto de la página).
+    vperiodo?: string;
+    vdesde?: string;
+    vhasta?: string;
   }>;
 }) {
   const params = await searchParams;
@@ -52,6 +59,16 @@ export default async function ReportesPage({
   }
 
   const rango = resolverRango(params);
+  // Independiente de "rango" (mismo default "Hoy" si no se toca, para no
+  // disparar de entrada una búsqueda de TODO el histórico en cada visita a
+  // Reportes) — lo que cambia es que aquí se puede elegir "Todo" para ver
+  // el historial completo de un carro sin que eso también le cambie el
+  // período al resto del dashboard de arriba.
+  const rangoVehiculo = resolverRango({
+    periodo: params.vperiodo,
+    desde: params.vdesde,
+    hasta: params.vhasta,
+  });
   const filtrosTicketsDetalle = {
     servicio: params.servicio ?? "",
     tamano: (params.tamano ?? "") as TamanoVehiculo | "",
@@ -65,7 +82,7 @@ export default async function ReportesPage({
   // para no sumar sus tiempos de espera.
   const [datosReporte, datosTicketsDetalle] = await Promise.all([
     obtenerDatosReporte(rango),
-    buscarTicketsDetalle(rango, filtrosTicketsDetalle),
+    buscarTicketsDetalle(rangoVehiculo, filtrosTicketsDetalle),
   ]);
 
   const {
@@ -380,13 +397,15 @@ export default async function ReportesPage({
 
       <TicketsDetalleSeccion
         basePath="/reportes"
-        rango={rango}
+        rango={rangoVehiculo}
         filtros={filtrosTicketsDetalle}
         filas={ticketsDetalle}
         totalCoincidencias={totalTicketsDetalle}
         lavadoresPresentes={lavadoresPresentes}
         serviciosPresentes={serviciosPresentesDetalle}
-        incluirPeriodo={false}
+        incluirPeriodo={true}
+        nombresParamsPeriodo={{ periodo: "vperiodo", desde: "vdesde", hasta: "vhasta" }}
+        paramsExtra={{ periodo: params.periodo, desde: params.desde, hasta: params.hasta }}
       />
 
       <div className="flex flex-col gap-3">

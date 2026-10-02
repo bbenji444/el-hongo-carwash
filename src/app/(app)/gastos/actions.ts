@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import type { GastoCategoria } from "@/types/database.types";
 
 async function requiereDuenoOEncargado() {
   const supabase = await createClient();
@@ -21,7 +22,13 @@ async function requiereDuenoOEncargado() {
   return { supabase, userId: user.id, error: null };
 }
 
-export async function crearGasto(input: { concepto: string; monto: number; fecha: string; notas: string | null }) {
+export async function crearGasto(input: {
+  concepto: string;
+  monto: number;
+  fecha: string;
+  notas: string | null;
+  categoria: GastoCategoria;
+}) {
   const { supabase, userId, error: permisoError } = await requiereDuenoOEncargado();
   if (permisoError) return { data: null, error: permisoError };
 
@@ -32,6 +39,7 @@ export async function crearGasto(input: { concepto: string; monto: number; fecha
       monto: input.monto,
       fecha: input.fecha,
       notas: input.notas,
+      categoria: input.categoria,
       creado_por: userId!,
     })
     .select("id")
@@ -45,7 +53,7 @@ export async function crearGasto(input: { concepto: string; monto: number; fecha
 
 export async function actualizarGasto(
   gastoId: string,
-  input: { concepto: string; monto: number; fecha: string; notas: string | null }
+  input: { concepto: string; monto: number; fecha: string; notas: string | null; categoria: GastoCategoria }
 ) {
   const { supabase, error: permisoError } = await requiereDuenoOEncargado();
   if (permisoError) return { error: permisoError };
@@ -57,6 +65,7 @@ export async function actualizarGasto(
       monto: input.monto,
       fecha: input.fecha,
       notas: input.notas,
+      categoria: input.categoria,
     })
     .eq("id", gastoId);
 

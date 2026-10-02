@@ -1,6 +1,9 @@
 "use client";
 
-import { useRef, useState, useTransition, type FormEvent } from "react";
+import { useMemo, useRef, useState, useTransition, type FormEvent } from "react";
+import type { GastoCategoria } from "@/types/database.types";
+import { CATEGORIAS_GASTO, nombreCategoriaGasto } from "@/lib/gastoCategorias";
+import { GastosPorCategoriaChart, type GastoPorCategoria } from "./GastosCharts";
 import {
   crearGasto,
   actualizarGasto,
@@ -22,6 +25,7 @@ type Gasto = {
   monto: number;
   fecha: string;
   notas: string | null;
+  categoria: GastoCategoria;
   creadoPor: string;
   archivos: GastoArchivo[];
   items: GastoItem[];
@@ -108,10 +112,32 @@ function nuevoRenglonItem(): ItemForm {
   return { key: crypto.randomUUID(), id: null, producto: "", cantidad: "1", precioUnitario: "" };
 }
 
-const emptyForm = { concepto: "", monto: "", fecha: fechaInput(new Date().toISOString()), notas: "" };
+const emptyForm = {
+  concepto: "",
+  monto: "",
+  fecha: fechaInput(new Date().toISOString()),
+  notas: "",
+  categoria: "otros" as GastoCategoria,
+};
 
-export function GastosClient({ gastos }: { gastos: Gasto[] }) {
+export function GastosClient({
+  gastos,
+  gastosPorCategoria,
+}: {
+  gastos: Gasto[];
+  gastosPorCategoria: GastoPorCategoria[];
+}) {
   const [form, setForm] = useState(emptyForm);
+  const [categoriaFiltro, setCategoriaFiltro] = useState<GastoCategoria | null>(null);
+
+  function alternarFiltroCategoria(categoria: GastoCategoria) {
+    setCategoriaFiltro((actual) => (actual === categoria ? null : categoria));
+  }
+
+  const gastosFiltrados = useMemo(
+    () => (categoriaFiltro ? gastos.filter((g) => g.categoria === categoriaFiltro) : gastos),
+    [gastos, categoriaFiltro]
+  );
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -154,6 +180,7 @@ export function GastosClient({ gastos }: { gastos: Gasto[] }) {
       monto: String(g.monto),
       fecha: fechaInput(g.fecha),
       notas: g.notas ?? "",
+      categoria: g.categoria,
     });
     setItemsForm(
       g.items.map((it) => ({
@@ -258,6 +285,7 @@ export function GastosClient({ gastos }: { gastos: Gasto[] }) {
       monto: montoCalculado,
       fecha: new Date(`${form.fecha}T12:00:00`).toISOString(),
       notas: form.notas.trim() || null,
+      categoria: form.categoria,
     };
 
     const archivosAsubir = archivosNuevos;
@@ -357,6 +385,30 @@ export function GastosClient({ gastos }: { gastos: Gasto[] }) {
 
   return (
     <div className="flex flex-col gap-4">
+      <div className="rounded-xl border border-border bg-surface p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="font-semibold text-foreground">¿En qué se va más el dinero?</h2>
+            <p className="text-xs text-muted">Clic en una barra para filtrar la tabla de abajo por esa categoría.</p>
+          </div>
+          {categoriaFiltro && (
+            <button
+              onClick={() => setCategoriaFiltro(null)}
+              className="rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20"
+            >
+              Mostrando: {nombreCategoriaGasto(categoriaFiltro)} ✕
+            </button>
+          )}
+        </div>
+        <div className="mt-3">
+          <GastosPorCategoriaChart
+            data={gastosPorCategoria}
+            seleccionada={categoriaFiltro}
+            onSeleccionar={alternarFiltroCategoria}
+          />
+        </div>
+      </div>
+
       <div>
         {!mostrarForm ? (
           <button
@@ -379,6 +431,20 @@ export function GastosClient({ gastos }: { gastos: Gasto[] }) {
                   placeholder="Ej. Sueldos, Insumos, Luz"
                   className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
                 />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-muted">Categoría</label>
+                <select
+                  value={form.categoria}
+                  onChange={(e) => setForm((f) => ({ ...f, categoria: e.target.value as GastoCategoria }))}
+                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+                >
+                  {CATEGORIAS_GASTO.map((c) => (
+                    <option key={c.value} value={c.value}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-medium text-muted">Monto</label>
@@ -594,6 +660,7 @@ export function GastosClient({ gastos }: { gastos: Gasto[] }) {
             <tr>
               <th className="px-4 py-3">Fecha</th>
               <th className="px-4 py-3">Concepto</th>
+              <th className="px-4 py-3">Categoría</th>
               <th className="px-4 py-3">Notas</th>
               <th className="px-4 py-3">Registró</th>
               <th className="px-4 py-3">Archivo</th>
@@ -602,7 +669,7 @@ export function GastosClient({ gastos }: { gastos: Gasto[] }) {
             </tr>
           </thead>
           <tbody>
-            {gastos.map((g) => (
+            {gastosFiltrados.map((g) => (
               <tr key={g.id} className="border-t border-border transition-colors hover:bg-surface-hover">
                 <td className="px-4 py-3 text-muted">{new Date(g.fecha).toLocaleDateString("es-MX", { timeZone: "America/Mexico_City" })}</td>
                 <td className="px-4 py-3 text-foreground">
@@ -615,6 +682,11 @@ export function GastosClient({ gastos }: { gastos: Gasto[] }) {
                       🧾 {g.items.length} producto{g.items.length > 1 ? "s" : ""}
                     </button>
                   )}
+                </td>
+                <td className="px-4 py-3 text-muted">
+                  <span className="rounded-full border border-border bg-background px-2 py-0.5 text-xs">
+                    {nombreCategoriaGasto(g.categoria)}
+                  </span>
                 </td>
                 <td className="px-4 py-3 text-muted">{g.notas ?? "—"}</td>
                 <td className="px-4 py-3 text-muted">{g.creadoPor}</td>
@@ -656,10 +728,12 @@ export function GastosClient({ gastos }: { gastos: Gasto[] }) {
                 </td>
               </tr>
             ))}
-            {gastos.length === 0 && (
+            {gastosFiltrados.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-muted">
-                  Sin gastos registrados en este período.
+                <td colSpan={8} className="px-4 py-6 text-center text-muted">
+                  {categoriaFiltro
+                    ? `Sin gastos de "${nombreCategoriaGasto(categoriaFiltro)}" en este período.`
+                    : "Sin gastos registrados en este período."}
                 </td>
               </tr>
             )}

@@ -40,6 +40,8 @@ export function TicketsDetalleSeccion({
   lavadoresPresentes,
   serviciosPresentes,
   incluirPeriodo,
+  nombresParamsPeriodo,
+  paramsExtra,
 }: {
   basePath: string;
   rango: RangoResuelto;
@@ -49,11 +51,24 @@ export function TicketsDetalleSeccion({
   lavadoresPresentes: [string, string][];
   serviciosPresentes: [string, string][];
   incluirPeriodo: boolean;
+  // Nombres de los parámetros de la URL para periodo/desde/hasta — por
+  // default "periodo"/"desde"/"hasta", pero en una página que ya tiene su
+  // propio filtro de fechas arriba (como Reportes) conviene usar otros
+  // nombres (ej. "vperiodo") para que esta búsqueda tenga su PROPIO rango
+  // independiente, sin pisar el filtro de fechas del resto de la página.
+  nombresParamsPeriodo?: { periodo: string; desde: string; hasta: string };
+  // Otros parámetros de la URL que la página ya usa para algo más (ej. el
+  // período del resto de Reportes) y que hay que seguir mandando de vuelta
+  // al filtrar/paginar aquí — si no, se perderían al navegar.
+  paramsExtra?: Record<string, string | undefined>;
 }) {
+  const nombresPeriodo = nombresParamsPeriodo ?? { periodo: "periodo", desde: "desde", hasta: "hasta" };
+
   const paramsActuales = {
-    periodo: incluirPeriodo ? rango.periodo : undefined,
-    desde: incluirPeriodo ? rango.desdeInput || undefined : undefined,
-    hasta: incluirPeriodo ? rango.hastaInput || undefined : undefined,
+    ...paramsExtra,
+    [nombresPeriodo.periodo]: incluirPeriodo ? rango.periodo : undefined,
+    [nombresPeriodo.desde]: incluirPeriodo ? rango.desdeInput || undefined : undefined,
+    [nombresPeriodo.hasta]: incluirPeriodo ? rango.hastaInput || undefined : undefined,
     servicio: filtros.servicio || undefined,
     tamano: filtros.tamano || undefined,
     metodo: filtros.metodo || undefined,
@@ -80,7 +95,12 @@ export function TicketsDetalleSeccion({
           {PERIODOS.map((p) => (
             <Link
               key={p.value}
-              href={construirHref(basePath, { ...paramsActuales, periodo: p.value, desde: undefined, hasta: undefined })}
+              href={construirHref(basePath, {
+                ...paramsActuales,
+                [nombresPeriodo.periodo]: p.value,
+                [nombresPeriodo.desde]: undefined,
+                [nombresPeriodo.hasta]: undefined,
+              })}
               className={`rounded-lg border px-3 py-1.5 text-sm transition ${
                 !rango.personalizado && p.value === rango.periodo
                   ? "border-primary bg-primary/10 text-primary"
@@ -94,6 +114,10 @@ export function TicketsDetalleSeccion({
       )}
 
       <form className="flex flex-wrap items-end gap-2 rounded-xl border border-border bg-surface px-4 py-3">
+        {paramsExtra &&
+          Object.entries(paramsExtra).map(
+            ([key, value]) => value && <input key={key} type="hidden" name={key} value={value} />
+          )}
         {incluirPeriodo && (
           <>
             <div className="flex flex-col gap-1">
@@ -103,7 +127,7 @@ export function TicketsDetalleSeccion({
               <input
                 id="td-desde"
                 type="date"
-                name="desde"
+                name={nombresPeriodo.desde}
                 defaultValue={rango.desdeInput}
                 className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none focus:border-accent"
               />
@@ -115,7 +139,7 @@ export function TicketsDetalleSeccion({
               <input
                 id="td-hasta"
                 type="date"
-                name="hasta"
+                name={nombresPeriodo.hasta}
                 defaultValue={rango.hastaInput}
                 className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none focus:border-accent"
               />
@@ -124,9 +148,9 @@ export function TicketsDetalleSeccion({
         )}
         {!incluirPeriodo && (
           <>
-            <input type="hidden" name="periodo" value={rango.periodo} />
-            <input type="hidden" name="desde" value={rango.desdeInput} />
-            <input type="hidden" name="hasta" value={rango.hastaInput} />
+            <input type="hidden" name={nombresPeriodo.periodo} value={rango.periodo} />
+            <input type="hidden" name={nombresPeriodo.desde} value={rango.desdeInput} />
+            <input type="hidden" name={nombresPeriodo.hasta} value={rango.hastaInput} />
           </>
         )}
         <div className="flex flex-col gap-1">

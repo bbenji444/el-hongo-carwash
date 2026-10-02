@@ -575,6 +575,7 @@ export interface Database {
           monto: number;
           fecha: string;
           notas: string | null;
+          categoria: "nomina" | "insumos" | "servicios" | "renta" | "mantenimiento" | "otros";
           creado_por: string;
           creado_en: string;
         };
@@ -584,6 +585,7 @@ export interface Database {
           monto: number;
           fecha?: string;
           notas?: string | null;
+          categoria?: "nomina" | "insumos" | "servicios" | "renta" | "mantenimiento" | "otros";
           creado_por: string;
           creado_en?: string;
         };
@@ -593,6 +595,7 @@ export interface Database {
           monto?: number;
           fecha?: string;
           notas?: string | null;
+          categoria?: "nomina" | "insumos" | "servicios" | "renta" | "mantenimiento" | "otros";
           creado_por?: string;
           creado_en?: string;
         };
@@ -736,6 +739,7 @@ export interface Database {
       ticket_estado: "en_espera" | "en_proceso" | "terminado" | "entregado";
       pago_metodo: "efectivo" | "tarjeta" | "transferencia" | "membresia";
       tamano_vehiculo: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande" | "moto_chica" | "moto_grande";
+      gasto_categoria: "nomina" | "insumos" | "servicios" | "renta" | "mantenimiento" | "otros";
     };
     CompositeTypes: Record<string, never>;
   };
@@ -747,6 +751,7 @@ export type TurnoEstado = Database["public"]["Enums"]["turno_estado"];
 export type TicketEstado = Database["public"]["Enums"]["ticket_estado"];
 export type PagoMetodo = Database["public"]["Enums"]["pago_metodo"];
 export type TamanoVehiculo = Database["public"]["Enums"]["tamano_vehiculo"];
+export type GastoCategoria = Database["public"]["Enums"]["gasto_categoria"];
 
 export type Usuario = Database["public"]["Tables"]["usuarios"]["Row"];
 export type UsuarioConCorreo = Database["public"]["Tables"]["usuarios_con_correo"]["Row"];

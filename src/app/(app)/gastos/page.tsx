@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { PERIODOS, resolverRango } from "@/lib/rangoFechas";
+import { CATEGORIAS_GASTO } from "@/lib/gastoCategorias";
 import { GastosClient } from "./GastosClient";
 
 function money(n: number) {
@@ -89,12 +90,28 @@ export default async function GastosPage({
     monto: g.monto,
     fecha: g.fecha,
     notas: g.notas,
+    categoria: g.categoria,
     creadoPor: nombrePorUsuario.get(g.creado_por) ?? "—",
     archivos: archivosPorGasto.get(g.id) ?? [],
     items: itemsPorGasto.get(g.id) ?? [],
   }));
 
   const totalGastos = gastos.reduce((acc, g) => acc + g.monto, 0);
+
+  // Para la gráfica de "en qué se va más el dinero" — suma por categoría,
+  // ordenada de mayor a menor para que la barra más grande (el mayor gasto)
+  // quede primero.
+  const totalPorCategoriaMap = new Map<string, number>();
+  for (const g of gastos) {
+    totalPorCategoriaMap.set(g.categoria, (totalPorCategoriaMap.get(g.categoria) ?? 0) + g.monto);
+  }
+  const gastosPorCategoria = CATEGORIAS_GASTO.map((c) => ({
+    categoria: c.value,
+    nombre: c.label,
+    total: totalPorCategoriaMap.get(c.value) ?? 0,
+  }))
+    .filter((c) => c.total > 0)
+    .sort((a, b) => b.total - a.total);
 
   return (
     <div className="flex flex-col gap-6">
@@ -173,7 +190,7 @@ export default async function GastosPage({
         <p className="mt-1 text-2xl font-bold text-primary">{money(totalGastos)}</p>
       </div>
 
-      <GastosClient gastos={gastos} />
+      <GastosClient gastos={gastos} gastosPorCategoria={gastosPorCategoria} />
     </div>
   );
 }

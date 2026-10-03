@@ -247,7 +247,7 @@ export function TicketsDetalleSeccion({
         </button>
         {hayFiltro && (
           <Link
-            href={basePath}
+            href={construirHref(basePath, paramsExtra ?? {})}
             className="rounded-lg border border-border px-3 py-1.5 text-sm text-muted hover:text-foreground"
           >
             Quitar filtros

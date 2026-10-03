@@ -76,8 +76,10 @@ export function GastosPorCategoriaChart({
           animationEasing="ease-out"
           cursor="pointer"
           onClick={(entry) => {
-            const p = entry as unknown as GastoPorCategoria;
-            onSeleccionar(p.categoria);
+            // El dato original va en entry.payload, no en entry mismo
+            // (entry trae las coordenadas/props del rectángulo dibujado).
+            const p = (entry as unknown as { payload?: GastoPorCategoria }).payload;
+            if (p) onSeleccionar(p.categoria);
           }}
         >
           {data.map((d, i) => (
@@ -153,8 +155,8 @@ export function GastosPorSubcategoriaChart({
           animationEasing="ease-out"
           cursor="pointer"
           onClick={(entry) => {
-            const p = entry as unknown as GastoPorSubcategoria;
-            onSeleccionar(p.subcategoriaId);
+            const p = (entry as unknown as { payload?: GastoPorSubcategoria }).payload;
+            if (p) onSeleccionar(p.subcategoriaId);
           }}
         >
           {data.map((d, i) => (

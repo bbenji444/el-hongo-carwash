@@ -218,6 +218,7 @@ export function GastosClient({
     setArchivosNuevos([]);
     setArchivosEdit([]);
     setAgregandoSubcategoria(false);
+    setNuevaSubcategoriaNombre("");
     setError(null);
     setMostrarForm(true);
   }
@@ -233,6 +234,7 @@ export function GastosClient({
       subcategoriaId: g.subcategoriaId ?? "",
     });
     setAgregandoSubcategoria(false);
+    setNuevaSubcategoriaNombre("");
     setItemsForm(
       g.items.map((it) => ({
         key: it.id,
@@ -556,6 +558,15 @@ export function GastosClient({
                       autoFocus
                       value={nuevaSubcategoriaNombre}
                       onChange={(e) => setNuevaSubcategoriaNombre(e.target.value)}
+                      onKeyDown={(e) => {
+                        // Este input vive dentro del <form> del gasto — sin
+                        // esto, Enter mandaría a guardar el gasto completo
+                        // en vez de solo agregar el producto nuevo.
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleAgregarSubcategoria();
+                        }
+                      }}
                       placeholder="Ej. Cera"
                       className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
                     />

@@ -89,9 +89,22 @@ export async function actualizarGasto(
 // etc.) — crece conforme se compran cosas nuevas, se agrega desde la misma
 // pantalla de Gastos en vez de necesitar una pantalla de administración
 // aparte.
-export async function crearSubcategoriaGasto(nombre: string) {
+export async function crearSubcategoriaGasto(nombreInput: string) {
   const { supabase, error: permisoError } = await requiereDuenoOEncargado();
   if (permisoError) return { data: null, error: permisoError };
+
+  const nombre = nombreInput.trim();
+
+  // El unique constraint de la tabla distingue mayúsculas/minúsculas, así
+  // que "cera" no lo detectaría como duplicado de "Cera" ya existente —
+  // se busca primero sin distinguir mayúsculas para no crear casi-duplicados
+  // por cómo cada quien lo escribió.
+  const { data: existente } = await supabase
+    .from("gasto_subcategorias")
+    .select("id, nombre")
+    .ilike("nombre", nombre)
+    .maybeSingle();
+  if (existente) return { data: existente, error: null };
 
   const { data, error } = await supabase
     .from("gasto_subcategorias")
@@ -100,15 +113,16 @@ export async function crearSubcategoriaGasto(nombre: string) {
     .single();
 
   if (error) {
-    // Ya existe una con ese nombre (unique constraint) — no es un error real,
-    // solo se usa la que ya había.
+    // Dos personas agregando la misma al mismo tiempo (poco probable, pero
+    // la búsqueda de arriba no es atómica) — no es un error real, se usa la
+    // que ya quedó guardada.
     if (error.code === "23505") {
-      const { data: existente } = await supabase
+      const { data: carrera } = await supabase
         .from("gasto_subcategorias")
         .select("id, nombre")
         .ilike("nombre", nombre)
         .maybeSingle();
-      if (existente) return { data: existente, error: null };
+      if (carrera) return { data: carrera, error: null };
     }
     return { data: null, error: error.message };
   }

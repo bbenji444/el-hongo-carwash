@@ -172,13 +172,26 @@ export default async function GastosPage({
     }))
     .sort((a, b) => b.total - a.total);
 
-  // Nómina por lavador — "¿cuánto se le ha pagado a cada quién?" — solo
-  // entre los gastos de categoría Nómina del período actual que sí tienen
-  // un lavador asignado.
+  // Nómina por lavador — "¿cuánto se le ha pagado a cada quién?". Mismo
+  // criterio que en producto específico: si el gasto de Nómina tiene un
+  // lavador puesto directo, cuenta completo ahí; si no, pero sí tiene
+  // renglones desglosados (el "Sueldos" semanal normal, con un renglón por
+  // persona), reparte el monto entre los renglones cuyo nombre coincida
+  // con un lavador del catálogo.
+  const idPorNombreLavador = new Map(lavadores.map((l) => [l.nombre.trim().toLowerCase(), l.id]));
   const totalPorLavadorMap = new Map<string, number>();
   for (const g of gastos) {
-    if (g.categoria !== "nomina" || !g.lavadorId) continue;
-    totalPorLavadorMap.set(g.lavadorId, (totalPorLavadorMap.get(g.lavadorId) ?? 0) + g.monto);
+    if (g.categoria !== "nomina") continue;
+    if (g.lavadorId) {
+      totalPorLavadorMap.set(g.lavadorId, (totalPorLavadorMap.get(g.lavadorId) ?? 0) + g.monto);
+      continue;
+    }
+    for (const it of g.items) {
+      const lavId = idPorNombreLavador.get(it.producto.trim().toLowerCase());
+      if (!lavId) continue;
+      const montoRenglon = it.cantidad * it.precioUnitario;
+      totalPorLavadorMap.set(lavId, (totalPorLavadorMap.get(lavId) ?? 0) + montoRenglon);
+    }
   }
   const nominaPorLavador = Array.from(totalPorLavadorMap.entries())
     .map(([lavadorId, total]) => ({ lavadorId, nombre: nombrePorLavador.get(lavadorId) ?? "—", total }))

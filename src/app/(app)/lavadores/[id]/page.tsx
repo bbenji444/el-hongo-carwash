@@ -51,11 +51,11 @@ export default async function DesgloseLavadorPage({
   // histórico a propósito (todo el tiempo, no solo el período seleccionado
   // abajo) — es "cuánto se le ha pagado en total", no algo que tenga
   // sentido acotar por fecha cada vez que cambias el filtro de tickets.
-  const [{ data: usuario }, { data: lavador }, config, { data: nominaRaw }] = await Promise.all([
+  const [{ data: usuario }, { data: lavador }, config, { data: nominaGastosRaw }] = await Promise.all([
     supabase.from("usuarios").select("rol").eq("id", user.id).maybeSingle(),
     supabase.from("lavadores").select("*").eq("id", id).maybeSingle(),
     obtenerConfiguracion(),
-    supabase.from("gastos").select("monto").eq("lavador_id", id).eq("categoria", "nomina"),
+    supabase.from("gastos").select("id, monto, lavador_id").eq("categoria", "nomina"),
   ]);
 
   if (!usuario) {
@@ -71,7 +71,38 @@ export default async function DesgloseLavadorPage({
   // mostrarle un engañoso "$0.00 pagado", que no es lo mismo que "no tiene
   // acceso a ver esto".
   const puedeVerNomina = usuario.rol !== "cajero";
-  const totalNominaHistorico = (nominaRaw ?? []).reduce((acc, g) => acc + g.monto, 0);
+
+  // Un gasto de Nómina con este lavador puesto directo cuenta completo.
+  // Uno sin lavador directo pero con renglones por persona (el "Sueldos"
+  // semanal normal, un renglón por quién cobró cuánto) cuenta si alguno de
+  // sus renglones se llama igual que este lavador — mismo criterio que la
+  // gráfica de "Nómina por lavador" en Gastos.
+  const nominaGastos = nominaGastosRaw ?? [];
+  const nominaSinLavadorIds = nominaGastos.filter((g) => !g.lavador_id).map((g) => g.id);
+  const { data: nominaItemsRaw } = nominaSinLavadorIds.length
+    ? await supabase.from("gasto_items").select("gasto_id, producto, cantidad, precio_unitario").in("gasto_id", nominaSinLavadorIds)
+    : { data: [] };
+
+  const itemsPorGastoNomina = new Map<string, { producto: string; cantidad: number; precioUnitario: number }[]>();
+  for (const it of nominaItemsRaw ?? []) {
+    const lista = itemsPorGastoNomina.get(it.gasto_id) ?? [];
+    lista.push({ producto: it.producto, cantidad: it.cantidad, precioUnitario: it.precio_unitario });
+    itemsPorGastoNomina.set(it.gasto_id, lista);
+  }
+
+  const nombreLavadorNorm = lavador.nombre.trim().toLowerCase();
+  let totalNominaHistorico = 0;
+  for (const g of nominaGastos) {
+    if (g.lavador_id) {
+      if (g.lavador_id === id) totalNominaHistorico += g.monto;
+      continue;
+    }
+    for (const it of itemsPorGastoNomina.get(g.id) ?? []) {
+      if (it.producto.trim().toLowerCase() === nombreLavadorNorm) {
+        totalNominaHistorico += it.cantidad * it.precioUnitario;
+      }
+    }
+  }
 
   const rango = resolverRango(searchParamsResueltos);
   const qs = queryStringRango(rango);

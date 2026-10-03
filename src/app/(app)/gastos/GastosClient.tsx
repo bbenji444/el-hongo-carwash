@@ -198,17 +198,29 @@ export function GastosClient({
     () => new Map(subcategoriasLocal.map((s) => [s.id, s.nombre.trim().toLowerCase()])),
     [subcategoriasLocal]
   );
+  // Mismo truco para Nómina: un "Sueldos" semanal normal no trae un
+  // lavador puesto directo, trae un renglón por persona — así que el
+  // filtro busca también ahí, igual que la gráfica de nómina por lavador.
+  const nombrePorLavadorId = useMemo(() => new Map(lavadores.map((l) => [l.id, l.nombre.trim().toLowerCase()])), [lavadores]);
 
   const gastosFiltrados = useMemo(() => {
-    const nombreFiltro = subcategoriaFiltro ? nombrePorSubcategoriaId.get(subcategoriaFiltro) : undefined;
+    const nombreSubFiltro = subcategoriaFiltro ? nombrePorSubcategoriaId.get(subcategoriaFiltro) : undefined;
+    const nombreLavFiltro = lavadorFiltro ? nombrePorLavadorId.get(lavadorFiltro) : undefined;
     return gastos.filter((g) => {
       if (categoriaFiltro && g.categoria !== categoriaFiltro) return false;
-      if (lavadorFiltro && g.lavadorId !== lavadorFiltro) return false;
+      if (lavadorFiltro) {
+        const coincideLavador = g.lavadorId
+          ? g.lavadorId === lavadorFiltro
+          : nombreLavFiltro
+            ? g.items.some((it) => it.producto.trim().toLowerCase() === nombreLavFiltro)
+            : false;
+        if (!coincideLavador) return false;
+      }
       if (!subcategoriaFiltro) return true;
       if (g.subcategoriaId) return g.subcategoriaId === subcategoriaFiltro;
-      return nombreFiltro ? g.items.some((it) => it.producto.trim().toLowerCase() === nombreFiltro) : false;
+      return nombreSubFiltro ? g.items.some((it) => it.producto.trim().toLowerCase() === nombreSubFiltro) : false;
     });
-  }, [gastos, categoriaFiltro, subcategoriaFiltro, lavadorFiltro, nombrePorSubcategoriaId]);
+  }, [gastos, categoriaFiltro, subcategoriaFiltro, lavadorFiltro, nombrePorSubcategoriaId, nombrePorLavadorId]);
 
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -720,59 +732,96 @@ export function GastosClient({
 
               <div className="flex flex-col gap-1.5 sm:col-span-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-medium text-muted">Productos de la compra — orden de compra (opcional)</label>
+                  <label className="text-xs font-medium text-muted">
+                    {form.categoria === "nomina"
+                      ? "Pagos por persona (opcional)"
+                      : "Productos de la compra — orden de compra (opcional)"}
+                  </label>
                   <button
                     type="button"
                     onClick={() => setItemsForm((f) => [...f, nuevoRenglonItem()])}
                     className="text-xs text-accent hover:underline"
                   >
-                    + Agregar producto
+                    {form.categoria === "nomina" ? "+ Agregar persona" : "+ Agregar producto"}
                   </button>
                 </div>
                 {itemsForm.length > 0 && (
                   <div className="flex flex-col gap-2 rounded-lg border border-border bg-background p-3">
-                    {itemsForm.map((it) => (
-                      <div key={it.key} className="grid grid-cols-[1fr_64px_84px_auto] items-center gap-2">
-                        <input
-                          value={it.producto}
-                          onChange={(e) => actualizarRenglonItem(it.key, "producto", e.target.value)}
-                          placeholder="Producto (ej. Fibras)"
-                          className="rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-foreground outline-none focus:border-accent"
-                        />
-                        <input
-                          value={it.cantidad}
-                          onChange={(e) => actualizarRenglonItem(it.key, "cantidad", e.target.value)}
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          placeholder="Cant."
-                          className="rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-foreground outline-none focus:border-accent"
-                        />
-                        <input
-                          value={it.precioUnitario}
-                          onChange={(e) => actualizarRenglonItem(it.key, "precioUnitario", e.target.value)}
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          placeholder="Precio c/u"
-                          className="rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-foreground outline-none focus:border-accent"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => quitarRenglonItem(it.key)}
-                          className="text-muted hover:text-primary"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ))}
-                    <p className="text-right text-xs font-medium text-foreground">Total productos: {money(totalItems)}</p>
+                    {itemsForm.map((it) =>
+                      form.categoria === "nomina" ? (
+                        <div key={it.key} className="grid grid-cols-[1fr_84px_auto] items-center gap-2">
+                          <select
+                            value={it.producto}
+                            onChange={(e) => actualizarRenglonItem(it.key, "producto", e.target.value)}
+                            className="rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-foreground outline-none focus:border-accent"
+                          >
+                            <option value="">Elige a quién</option>
+                            {lavadores.map((l) => (
+                              <option key={l.id} value={l.nombre}>
+                                {l.nombre}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            value={it.precioUnitario}
+                            onChange={(e) => actualizarRenglonItem(it.key, "precioUnitario", e.target.value)}
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="Monto"
+                            className="rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-foreground outline-none focus:border-accent"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => quitarRenglonItem(it.key)}
+                            className="text-muted hover:text-primary"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <div key={it.key} className="grid grid-cols-[1fr_64px_84px_auto] items-center gap-2">
+                          <input
+                            value={it.producto}
+                            onChange={(e) => actualizarRenglonItem(it.key, "producto", e.target.value)}
+                            placeholder="Producto (ej. Fibras)"
+                            className="rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-foreground outline-none focus:border-accent"
+                          />
+                          <input
+                            value={it.cantidad}
+                            onChange={(e) => actualizarRenglonItem(it.key, "cantidad", e.target.value)}
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="Cant."
+                            className="rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-foreground outline-none focus:border-accent"
+                          />
+                          <input
+                            value={it.precioUnitario}
+                            onChange={(e) => actualizarRenglonItem(it.key, "precioUnitario", e.target.value)}
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="Precio c/u"
+                            className="rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-foreground outline-none focus:border-accent"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => quitarRenglonItem(it.key)}
+                            className="text-muted hover:text-primary"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      )
+                    )}
+                    <p className="text-right text-xs font-medium text-foreground">Total: {money(totalItems)}</p>
                   </div>
                 )}
                 <p className="text-[11px] text-muted">
-                  Útil cuando compras varios insumos en un solo ticket: agrega cada producto por separado (con
-                  cantidad y precio) en vez de registrar un gasto por cada uno — el monto se calcula solo y todo
-                  queda en un mismo registro.
+                  {form.categoria === "nomina"
+                    ? "Útil para pagar a varias personas en un solo registro semanal: agrega una línea por persona (de una lista, para que no haya variaciones de un nombre escrito distinto cada vez) — el monto total se calcula solo."
+                    : "Útil cuando compras varios insumos en un solo ticket: agrega cada producto por separado (con cantidad y precio) en vez de registrar un gasto por cada uno — el monto se calcula solo y todo queda en un mismo registro."}
                 </p>
               </div>
 

@@ -3,7 +3,10 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { PERIODOS, resolverRango } from "@/lib/rangoFechas";
 import { CATEGORIAS_GASTO } from "@/lib/gastoCategorias";
+import { inicioDeMesMX, mesMX } from "@/lib/fecha";
 import { GastosClient } from "./GastosClient";
+
+const MESES_TENDENCIA = 12;
 
 function money(n: number) {
   return `$${n.toFixed(2)}`;
@@ -49,30 +52,46 @@ export default async function GastosPage({
 
   const gastoIds = (gastosRaw ?? []).map((g) => g.id);
 
-  const [{ data: usuarios }, { data: archivosRaw }, { data: itemsRaw }, { data: subcategoriasRaw }] =
-    await Promise.all([
-      gastoIds.length
-        ? (async () => {
-            const usuarioIds = [...new Set((gastosRaw ?? []).map((g) => g.creado_por))];
-            return supabase.from("usuarios").select("id, nombre").in("id", usuarioIds);
-          })()
-        : Promise.resolve({ data: [] }),
-      gastoIds.length
-        ? supabase.from("gasto_archivos").select("id, gasto_id, archivo_nombre, archivo_tipo").in("gasto_id", gastoIds)
-        : Promise.resolve({ data: [] }),
-      gastoIds.length
-        ? supabase
-            .from("gasto_items")
-            .select("id, gasto_id, producto, cantidad, precio_unitario")
-            .in("gasto_id", gastoIds)
-            .order("creado_en", { ascending: true })
-        : Promise.resolve({ data: [] }),
-      supabase.from("gasto_subcategorias").select("id, nombre").eq("activo", true).order("nombre"),
-    ]);
+  // Tendencia mensual: independiente del período de arriba (que puede estar
+  // en "Hoy") — siempre mira los últimos 12 meses completos, para poder
+  // responder "¿en qué mes gasté más?" sin tener que cambiar el filtro de
+  // toda la página.
+  const desdeTendencia = inicioDeMesMX(MESES_TENDENCIA - 1);
+
+  const [
+    { data: usuarios },
+    { data: archivosRaw },
+    { data: itemsRaw },
+    { data: subcategoriasRaw },
+    { data: lavadoresRaw },
+    { data: gastosTendenciaRaw },
+  ] = await Promise.all([
+    gastoIds.length
+      ? (async () => {
+          const usuarioIds = [...new Set((gastosRaw ?? []).map((g) => g.creado_por))];
+          return supabase.from("usuarios").select("id, nombre").in("id", usuarioIds);
+        })()
+      : Promise.resolve({ data: [] }),
+    gastoIds.length
+      ? supabase.from("gasto_archivos").select("id, gasto_id, archivo_nombre, archivo_tipo").in("gasto_id", gastoIds)
+      : Promise.resolve({ data: [] }),
+    gastoIds.length
+      ? supabase
+          .from("gasto_items")
+          .select("id, gasto_id, producto, cantidad, precio_unitario")
+          .in("gasto_id", gastoIds)
+          .order("creado_en", { ascending: true })
+      : Promise.resolve({ data: [] }),
+    supabase.from("gasto_subcategorias").select("id, nombre").eq("activo", true).order("nombre"),
+    supabase.from("lavadores").select("id, nombre").order("nombre"),
+    supabase.from("gastos").select("fecha, monto").gte("fecha", desdeTendencia.toISOString()),
+  ]);
 
   const nombrePorUsuario = new Map((usuarios ?? []).map((u) => [u.id, u.nombre]));
   const subcategorias = subcategoriasRaw ?? [];
   const nombrePorSubcategoria = new Map(subcategorias.map((s) => [s.id, s.nombre]));
+  const lavadores = lavadoresRaw ?? [];
+  const nombrePorLavador = new Map(lavadores.map((l) => [l.id, l.nombre]));
 
   const archivosPorGasto = new Map<string, { id: string; nombre: string; tipo: string | null }[]>();
   for (const a of archivosRaw ?? []) {
@@ -97,6 +116,8 @@ export default async function GastosPage({
     categoria: g.categoria,
     subcategoriaId: g.subcategoria_id,
     subcategoriaNombre: g.subcategoria_id ? nombrePorSubcategoria.get(g.subcategoria_id) ?? null : null,
+    lavadorId: g.lavador_id,
+    lavadorNombre: g.lavador_id ? nombrePorLavador.get(g.lavador_id) ?? null : null,
     creadoPor: nombrePorUsuario.get(g.creado_por) ?? "—",
     archivos: archivosPorGasto.get(g.id) ?? [],
     items: itemsPorGasto.get(g.id) ?? [],
@@ -150,6 +171,40 @@ export default async function GastosPage({
       total,
     }))
     .sort((a, b) => b.total - a.total);
+
+  // Nómina por lavador — "¿cuánto se le ha pagado a cada quién?" — solo
+  // entre los gastos de categoría Nómina del período actual que sí tienen
+  // un lavador asignado.
+  const totalPorLavadorMap = new Map<string, number>();
+  for (const g of gastos) {
+    if (g.categoria !== "nomina" || !g.lavadorId) continue;
+    totalPorLavadorMap.set(g.lavadorId, (totalPorLavadorMap.get(g.lavadorId) ?? 0) + g.monto);
+  }
+  const nominaPorLavador = Array.from(totalPorLavadorMap.entries())
+    .map(([lavadorId, total]) => ({ lavadorId, nombre: nombrePorLavador.get(lavadorId) ?? "—", total }))
+    .sort((a, b) => b.total - a.total);
+
+  // Tendencia mensual: últimos 12 meses completos, sin importar el período
+  // seleccionado arriba.
+  const totalPorMesMap = new Map<string, number>();
+  for (let i = MESES_TENDENCIA - 1; i >= 0; i--) {
+    totalPorMesMap.set(mesMX(inicioDeMesMX(i).toISOString()), 0);
+  }
+  for (const g of gastosTendenciaRaw ?? []) {
+    const mes = mesMX(g.fecha);
+    if (totalPorMesMap.has(mes)) {
+      totalPorMesMap.set(mes, (totalPorMesMap.get(mes) ?? 0) + g.monto);
+    }
+  }
+  const gastosPorMes = Array.from(totalPorMesMap, ([mes, total]) => ({
+    mes,
+    etiqueta: new Date(`${mes}-01T12:00:00`).toLocaleDateString("es-MX", {
+      month: "short",
+      year: "2-digit",
+      timeZone: "America/Mexico_City",
+    }),
+    total,
+  }));
 
   return (
     <div className="flex flex-col gap-6">
@@ -233,6 +288,9 @@ export default async function GastosPage({
         gastosPorCategoria={gastosPorCategoria}
         gastosPorSubcategoria={gastosPorSubcategoria}
         subcategorias={subcategorias}
+        lavadores={lavadores}
+        nominaPorLavador={nominaPorLavador}
+        gastosPorMes={gastosPorMes}
       />
     </div>
   );

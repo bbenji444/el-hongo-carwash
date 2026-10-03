@@ -45,11 +45,12 @@ export async function eliminarLavador(id: string) {
   const { error } = await supabase.from("lavadores").delete().eq("id", id);
 
   if (error) {
-    // 23503 = violación de llave foránea: ya tiene tickets asociados, así
-    // que borrarlo rompería ese historial. Toca desactivarlo en su lugar.
+    // 23503 = violación de llave foránea: ya tiene tickets y/o gastos de
+    // nómina asociados, así que borrarlo rompería ese historial. Toca
+    // desactivarlo en su lugar.
     if (error.code === "23503") {
       return {
-        error: "No se puede eliminar: ya tiene autos lavados registrados. Desactívalo en vez de eliminarlo.",
+        error: "No se puede eliminar: ya tiene autos lavados o pagos de nómina registrados. Desactívalo en vez de eliminarlo.",
       };
     }
     return { error: error.message };

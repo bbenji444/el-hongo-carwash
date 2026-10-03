@@ -29,6 +29,7 @@ export async function crearGasto(input: {
   notas: string | null;
   categoria: GastoCategoria;
   subcategoriaId: string | null;
+  lavadorId: string | null;
 }) {
   const { supabase, userId, error: permisoError } = await requiereDuenoOEncargado();
   if (permisoError) return { data: null, error: permisoError };
@@ -42,6 +43,7 @@ export async function crearGasto(input: {
       notas: input.notas,
       categoria: input.categoria,
       subcategoria_id: input.subcategoriaId,
+      lavador_id: input.lavadorId,
       creado_por: userId!,
     })
     .select("id")
@@ -62,6 +64,7 @@ export async function actualizarGasto(
     notas: string | null;
     categoria: GastoCategoria;
     subcategoriaId: string | null;
+    lavadorId: string | null;
   }
 ) {
   const { supabase, error: permisoError } = await requiereDuenoOEncargado();
@@ -76,6 +79,7 @@ export async function actualizarGasto(
       notas: input.notas,
       categoria: input.categoria,
       subcategoria_id: input.subcategoriaId,
+      lavador_id: input.lavadorId,
     })
     .eq("id", gastoId);
 

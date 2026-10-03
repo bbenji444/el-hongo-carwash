@@ -1,13 +1,18 @@
 "use client";
 
 import { useMemo, useRef, useState, useTransition, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import type { GastoCategoria } from "@/types/database.types";
 import { CATEGORIAS_GASTO, nombreCategoriaGasto } from "@/lib/gastoCategorias";
 import {
   GastosPorCategoriaChart,
   GastosPorSubcategoriaChart,
+  GastosPorMesChart,
+  NominaPorLavadorChart,
   type GastoPorCategoria,
   type GastoPorSubcategoria,
+  type GastoPorMes,
+  type GastoPorLavador,
 } from "./GastosCharts";
 import {
   crearGasto,
@@ -25,6 +30,7 @@ import {
 type GastoArchivo = { id: string; nombre: string; tipo: string | null };
 type GastoItem = { id: string; producto: string; cantidad: number; precioUnitario: number };
 type Subcategoria = { id: string; nombre: string };
+type Lavador = { id: string; nombre: string };
 
 type Gasto = {
   id: string;
@@ -35,6 +41,8 @@ type Gasto = {
   categoria: GastoCategoria;
   subcategoriaId: string | null;
   subcategoriaNombre: string | null;
+  lavadorId: string | null;
+  lavadorNombre: string | null;
   creadoPor: string;
   archivos: GastoArchivo[];
   items: GastoItem[];
@@ -128,6 +136,7 @@ const emptyForm = {
   notas: "",
   categoria: "otros" as GastoCategoria,
   subcategoriaId: "" as string,
+  lavadorId: "" as string,
 };
 
 export function GastosClient({
@@ -135,15 +144,23 @@ export function GastosClient({
   gastosPorCategoria,
   gastosPorSubcategoria,
   subcategorias,
+  lavadores,
+  nominaPorLavador,
+  gastosPorMes,
 }: {
   gastos: Gasto[];
   gastosPorCategoria: GastoPorCategoria[];
   gastosPorSubcategoria: GastoPorSubcategoria[];
   subcategorias: Subcategoria[];
+  lavadores: Lavador[];
+  nominaPorLavador: GastoPorLavador[];
+  gastosPorMes: GastoPorMes[];
 }) {
+  const router = useRouter();
   const [form, setForm] = useState(emptyForm);
   const [categoriaFiltro, setCategoriaFiltro] = useState<GastoCategoria | null>(null);
   const [subcategoriaFiltro, setSubcategoriaFiltro] = useState<string | null>(null);
+  const [lavadorFiltro, setLavadorFiltro] = useState<string | null>(null);
   const [subcategoriasLocal, setSubcategoriasLocal] = useState<Subcategoria[]>(subcategorias);
   const [agregandoSubcategoria, setAgregandoSubcategoria] = useState(false);
   const [nuevaSubcategoriaNombre, setNuevaSubcategoriaNombre] = useState("");
@@ -155,6 +172,18 @@ export function GastosClient({
 
   function alternarFiltroSubcategoria(subcategoriaId: string) {
     setSubcategoriaFiltro((actual) => (actual === subcategoriaId ? null : subcategoriaId));
+  }
+
+  function alternarFiltroLavador(lavadorId: string) {
+    setLavadorFiltro((actual) => (actual === lavadorId ? null : lavadorId));
+  }
+
+  function irAMes(mes: string) {
+    const [anio, mesNum] = mes.split("-").map(Number);
+    const desde = `${mes}-01`;
+    const ultimoDia = new Date(anio, mesNum, 0).getDate();
+    const hasta = `${mes}-${String(ultimoDia).padStart(2, "0")}`;
+    router.push(`/gastos?desde=${desde}&hasta=${hasta}`);
   }
 
   // Mismo criterio que usa la gráfica (page.tsx) para "explotar" una compra
@@ -174,11 +203,12 @@ export function GastosClient({
     const nombreFiltro = subcategoriaFiltro ? nombrePorSubcategoriaId.get(subcategoriaFiltro) : undefined;
     return gastos.filter((g) => {
       if (categoriaFiltro && g.categoria !== categoriaFiltro) return false;
+      if (lavadorFiltro && g.lavadorId !== lavadorFiltro) return false;
       if (!subcategoriaFiltro) return true;
       if (g.subcategoriaId) return g.subcategoriaId === subcategoriaFiltro;
       return nombreFiltro ? g.items.some((it) => it.producto.trim().toLowerCase() === nombreFiltro) : false;
     });
-  }, [gastos, categoriaFiltro, subcategoriaFiltro, nombrePorSubcategoriaId]);
+  }, [gastos, categoriaFiltro, subcategoriaFiltro, lavadorFiltro, nombrePorSubcategoriaId]);
 
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -245,6 +275,7 @@ export function GastosClient({
       notas: g.notas ?? "",
       categoria: g.categoria,
       subcategoriaId: g.subcategoriaId ?? "",
+      lavadorId: g.lavadorId ?? "",
     });
     setAgregandoSubcategoria(false);
     setNuevaSubcategoriaNombre("");
@@ -353,6 +384,7 @@ export function GastosClient({
       notas: form.notas.trim() || null,
       categoria: form.categoria,
       subcategoriaId: form.subcategoriaId || null,
+      lavadorId: form.categoria === "nomina" ? form.lavadorId || null : null,
     };
 
     const archivosAsubir = archivosNuevos;
@@ -453,52 +485,84 @@ export function GastosClient({
   return (
     <div className="flex flex-col gap-4">
       <div className="rounded-xl border border-border bg-surface p-5">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h2 className="font-semibold text-foreground">¿En qué se va más el dinero?</h2>
-            <p className="text-xs text-muted">Clic en una barra para filtrar la tabla de abajo por esa categoría.</p>
-          </div>
-          {categoriaFiltro && (
-            <button
-              onClick={() => setCategoriaFiltro(null)}
-              className="rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20"
-            >
-              Mostrando: {nombreCategoriaGasto(categoriaFiltro)} ✕
-            </button>
-          )}
-        </div>
+        <h2 className="font-semibold text-foreground">Gastos por mes (últimos 12 meses)</h2>
+        <p className="text-xs text-muted">Clic en un mes para ver el detalle de ese mes abajo.</p>
         <div className="mt-3">
-          <GastosPorCategoriaChart
-            data={gastosPorCategoria}
-            seleccionada={categoriaFiltro}
-            onSeleccionar={alternarFiltroCategoria}
-          />
+          <GastosPorMesChart data={gastosPorMes} onSeleccionarMes={irAMes} />
         </div>
       </div>
 
-      <div className="rounded-xl border border-border bg-surface p-5">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="rounded-xl border border-border bg-surface p-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="font-semibold text-foreground">¿En qué se va más el dinero?</h2>
+              <p className="text-xs text-muted">Clic en una rebanada para filtrar la tabla de abajo.</p>
+            </div>
+            {categoriaFiltro && (
+              <button
+                onClick={() => setCategoriaFiltro(null)}
+                className="rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20"
+              >
+                Mostrando: {nombreCategoriaGasto(categoriaFiltro)} ✕
+              </button>
+            )}
+          </div>
+          <div className="mt-3">
+            <GastosPorCategoriaChart
+              data={gastosPorCategoria}
+              seleccionada={categoriaFiltro}
+              onSeleccionar={alternarFiltroCategoria}
+            />
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-border bg-surface p-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="font-semibold text-foreground">¿En qué producto específico se va más?</h2>
+              <p className="text-xs text-muted">
+                Solo entre los gastos que ya tienen un producto asignado (ej. Shampoo, Abrillantador).
+              </p>
+            </div>
+            {subcategoriaFiltro && (
+              <button
+                onClick={() => setSubcategoriaFiltro(null)}
+                className="rounded-lg border border-accent/40 bg-accent/10 px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent/20"
+              >
+                Mostrando: {subcategoriasLocal.find((s) => s.id === subcategoriaFiltro)?.nombre ?? "—"} ✕
+              </button>
+            )}
+          </div>
+          <div className="mt-3 max-h-[300px] overflow-y-auto pr-1">
+            <GastosPorSubcategoriaChart
+              data={gastosPorSubcategoria}
+              seleccionada={subcategoriaFiltro}
+              onSeleccionar={alternarFiltroSubcategoria}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-success/40 bg-success/5 p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h2 className="font-semibold text-foreground">¿En qué producto específico se va más?</h2>
+            <h2 className="font-semibold text-foreground">¿A quién se le ha pagado cuánto en Nómina?</h2>
             <p className="text-xs text-muted">
-              Solo entre los gastos que ya tienen un producto asignado (ej. Shampoo, Abrillantador).
+              Solo entre los gastos de Nómina de este período que ya tienen un lavador asignado.
             </p>
           </div>
-          {subcategoriaFiltro && (
+          {lavadorFiltro && (
             <button
-              onClick={() => setSubcategoriaFiltro(null)}
-              className="rounded-lg border border-accent/40 bg-accent/10 px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent/20"
+              onClick={() => setLavadorFiltro(null)}
+              className="rounded-lg border border-success/40 bg-success/10 px-3 py-1.5 text-xs font-medium text-success hover:bg-success/20"
             >
-              Mostrando: {subcategoriasLocal.find((s) => s.id === subcategoriaFiltro)?.nombre ?? "—"} ✕
+              Mostrando: {lavadores.find((l) => l.id === lavadorFiltro)?.nombre ?? "—"} ✕
             </button>
           )}
         </div>
-        <div className="mt-3">
-          <GastosPorSubcategoriaChart
-            data={gastosPorSubcategoria}
-            seleccionada={subcategoriaFiltro}
-            onSeleccionar={alternarFiltroSubcategoria}
-          />
+        <div className="mt-3 max-h-[300px] overflow-y-auto pr-1">
+          <NominaPorLavadorChart data={nominaPorLavador} seleccionado={lavadorFiltro} onSeleccionar={alternarFiltroLavador} />
         </div>
       </div>
 
@@ -539,6 +603,25 @@ export function GastosClient({
                   ))}
                 </select>
               </div>
+              {form.categoria === "nomina" && (
+                <div className="flex flex-col gap-1.5 sm:col-span-2">
+                  <label className="text-xs font-medium text-muted">
+                    Lavador (opcional — para poder ver cuánto se le ha pagado a cada quién)
+                  </label>
+                  <select
+                    value={form.lavadorId}
+                    onChange={(e) => setForm((f) => ({ ...f, lavadorId: e.target.value }))}
+                    className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+                  >
+                    <option value="">Sin asignar</option>
+                    {lavadores.map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="flex flex-col gap-1.5 sm:col-span-2">
                 <label className="text-xs font-medium text-muted">
                   Producto específico (opcional — para Sueldos, Renta, etc. déjalo en blanco)
@@ -820,6 +903,7 @@ export function GastosClient({
               <th className="px-4 py-3">Concepto</th>
               <th className="px-4 py-3">Categoría</th>
               <th className="px-4 py-3">Producto</th>
+              <th className="px-4 py-3">Lavador</th>
               <th className="px-4 py-3">Notas</th>
               <th className="px-4 py-3">Registró</th>
               <th className="px-4 py-3">Archivo</th>
@@ -856,6 +940,7 @@ export function GastosClient({
                     "—"
                   )}
                 </td>
+                <td className="px-4 py-3 text-muted">{g.lavadorNombre ?? "—"}</td>
                 <td className="px-4 py-3 text-muted">{g.notas ?? "—"}</td>
                 <td className="px-4 py-3 text-muted">{g.creadoPor}</td>
                 <td className="px-4 py-3">
@@ -898,8 +983,8 @@ export function GastosClient({
             ))}
             {gastosFiltrados.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-4 py-6 text-center text-muted">
-                  {categoriaFiltro || subcategoriaFiltro
+                <td colSpan={10} className="px-4 py-6 text-center text-muted">
+                  {categoriaFiltro || subcategoriaFiltro || lavadorFiltro
                     ? "Ningún gasto coincide con el filtro seleccionado."
                     : "Sin gastos registrados en este período."}
                 </td>

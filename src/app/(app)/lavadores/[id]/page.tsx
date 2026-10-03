@@ -45,13 +45,17 @@ export default async function DesgloseLavadorPage({
     redirect("/login");
   }
 
-  // Las tres son independientes entre sí (lavador solo usa el id de la
-  // URL; obtenerConfiguracion ya viene cacheada desde el layout, pero
-  // pedirla aquí junto con las demás no cuesta nada extra).
-  const [{ data: usuario }, { data: lavador }, config] = await Promise.all([
+  // Independientes entre sí (lavador solo usa el id de la URL;
+  // obtenerConfiguracion ya viene cacheada desde el layout, pero pedirla
+  // aquí junto con las demás no cuesta nada extra). El total de nómina es
+  // histórico a propósito (todo el tiempo, no solo el período seleccionado
+  // abajo) — es "cuánto se le ha pagado en total", no algo que tenga
+  // sentido acotar por fecha cada vez que cambias el filtro de tickets.
+  const [{ data: usuario }, { data: lavador }, config, { data: nominaRaw }] = await Promise.all([
     supabase.from("usuarios").select("rol").eq("id", user.id).maybeSingle(),
     supabase.from("lavadores").select("*").eq("id", id).maybeSingle(),
     obtenerConfiguracion(),
+    supabase.from("gastos").select("monto").eq("lavador_id", id).eq("categoria", "nomina"),
   ]);
 
   if (!usuario) {
@@ -61,6 +65,13 @@ export default async function DesgloseLavadorPage({
   if (!lavador) {
     notFound();
   }
+
+  // RLS ya le bloquea a un cajero poder leer "gastos" (regresa vacío, no
+  // error) — pero igual se oculta la tarjeta a propósito en vez de
+  // mostrarle un engañoso "$0.00 pagado", que no es lo mismo que "no tiene
+  // acceso a ver esto".
+  const puedeVerNomina = usuario.rol !== "cajero";
+  const totalNominaHistorico = (nominaRaw ?? []).reduce((acc, g) => acc + g.monto, 0);
 
   const rango = resolverRango(searchParamsResueltos);
   const qs = queryStringRango(rango);
@@ -280,6 +291,13 @@ export default async function DesgloseLavadorPage({
           </p>
           <p className="text-[11px] text-muted">De &quot;Iniciar&quot; a &quot;Terminado&quot;</p>
         </div>
+        {puedeVerNomina && (
+          <div className="rounded-xl border border-success/40 bg-success/5 p-5">
+            <p className="text-xs uppercase tracking-wide text-muted">Pagado en nómina (histórico)</p>
+            <p className="mt-1 text-2xl font-bold text-success">{money(totalNominaHistorico)}</p>
+            <p className="text-[11px] text-muted">Todo el tiempo, no solo este período</p>
+          </div>
+        )}
         <div className="rounded-xl border border-border bg-surface p-5 sm:col-span-2">
           <p className="text-xs uppercase tracking-wide text-muted">Por tamaño de vehículo</p>
           <div className="mt-2 flex flex-wrap gap-2">

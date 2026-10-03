@@ -577,6 +577,7 @@ export interface Database {
           notas: string | null;
           categoria: "nomina" | "insumos" | "servicios" | "renta" | "mantenimiento" | "otros";
           subcategoria_id: string | null;
+          lavador_id: string | null;
           creado_por: string;
           creado_en: string;
         };
@@ -588,6 +589,7 @@ export interface Database {
           notas?: string | null;
           categoria?: "nomina" | "insumos" | "servicios" | "renta" | "mantenimiento" | "otros";
           subcategoria_id?: string | null;
+          lavador_id?: string | null;
           creado_por: string;
           creado_en?: string;
         };
@@ -599,6 +601,7 @@ export interface Database {
           notas?: string | null;
           categoria?: "nomina" | "insumos" | "servicios" | "renta" | "mantenimiento" | "otros";
           subcategoria_id?: string | null;
+          lavador_id?: string | null;
           creado_por?: string;
           creado_en?: string;
         };

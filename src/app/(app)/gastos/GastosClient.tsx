@@ -157,15 +157,28 @@ export function GastosClient({
     setSubcategoriaFiltro((actual) => (actual === subcategoriaId ? null : subcategoriaId));
   }
 
-  const gastosFiltrados = useMemo(
-    () =>
-      gastos.filter(
-        (g) =>
-          (!categoriaFiltro || g.categoria === categoriaFiltro) &&
-          (!subcategoriaFiltro || g.subcategoriaId === subcategoriaFiltro)
-      ),
-    [gastos, categoriaFiltro, subcategoriaFiltro]
+  // Mismo criterio que usa la gráfica (page.tsx) para "explotar" una compra
+  // itemizada sin subcategoría propia: si no tiene subcategoría directa,
+  // cuenta como coincidencia si alguno de sus renglones ("productos de la
+  // compra") se llama igual que la subcategoría buscada. Sin esto, la
+  // gráfica mostraba montos para productos como Teflón (que solo salen de
+  // compras mixtas de Dogo, itemizadas) pero el filtro de abajo no
+  // encontraba nada, porque solo miraba la subcategoría del gasto, nunca
+  // sus renglones.
+  const nombrePorSubcategoriaId = useMemo(
+    () => new Map(subcategoriasLocal.map((s) => [s.id, s.nombre.trim().toLowerCase()])),
+    [subcategoriasLocal]
   );
+
+  const gastosFiltrados = useMemo(() => {
+    const nombreFiltro = subcategoriaFiltro ? nombrePorSubcategoriaId.get(subcategoriaFiltro) : undefined;
+    return gastos.filter((g) => {
+      if (categoriaFiltro && g.categoria !== categoriaFiltro) return false;
+      if (!subcategoriaFiltro) return true;
+      if (g.subcategoriaId) return g.subcategoriaId === subcategoriaFiltro;
+      return nombreFiltro ? g.items.some((it) => it.producto.trim().toLowerCase() === nombreFiltro) : false;
+    });
+  }, [gastos, categoriaFiltro, subcategoriaFiltro, nombrePorSubcategoriaId]);
 
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);

@@ -3,11 +3,17 @@
 import { useMemo, useRef, useState, useTransition, type FormEvent } from "react";
 import type { GastoCategoria } from "@/types/database.types";
 import { CATEGORIAS_GASTO, nombreCategoriaGasto } from "@/lib/gastoCategorias";
-import { GastosPorCategoriaChart, type GastoPorCategoria } from "./GastosCharts";
+import {
+  GastosPorCategoriaChart,
+  GastosPorSubcategoriaChart,
+  type GastoPorCategoria,
+  type GastoPorSubcategoria,
+} from "./GastosCharts";
 import {
   crearGasto,
   actualizarGasto,
   eliminarGasto,
+  crearSubcategoriaGasto,
   subirArchivoGasto,
   eliminarArchivoGasto,
   obtenerUrlArchivoGasto,
@@ -18,6 +24,7 @@ import {
 
 type GastoArchivo = { id: string; nombre: string; tipo: string | null };
 type GastoItem = { id: string; producto: string; cantidad: number; precioUnitario: number };
+type Subcategoria = { id: string; nombre: string };
 
 type Gasto = {
   id: string;
@@ -26,6 +33,8 @@ type Gasto = {
   fecha: string;
   notas: string | null;
   categoria: GastoCategoria;
+  subcategoriaId: string | null;
+  subcategoriaNombre: string | null;
   creadoPor: string;
   archivos: GastoArchivo[];
   items: GastoItem[];
@@ -118,29 +127,68 @@ const emptyForm = {
   fecha: fechaInput(new Date().toISOString()),
   notas: "",
   categoria: "otros" as GastoCategoria,
+  subcategoriaId: "" as string,
 };
 
 export function GastosClient({
   gastos,
   gastosPorCategoria,
+  gastosPorSubcategoria,
+  subcategorias,
 }: {
   gastos: Gasto[];
   gastosPorCategoria: GastoPorCategoria[];
+  gastosPorSubcategoria: GastoPorSubcategoria[];
+  subcategorias: Subcategoria[];
 }) {
   const [form, setForm] = useState(emptyForm);
   const [categoriaFiltro, setCategoriaFiltro] = useState<GastoCategoria | null>(null);
+  const [subcategoriaFiltro, setSubcategoriaFiltro] = useState<string | null>(null);
+  const [subcategoriasLocal, setSubcategoriasLocal] = useState<Subcategoria[]>(subcategorias);
+  const [agregandoSubcategoria, setAgregandoSubcategoria] = useState(false);
+  const [nuevaSubcategoriaNombre, setNuevaSubcategoriaNombre] = useState("");
+  const [guardandoSubcategoria, setGuardandoSubcategoria] = useState(false);
 
   function alternarFiltroCategoria(categoria: GastoCategoria) {
     setCategoriaFiltro((actual) => (actual === categoria ? null : categoria));
   }
 
+  function alternarFiltroSubcategoria(subcategoriaId: string) {
+    setSubcategoriaFiltro((actual) => (actual === subcategoriaId ? null : subcategoriaId));
+  }
+
   const gastosFiltrados = useMemo(
-    () => (categoriaFiltro ? gastos.filter((g) => g.categoria === categoriaFiltro) : gastos),
-    [gastos, categoriaFiltro]
+    () =>
+      gastos.filter(
+        (g) =>
+          (!categoriaFiltro || g.categoria === categoriaFiltro) &&
+          (!subcategoriaFiltro || g.subcategoriaId === subcategoriaFiltro)
+      ),
+    [gastos, categoriaFiltro, subcategoriaFiltro]
   );
+
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  async function handleAgregarSubcategoria() {
+    const nombre = nuevaSubcategoriaNombre.trim();
+    if (!nombre) return;
+    setGuardandoSubcategoria(true);
+    const result = await crearSubcategoriaGasto(nombre);
+    setGuardandoSubcategoria(false);
+    if (result.error || !result.data) {
+      setError(result.error ?? "No se pudo agregar el producto.");
+      return;
+    }
+    setSubcategoriasLocal((prev) =>
+      prev.some((s) => s.id === result.data!.id) ? prev : [...prev, result.data!].sort((a, b) => a.nombre.localeCompare(b.nombre))
+    );
+    setForm((f) => ({ ...f, subcategoriaId: result.data!.id }));
+    setNuevaSubcategoriaNombre("");
+    setAgregandoSubcategoria(false);
+  }
+
   const [mostrarForm, setMostrarForm] = useState(false);
   const [convirtiendo, setConvirtiendo] = useState(false);
   const [verArchivoPendiente, setVerArchivoPendiente] = useState<string | null>(null);
@@ -169,6 +217,7 @@ export function GastosClient({
     setItemsOriginalIds(new Set());
     setArchivosNuevos([]);
     setArchivosEdit([]);
+    setAgregandoSubcategoria(false);
     setError(null);
     setMostrarForm(true);
   }
@@ -181,7 +230,9 @@ export function GastosClient({
       fecha: fechaInput(g.fecha),
       notas: g.notas ?? "",
       categoria: g.categoria,
+      subcategoriaId: g.subcategoriaId ?? "",
     });
+    setAgregandoSubcategoria(false);
     setItemsForm(
       g.items.map((it) => ({
         key: it.id,
@@ -286,6 +337,7 @@ export function GastosClient({
       fecha: new Date(`${form.fecha}T12:00:00`).toISOString(),
       notas: form.notas.trim() || null,
       categoria: form.categoria,
+      subcategoriaId: form.subcategoriaId || null,
     };
 
     const archivosAsubir = archivosNuevos;
@@ -409,6 +461,32 @@ export function GastosClient({
         </div>
       </div>
 
+      <div className="rounded-xl border border-border bg-surface p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="font-semibold text-foreground">¿En qué producto específico se va más?</h2>
+            <p className="text-xs text-muted">
+              Solo entre los gastos que ya tienen un producto asignado (ej. Shampoo, Abrillantador).
+            </p>
+          </div>
+          {subcategoriaFiltro && (
+            <button
+              onClick={() => setSubcategoriaFiltro(null)}
+              className="rounded-lg border border-accent/40 bg-accent/10 px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent/20"
+            >
+              Mostrando: {subcategoriasLocal.find((s) => s.id === subcategoriaFiltro)?.nombre ?? "—"} ✕
+            </button>
+          )}
+        </div>
+        <div className="mt-3">
+          <GastosPorSubcategoriaChart
+            data={gastosPorSubcategoria}
+            seleccionada={subcategoriaFiltro}
+            onSeleccionar={alternarFiltroSubcategoria}
+          />
+        </div>
+      </div>
+
       <div>
         {!mostrarForm ? (
           <button
@@ -445,6 +523,62 @@ export function GastosClient({
                     </option>
                   ))}
                 </select>
+              </div>
+              <div className="flex flex-col gap-1.5 sm:col-span-2">
+                <label className="text-xs font-medium text-muted">
+                  Producto específico (opcional — para Sueldos, Renta, etc. déjalo en blanco)
+                </label>
+                {!agregandoSubcategoria ? (
+                  <div className="flex gap-2">
+                    <select
+                      value={form.subcategoriaId}
+                      onChange={(e) => setForm((f) => ({ ...f, subcategoriaId: e.target.value }))}
+                      className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+                    >
+                      <option value="">Sin producto específico</option>
+                      {subcategoriasLocal.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.nombre}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => setAgregandoSubcategoria(true)}
+                      className="shrink-0 rounded-lg border border-border px-3 py-2 text-xs text-accent hover:bg-surface-hover"
+                    >
+                      + Nuevo
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <input
+                      autoFocus
+                      value={nuevaSubcategoriaNombre}
+                      onChange={(e) => setNuevaSubcategoriaNombre(e.target.value)}
+                      placeholder="Ej. Cera"
+                      className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAgregarSubcategoria}
+                      disabled={guardandoSubcategoria || !nuevaSubcategoriaNombre.trim()}
+                      className="shrink-0 rounded-lg bg-accent px-3 py-2 text-xs font-medium text-white disabled:opacity-60"
+                    >
+                      {guardandoSubcategoria ? "Agregando..." : "Agregar"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAgregandoSubcategoria(false);
+                        setNuevaSubcategoriaNombre("");
+                      }}
+                      className="shrink-0 rounded-lg border border-border px-3 py-2 text-xs text-muted hover:text-foreground"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                )}
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-medium text-muted">Monto</label>
@@ -661,6 +795,7 @@ export function GastosClient({
               <th className="px-4 py-3">Fecha</th>
               <th className="px-4 py-3">Concepto</th>
               <th className="px-4 py-3">Categoría</th>
+              <th className="px-4 py-3">Producto</th>
               <th className="px-4 py-3">Notas</th>
               <th className="px-4 py-3">Registró</th>
               <th className="px-4 py-3">Archivo</th>
@@ -687,6 +822,15 @@ export function GastosClient({
                   <span className="rounded-full border border-border bg-background px-2 py-0.5 text-xs">
                     {nombreCategoriaGasto(g.categoria)}
                   </span>
+                </td>
+                <td className="px-4 py-3 text-muted">
+                  {g.subcategoriaNombre ? (
+                    <span className="rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-xs text-accent">
+                      {g.subcategoriaNombre}
+                    </span>
+                  ) : (
+                    "—"
+                  )}
                 </td>
                 <td className="px-4 py-3 text-muted">{g.notas ?? "—"}</td>
                 <td className="px-4 py-3 text-muted">{g.creadoPor}</td>
@@ -730,9 +874,9 @@ export function GastosClient({
             ))}
             {gastosFiltrados.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-6 text-center text-muted">
-                  {categoriaFiltro
-                    ? `Sin gastos de "${nombreCategoriaGasto(categoriaFiltro)}" en este período.`
+                <td colSpan={9} className="px-4 py-6 text-center text-muted">
+                  {categoriaFiltro || subcategoriaFiltro
+                    ? "Ningún gasto coincide con el filtro seleccionado."
                     : "Sin gastos registrados en este período."}
                 </td>
               </tr>

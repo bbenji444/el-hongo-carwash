@@ -49,26 +49,30 @@ export default async function GastosPage({
 
   const gastoIds = (gastosRaw ?? []).map((g) => g.id);
 
-  const [{ data: usuarios }, { data: archivosRaw }, { data: itemsRaw }] = await Promise.all([
-    gastoIds.length
-      ? (async () => {
-          const usuarioIds = [...new Set((gastosRaw ?? []).map((g) => g.creado_por))];
-          return supabase.from("usuarios").select("id, nombre").in("id", usuarioIds);
-        })()
-      : Promise.resolve({ data: [] }),
-    gastoIds.length
-      ? supabase.from("gasto_archivos").select("id, gasto_id, archivo_nombre, archivo_tipo").in("gasto_id", gastoIds)
-      : Promise.resolve({ data: [] }),
-    gastoIds.length
-      ? supabase
-          .from("gasto_items")
-          .select("id, gasto_id, producto, cantidad, precio_unitario")
-          .in("gasto_id", gastoIds)
-          .order("creado_en", { ascending: true })
-      : Promise.resolve({ data: [] }),
-  ]);
+  const [{ data: usuarios }, { data: archivosRaw }, { data: itemsRaw }, { data: subcategoriasRaw }] =
+    await Promise.all([
+      gastoIds.length
+        ? (async () => {
+            const usuarioIds = [...new Set((gastosRaw ?? []).map((g) => g.creado_por))];
+            return supabase.from("usuarios").select("id, nombre").in("id", usuarioIds);
+          })()
+        : Promise.resolve({ data: [] }),
+      gastoIds.length
+        ? supabase.from("gasto_archivos").select("id, gasto_id, archivo_nombre, archivo_tipo").in("gasto_id", gastoIds)
+        : Promise.resolve({ data: [] }),
+      gastoIds.length
+        ? supabase
+            .from("gasto_items")
+            .select("id, gasto_id, producto, cantidad, precio_unitario")
+            .in("gasto_id", gastoIds)
+            .order("creado_en", { ascending: true })
+        : Promise.resolve({ data: [] }),
+      supabase.from("gasto_subcategorias").select("id, nombre").eq("activo", true).order("nombre"),
+    ]);
 
   const nombrePorUsuario = new Map((usuarios ?? []).map((u) => [u.id, u.nombre]));
+  const subcategorias = subcategoriasRaw ?? [];
+  const nombrePorSubcategoria = new Map(subcategorias.map((s) => [s.id, s.nombre]));
 
   const archivosPorGasto = new Map<string, { id: string; nombre: string; tipo: string | null }[]>();
   for (const a of archivosRaw ?? []) {
@@ -91,6 +95,8 @@ export default async function GastosPage({
     fecha: g.fecha,
     notas: g.notas,
     categoria: g.categoria,
+    subcategoriaId: g.subcategoria_id,
+    subcategoriaNombre: g.subcategoria_id ? nombrePorSubcategoria.get(g.subcategoria_id) ?? null : null,
     creadoPor: nombrePorUsuario.get(g.creado_por) ?? "—",
     archivos: archivosPorGasto.get(g.id) ?? [],
     items: itemsPorGasto.get(g.id) ?? [],
@@ -111,6 +117,22 @@ export default async function GastosPage({
     total: totalPorCategoriaMap.get(c.value) ?? 0,
   }))
     .filter((c) => c.total > 0)
+    .sort((a, b) => b.total - a.total);
+
+  // Igual, pero por producto específico (subcategoría) — solo entre los
+  // gastos que sí tienen una asignada (los que no, como Sueldos, no entran
+  // aquí).
+  const totalPorSubcategoriaMap = new Map<string, number>();
+  for (const g of gastos) {
+    if (!g.subcategoriaId) continue;
+    totalPorSubcategoriaMap.set(g.subcategoriaId, (totalPorSubcategoriaMap.get(g.subcategoriaId) ?? 0) + g.monto);
+  }
+  const gastosPorSubcategoria = Array.from(totalPorSubcategoriaMap.entries())
+    .map(([subcategoriaId, total]) => ({
+      subcategoriaId,
+      nombre: nombrePorSubcategoria.get(subcategoriaId) ?? "—",
+      total,
+    }))
     .sort((a, b) => b.total - a.total);
 
   return (
@@ -190,7 +212,12 @@ export default async function GastosPage({
         <p className="mt-1 text-2xl font-bold text-primary">{money(totalGastos)}</p>
       </div>
 
-      <GastosClient gastos={gastos} gastosPorCategoria={gastosPorCategoria} />
+      <GastosClient
+        gastos={gastos}
+        gastosPorCategoria={gastosPorCategoria}
+        gastosPorSubcategoria={gastosPorSubcategoria}
+        subcategorias={subcategorias}
+      />
     </div>
   );
 }

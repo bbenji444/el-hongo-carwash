@@ -28,6 +28,7 @@ export async function crearGasto(input: {
   fecha: string;
   notas: string | null;
   categoria: GastoCategoria;
+  subcategoriaId: string | null;
 }) {
   const { supabase, userId, error: permisoError } = await requiereDuenoOEncargado();
   if (permisoError) return { data: null, error: permisoError };
@@ -40,6 +41,7 @@ export async function crearGasto(input: {
       fecha: input.fecha,
       notas: input.notas,
       categoria: input.categoria,
+      subcategoria_id: input.subcategoriaId,
       creado_por: userId!,
     })
     .select("id")
@@ -53,7 +55,14 @@ export async function crearGasto(input: {
 
 export async function actualizarGasto(
   gastoId: string,
-  input: { concepto: string; monto: number; fecha: string; notas: string | null; categoria: GastoCategoria }
+  input: {
+    concepto: string;
+    monto: number;
+    fecha: string;
+    notas: string | null;
+    categoria: GastoCategoria;
+    subcategoriaId: string | null;
+  }
 ) {
   const { supabase, error: permisoError } = await requiereDuenoOEncargado();
   if (permisoError) return { error: permisoError };
@@ -66,6 +75,7 @@ export async function actualizarGasto(
       fecha: input.fecha,
       notas: input.notas,
       categoria: input.categoria,
+      subcategoria_id: input.subcategoriaId,
     })
     .eq("id", gastoId);
 
@@ -73,6 +83,38 @@ export async function actualizarGasto(
 
   revalidatePath("/", "layout");
   return { error: null };
+}
+
+// Catálogo de subcategorías (productos específicos: Shampoo, Abrillantador,
+// etc.) — crece conforme se compran cosas nuevas, se agrega desde la misma
+// pantalla de Gastos en vez de necesitar una pantalla de administración
+// aparte.
+export async function crearSubcategoriaGasto(nombre: string) {
+  const { supabase, error: permisoError } = await requiereDuenoOEncargado();
+  if (permisoError) return { data: null, error: permisoError };
+
+  const { data, error } = await supabase
+    .from("gasto_subcategorias")
+    .insert({ nombre })
+    .select("id, nombre")
+    .single();
+
+  if (error) {
+    // Ya existe una con ese nombre (unique constraint) — no es un error real,
+    // solo se usa la que ya había.
+    if (error.code === "23505") {
+      const { data: existente } = await supabase
+        .from("gasto_subcategorias")
+        .select("id, nombre")
+        .ilike("nombre", nombre)
+        .maybeSingle();
+      if (existente) return { data: existente, error: null };
+    }
+    return { data: null, error: error.message };
+  }
+
+  revalidatePath("/", "layout");
+  return { data, error: null };
 }
 
 // ---------------------------------------------------------------------------

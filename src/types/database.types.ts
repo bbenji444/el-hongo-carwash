@@ -576,6 +576,7 @@ export interface Database {
           fecha: string;
           notas: string | null;
           categoria: "nomina" | "insumos" | "servicios" | "renta" | "mantenimiento" | "otros";
+          subcategoria_id: string | null;
           creado_por: string;
           creado_en: string;
         };
@@ -586,6 +587,7 @@ export interface Database {
           fecha?: string;
           notas?: string | null;
           categoria?: "nomina" | "insumos" | "servicios" | "renta" | "mantenimiento" | "otros";
+          subcategoria_id?: string | null;
           creado_por: string;
           creado_en?: string;
         };
@@ -596,7 +598,29 @@ export interface Database {
           fecha?: string;
           notas?: string | null;
           categoria?: "nomina" | "insumos" | "servicios" | "renta" | "mantenimiento" | "otros";
+          subcategoria_id?: string | null;
           creado_por?: string;
+          creado_en?: string;
+        };
+        Relationships: [];
+      };
+      gasto_subcategorias: {
+        Row: {
+          id: string;
+          nombre: string;
+          activo: boolean;
+          creado_en: string;
+        };
+        Insert: {
+          id?: string;
+          nombre: string;
+          activo?: boolean;
+          creado_en?: string;
+        };
+        Update: {
+          id?: string;
+          nombre?: string;
+          activo?: boolean;
           creado_en?: string;
         };
         Relationships: [];
@@ -765,6 +789,7 @@ export type Vehiculo = Database["public"]["Tables"]["vehiculos"]["Row"];
 export type Lavador = Database["public"]["Tables"]["lavadores"]["Row"];
 export type ConfiguracionApp = Database["public"]["Tables"]["configuracion_app"]["Row"];
 export type Ticket = Database["public"]["Tables"]["tickets"]["Row"];
+export type GastoSubcategoria = Database["public"]["Tables"]["gasto_subcategorias"]["Row"];
 export type Pago = Database["public"]["Tables"]["pagos"]["Row"];
 export type Inventario = Database["public"]["Tables"]["inventario"]["Row"];
 export type ConsumoInventario = Database["public"]["Tables"]["consumo_inventario"]["Row"];

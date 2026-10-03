@@ -92,3 +92,80 @@ export function GastosPorCategoriaChart({
     </ResponsiveContainer>
   );
 }
+
+export type GastoPorSubcategoria = { subcategoriaId: string; nombre: string; total: number };
+
+// Mismo tipo de gráfica que arriba, pero por producto específico
+// (subcategoría: Shampoo, Abrillantador, etc.) en vez de por categoría
+// general — para responder "¿en qué producto concreto se va más el
+// dinero?". Solo entra aquí lo que sí tiene subcategoría asignada.
+export function GastosPorSubcategoriaChart({
+  data,
+  seleccionada,
+  onSeleccionar,
+}: {
+  data: GastoPorSubcategoria[];
+  seleccionada: string | null;
+  onSeleccionar: (subcategoriaId: string) => void;
+}) {
+  if (data.length === 0) {
+    return (
+      <p className="flex h-[160px] items-center justify-center text-sm text-muted">
+        Ningún gasto de este período tiene un producto específico asignado todavía.
+      </p>
+    );
+  }
+
+  const altura = Math.max(160, data.length * 44);
+
+  return (
+    <ResponsiveContainer width="100%" height={altura}>
+      <BarChart data={data} margin={{ top: 8, right: 24, left: 0, bottom: 8 }} layout="vertical">
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
+        <XAxis type="number" stroke="var(--muted)" fontSize={12} tickLine={false} axisLine={false} />
+        <YAxis
+          type="category"
+          dataKey="nombre"
+          stroke="var(--muted)"
+          fontSize={12}
+          tickLine={false}
+          axisLine={false}
+          width={140}
+        />
+        <Tooltip
+          cursor={{ fill: "var(--accent)", fillOpacity: 0.06 }}
+          content={({ active, payload }) => {
+            if (!active || !payload?.length) return null;
+            const p = payload[0].payload as GastoPorSubcategoria;
+            return (
+              <div className="rounded-lg border border-border bg-surface px-3 py-2 text-xs shadow-lg">
+                <p className="font-medium text-foreground">{p.nombre}</p>
+                <p className="text-muted">{money(p.total)}</p>
+              </div>
+            );
+          }}
+        />
+        <Bar
+          dataKey="total"
+          radius={[0, 8, 8, 0]}
+          maxBarSize={28}
+          animationDuration={700}
+          animationEasing="ease-out"
+          cursor="pointer"
+          onClick={(entry) => {
+            const p = entry as unknown as GastoPorSubcategoria;
+            onSeleccionar(p.subcategoriaId);
+          }}
+        >
+          {data.map((d, i) => (
+            <Cell
+              key={d.subcategoriaId}
+              fill={COLORES_CATEGORIA[i % COLORES_CATEGORIA.length]}
+              fillOpacity={seleccionada && seleccionada !== d.subcategoriaId ? 0.35 : 1}
+            />
+          ))}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}

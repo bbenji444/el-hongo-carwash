@@ -119,13 +119,29 @@ export default async function GastosPage({
     .filter((c) => c.total > 0)
     .sort((a, b) => b.total - a.total);
 
-  // Igual, pero por producto específico (subcategoría) — solo entre los
-  // gastos que sí tienen una asignada (los que no, como Sueldos, no entran
-  // aquí).
+  // Igual, pero por producto específico (subcategoría). Un gasto con
+  // subcategoría puesta directamente cuenta su monto completo ahí. Uno SIN
+  // subcategoría pero con "productos de la compra" desglosados (una compra
+  // mixta de varios productos en un solo ticket) reparte su monto entre los
+  // renglones que coincidan por nombre con el catálogo — así una compra
+  // como "Dogo: Abrillantador + Teflón + Depósitos" no se queda sin
+  // clasificar solo por no tener un único producto. Lo que no coincide con
+  // ningún producto del catálogo (ej. un renglón de "Iva") se ignora aquí.
+  const idPorNombreSubcategoria = new Map(
+    subcategorias.map((s) => [s.nombre.trim().toLowerCase(), s.id])
+  );
   const totalPorSubcategoriaMap = new Map<string, number>();
   for (const g of gastos) {
-    if (!g.subcategoriaId) continue;
-    totalPorSubcategoriaMap.set(g.subcategoriaId, (totalPorSubcategoriaMap.get(g.subcategoriaId) ?? 0) + g.monto);
+    if (g.subcategoriaId) {
+      totalPorSubcategoriaMap.set(g.subcategoriaId, (totalPorSubcategoriaMap.get(g.subcategoriaId) ?? 0) + g.monto);
+      continue;
+    }
+    for (const it of g.items) {
+      const subId = idPorNombreSubcategoria.get(it.producto.trim().toLowerCase());
+      if (!subId) continue;
+      const montoRenglon = it.cantidad * it.precioUnitario;
+      totalPorSubcategoriaMap.set(subId, (totalPorSubcategoriaMap.get(subId) ?? 0) + montoRenglon);
+    }
   }
   const gastosPorSubcategoria = Array.from(totalPorSubcategoriaMap.entries())
     .map(([subcategoriaId, total]) => ({

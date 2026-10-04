@@ -8,6 +8,7 @@ import { obtenerDatosLavadores, obtenerTiemposPorPaquete } from "./lavadores/dat
 import { AnimatedNumber } from "@/components/AnimatedNumber";
 import { VentasPorServicioChart, TendenciaVentasChart, AutosPorLavadorChart, RelacionLavadoresChart } from "./DashboardCharts";
 import { TiemposPorPaqueteGrid } from "./TiemposPorPaqueteGrid";
+import { AiAssistantCard } from "./AiAssistantCard";
 
 export default async function DashboardPage({
   searchParams,
@@ -228,6 +229,8 @@ export default async function DashboardPage({
         </h1>
         <p className="text-sm capitalize text-muted">{fechaHoy}</p>
       </div>
+
+      <AiAssistantCard nombreUsuario={usuario.nombre} />
 
       {!turnoAbierto && (
         <p className="rounded-xl border border-dashed border-border p-4 text-center text-sm text-muted">

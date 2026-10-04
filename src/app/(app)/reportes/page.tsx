@@ -1,14 +1,32 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { PERIODOS, resolverRango, queryStringRango, obtenerDatosReporte } from "./data";
+import { PERIODOS, resolverRango, queryStringRango, obtenerDatosReporte, type FiltrosReporte } from "./data";
 import { AnimatedNumber } from "@/components/AnimatedNumber";
 import { buscarTicketsDetalle } from "@/lib/ticketsDetalle";
 import { TicketsDetalleSeccion } from "@/components/TicketsDetalleSeccion";
+import { TAMANOS_VEHICULO } from "@/lib/servicios";
+import { ReportesClient } from "./ReportesClient";
 import type { TamanoVehiculo, PagoMetodo } from "@/types/database.types";
 
 function money(n: number) {
   return `$${n.toFixed(2)}`;
+}
+
+const METODO_LABEL: Record<string, string> = {
+  efectivo: "Efectivo",
+  tarjeta: "Tarjeta",
+  transferencia: "Transferencia",
+  membresia: "Membresía",
+};
+
+function construirHref(params: Record<string, string | undefined>) {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v) qs.set(k, v);
+  }
+  const s = qs.toString();
+  return s ? `/reportes?${s}` : "/reportes";
 }
 
 export default async function ReportesPage({
@@ -59,30 +77,58 @@ export default async function ReportesPage({
   }
 
   const rango = resolverRango(params);
-  // Independiente de "rango" (mismo default "Hoy" si no se toca, para no
-  // disparar de entrada una búsqueda de TODO el histórico en cada visita a
-  // Reportes) — lo que cambia es que aquí se puede elegir "Todo" para ver
-  // el historial completo de un carro sin que eso también le cambie el
-  // período al resto del dashboard de arriba.
   const rangoVehiculo = resolverRango({
     periodo: params.vperiodo,
     desde: params.vdesde,
     hasta: params.vhasta,
   });
-  const filtrosTicketsDetalle = {
-    servicio: params.servicio ?? "",
-    tamano: (params.tamano ?? "") as TamanoVehiculo | "",
-    metodo: (params.metodo ?? "") as PagoMetodo | "",
-    lavador: params.lavador ?? "",
-    q: params.q ?? "",
+
+  const filtroServicio = params.servicio ?? "";
+  const filtroTamano = (params.tamano ?? "") as TamanoVehiculo | "";
+  const filtroMetodo = (params.metodo ?? "") as PagoMetodo | "";
+  const filtroLavador = params.lavador ?? "";
+  const filtroQ = params.q ?? "";
+
+  // Filtro maestro — paquete, tamaño, método de pago, lavador y texto libre
+  // acotan tanto las tarjetas/gráficas de ventas de arriba como "Buscar
+  // tickets" de abajo: mismos nombres de parámetro, una sola fuente de
+  // verdad.
+  const filtrosReporte: FiltrosReporte = {
+    servicio: filtroServicio,
+    tamano: filtroTamano,
+    metodo: filtroMetodo,
+    lavador: filtroLavador,
+    q: filtroQ,
   };
 
-  // Las dos consultas no dependen entre sí (la segunda solo usa params, no
-  // el resultado de la primera) — se piden juntas en vez de una tras otra
-  // para no sumar sus tiempos de espera.
-  const [datosReporte, datosTicketsDetalle] = await Promise.all([
-    obtenerDatosReporte(rango),
-    buscarTicketsDetalle(rangoVehiculo, filtrosTicketsDetalle),
+  // Para los links de período, el botón "Quitar filtros" y para que las
+  // gráficas (clic para filtrar) sepan qué conservar al navegar — incluye
+  // también vperiodo/vdesde/vhasta para no perder el rango independiente de
+  // "Buscar vehículo" al tocar cualquier otro filtro de arriba.
+  const paramsFiltroActuales = {
+    periodo: rango.personalizado ? undefined : rango.periodo,
+    desde: rango.personalizado ? rango.desdeInput || undefined : undefined,
+    hasta: rango.personalizado ? rango.hastaInput || undefined : undefined,
+    servicio: filtroServicio || undefined,
+    tamano: filtroTamano || undefined,
+    metodo: filtroMetodo || undefined,
+    lavador: filtroLavador || undefined,
+    q: filtroQ || undefined,
+    vperiodo: params.vperiodo,
+    vdesde: params.vdesde,
+    vhasta: params.vhasta,
+  };
+  const hayFiltroMaestro = Boolean(
+    rango.personalizado || filtroServicio || filtroTamano || filtroMetodo || filtroLavador || filtroQ
+  );
+
+  // Las tres consultas no dependen entre sí — se piden juntas en vez de una
+  // tras otra para no sumar sus tiempos de espera.
+  const [datosReporte, datosTicketsDetalle, { data: servicios }, { data: lavadores }] = await Promise.all([
+    obtenerDatosReporte(rango, filtrosReporte),
+    buscarTicketsDetalle(rangoVehiculo, filtrosReporte),
+    supabase.from("servicios_catalogo").select("id, nombre").order("nombre"),
+    supabase.from("lavadores").select("id, nombre").order("nombre"),
   ]);
 
   const {
@@ -92,7 +138,10 @@ export default async function ReportesPage({
     totalDescuentos,
     diferenciaAcumulada,
     turnosConAlerta,
+    ventasPorMetodo,
     ventasPorServicio,
+    ventasPorTamano,
+    ventasPorMes,
     descuentos,
     turnos,
     gastos,
@@ -108,6 +157,11 @@ export default async function ReportesPage({
     lavadoresPresentes,
     serviciosPresentes: serviciosPresentesDetalle,
   } = datosTicketsDetalle;
+
+  const ventasPorMetodoChart = Object.entries(ventasPorMetodo)
+    .filter(([, total]) => total > 0)
+    .map(([metodo, total]) => ({ metodo, nombre: METODO_LABEL[metodo] ?? metodo, total }))
+    .sort((a, b) => b.total - a.total);
 
   const qs = queryStringRango(rango);
 
@@ -134,24 +188,30 @@ export default async function ReportesPage({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex gap-2">
-          {PERIODOS.map((p) => (
-            <Link
-              key={p.value}
-              href={`/reportes?periodo=${p.value}`}
-              className={`rounded-lg border px-3 py-1.5 text-sm transition ${
-                !rango.personalizado && p.value === rango.periodo
-                  ? "border-primary bg-primary/10 text-primary"
-                  : "border-border text-muted hover:text-foreground"
-              }`}
-            >
-              {p.label}
-            </Link>
-          ))}
-        </div>
+      <div className="flex gap-2">
+        {PERIODOS.map((p) => (
+          <Link
+            key={p.value}
+            href={construirHref({ ...paramsFiltroActuales, periodo: p.value, desde: undefined, hasta: undefined })}
+            className={`rounded-lg border px-3 py-1.5 text-sm transition ${
+              !rango.personalizado && p.value === rango.periodo
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border text-muted hover:text-foreground"
+            }`}
+          >
+            {p.label}
+          </Link>
+        ))}
+      </div>
 
-        <form className="flex flex-wrap items-end gap-2 rounded-lg border border-border bg-surface px-3 py-2">
+      <form className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-4">
+        <p className="text-xs font-medium text-muted">
+          Filtro maestro — combina lo que quieras: fechas, paquete, tamaño, método de pago, lavador, texto.
+        </p>
+        {params.vperiodo && <input type="hidden" name="vperiodo" value={params.vperiodo} />}
+        {params.vdesde && <input type="hidden" name="vdesde" value={params.vdesde} />}
+        {params.vhasta && <input type="hidden" name="vhasta" value={params.vhasta} />}
+        <div className="flex flex-wrap items-end gap-2">
           <div className="flex flex-col gap-1">
             <label htmlFor="desde" className="text-[11px] text-muted">
               Desde
@@ -176,26 +236,110 @@ export default async function ReportesPage({
               className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none focus:border-accent"
             />
           </div>
+          <div className="flex flex-col gap-1">
+            <label htmlFor="servicio" className="text-[11px] text-muted">
+              Paquete
+            </label>
+            <select
+              id="servicio"
+              name="servicio"
+              defaultValue={filtroServicio}
+              className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none focus:border-accent"
+            >
+              <option value="">Todos</option>
+              {(servicios ?? []).map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.nombre}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label htmlFor="tamano" className="text-[11px] text-muted">
+              Tamaño
+            </label>
+            <select
+              id="tamano"
+              name="tamano"
+              defaultValue={filtroTamano}
+              className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none focus:border-accent"
+            >
+              <option value="">Todos</option>
+              {TAMANOS_VEHICULO.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label htmlFor="metodo" className="text-[11px] text-muted">
+              Método de pago
+            </label>
+            <select
+              id="metodo"
+              name="metodo"
+              defaultValue={filtroMetodo}
+              className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none focus:border-accent"
+            >
+              <option value="">Todos</option>
+              {Object.entries(METODO_LABEL).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label htmlFor="lavador" className="text-[11px] text-muted">
+              Lavador
+            </label>
+            <select
+              id="lavador"
+              name="lavador"
+              defaultValue={filtroLavador}
+              className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none focus:border-accent"
+            >
+              <option value="">Todos</option>
+              {(lavadores ?? []).map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.nombre}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-1 flex-col gap-1" style={{ minWidth: 160 }}>
+            <label htmlFor="q" className="text-[11px] text-muted">
+              Buscar carro o placa
+            </label>
+            <input
+              id="q"
+              name="q"
+              defaultValue={filtroQ}
+              placeholder="Ej. Jetta o ABC-123"
+              className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none focus:border-accent"
+            />
+          </div>
           <button
             type="submit"
             className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
-              rango.personalizado
+              hayFiltroMaestro
                 ? "border-primary bg-primary/10 text-primary"
                 : "border-border text-muted hover:text-foreground"
             }`}
           >
             Filtrar
           </button>
-          {rango.personalizado && (
+          {hayFiltroMaestro && (
             <Link
-              href="/reportes"
+              href={construirHref({ vperiodo: params.vperiodo, vdesde: params.vdesde, vhasta: params.vhasta })}
               className="rounded-lg border border-border px-3 py-1.5 text-sm text-muted hover:text-foreground"
             >
-              Quitar filtro
+              Quitar filtros
             </Link>
           )}
-        </form>
-      </div>
+        </div>
+      </form>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="hover-lift animate-in rounded-xl border border-border bg-surface p-5" style={{ animationDelay: "0ms" }}>
@@ -249,39 +393,24 @@ export default async function ReportesPage({
           <p className="mt-1 text-2xl font-bold text-success">
             <AnimatedNumber value={gananciaNeta} format="dinero" />
           </p>
-          <p className="mt-1 text-xs text-muted">Ventas + ingresos extra menos gastos</p>
+          <p className="mt-1 text-xs text-muted">
+            {hayFiltroMaestro ? "Negocio completo del período — no cambia con el filtro de arriba." : "Ventas + ingresos extra menos gastos"}
+          </p>
         </div>
       </div>
 
       <div className="flex flex-col gap-3">
-        <h2 className="font-semibold text-foreground">Ventas por servicio</h2>
-        <div className="overflow-hidden rounded-xl border border-border bg-surface">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-surface-hover text-xs uppercase tracking-wide text-muted">
-              <tr>
-                <th className="px-4 py-3">Servicio</th>
-                <th className="px-4 py-3">Tickets</th>
-                <th className="px-4 py-3">Ventas</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ventasPorServicio.map((v) => (
-                <tr key={v.nombre} className="border-t border-border transition-colors hover:bg-surface-hover">
-                  <td className="px-4 py-3 text-foreground">{v.nombre}</td>
-                  <td className="px-4 py-3 text-muted">{v.tickets}</td>
-                  <td className="px-4 py-3 text-foreground">{money(v.total)}</td>
-                </tr>
-              ))}
-              {ventasPorServicio.length === 0 && (
-                <tr>
-                  <td colSpan={3} className="px-4 py-6 text-center text-muted">
-                    Sin ventas en este período.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <h2 className="font-semibold text-foreground">Cómo van las ventas</h2>
+        <ReportesClient
+          ventasPorServicio={ventasPorServicio}
+          ventasPorTamano={ventasPorTamano}
+          ventasPorMetodo={ventasPorMetodoChart}
+          ventasPorMes={ventasPorMes}
+          filtroServicio={filtroServicio}
+          filtroTamano={filtroTamano}
+          filtroMetodo={filtroMetodo}
+          currentParams={paramsFiltroActuales}
+        />
       </div>
 
       <div className="flex flex-col gap-3">
@@ -332,7 +461,7 @@ export default async function ReportesPage({
               <tr>
                 <th className="px-4 py-3">Fecha</th>
                 <th className="px-4 py-3">Concepto</th>
-                <th className="px-4 py-3">Notas</th>
+                <th className="hidden px-4 py-3 sm:table-cell">Notas</th>
                 <th className="px-4 py-3">Monto</th>
               </tr>
             </thead>
@@ -341,7 +470,7 @@ export default async function ReportesPage({
                 <tr key={g.id} className="border-t border-border transition-colors hover:bg-surface-hover">
                   <td className="px-4 py-3 text-muted">{new Date(g.fecha).toLocaleDateString("es-MX", { timeZone: "America/Mexico_City" })}</td>
                   <td className="px-4 py-3 text-foreground">{g.concepto}</td>
-                  <td className="px-4 py-3 text-muted">{g.notas ?? "—"}</td>
+                  <td className="hidden px-4 py-3 text-muted sm:table-cell">{g.notas ?? "—"}</td>
                   <td className="px-4 py-3 text-primary">{money(g.monto)}</td>
                 </tr>
               ))}
@@ -370,7 +499,7 @@ export default async function ReportesPage({
               <tr>
                 <th className="px-4 py-3">Fecha</th>
                 <th className="px-4 py-3">Concepto</th>
-                <th className="px-4 py-3">Notas</th>
+                <th className="hidden px-4 py-3 sm:table-cell">Notas</th>
                 <th className="px-4 py-3">Monto</th>
               </tr>
             </thead>
@@ -379,7 +508,7 @@ export default async function ReportesPage({
                 <tr key={i.id} className="border-t border-border transition-colors hover:bg-surface-hover">
                   <td className="px-4 py-3 text-muted">{new Date(i.fecha).toLocaleDateString("es-MX", { timeZone: "America/Mexico_City" })}</td>
                   <td className="px-4 py-3 text-foreground">{i.concepto}</td>
-                  <td className="px-4 py-3 text-muted">{i.notas ?? "—"}</td>
+                  <td className="hidden px-4 py-3 text-muted sm:table-cell">{i.notas ?? "—"}</td>
                   <td className="px-4 py-3 text-success">{money(i.monto)}</td>
                 </tr>
               ))}
@@ -398,7 +527,7 @@ export default async function ReportesPage({
       <TicketsDetalleSeccion
         basePath="/reportes"
         rango={rangoVehiculo}
-        filtros={filtrosTicketsDetalle}
+        filtros={filtrosReporte}
         filas={ticketsDetalle}
         totalCoincidencias={totalTicketsDetalle}
         lavadoresPresentes={lavadoresPresentes}

@@ -1,5 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { PERIODOS, resolverRango, queryStringRango, type RangoResuelto } from "@/lib/rangoFechas";
+import { inicioDeMesMX, mesMX } from "@/lib/fecha";
+import { TAMANOS_VEHICULO } from "@/lib/servicios";
+import type { Database, TamanoVehiculo, PagoMetodo } from "@/types/database.types";
 
 // Se reexportan para no tener que tocar los imports existentes en page.tsx
 // y en las rutas de exportar/ (pdf, excel), que siguen importando esto
@@ -7,7 +11,22 @@ import { PERIODOS, resolverRango, queryStringRango, type RangoResuelto } from "@
 export { PERIODOS, resolverRango, queryStringRango };
 export type { Periodo, ParamsRango, RangoResuelto } from "@/lib/rangoFechas";
 
-export type VentaPorServicio = { nombre: string; tickets: number; total: number };
+const MESES_TENDENCIA = 12;
+
+// El "filtro maestro" de Reportes (paquete, tamaño, método de pago, lavador,
+// texto) — los mismos campos que ya usaba "Buscar tickets", ahora también
+// acotan las tarjetas y gráficas de ventas de arriba.
+export type FiltrosReporte = {
+  servicio?: string;
+  tamano?: TamanoVehiculo | "";
+  metodo?: PagoMetodo | "";
+  lavador?: string;
+  q?: string;
+};
+
+export type VentaPorServicio = { servicioId: string; nombre: string; tickets: number; total: number };
+export type VentaPorTamano = { tamano: TamanoVehiculo; nombre: string; tickets: number; total: number };
+export type VentaPorMes = { mes: string; etiqueta: string; total: number };
 
 export type DescuentoDetalle = {
   id: string;
@@ -66,6 +85,8 @@ export type DatosReporte = {
   turnosConAlerta: number;
   ventasPorMetodo: Record<string, number>;
   ventasPorServicio: VentaPorServicio[];
+  ventasPorTamano: VentaPorTamano[];
+  ventasPorMes: VentaPorMes[];
   descuentos: DescuentoDetalle[];
   turnos: CierreTurno[];
   gastos: GastoDetalle[];
@@ -76,7 +97,71 @@ export type DatosReporte = {
   generadoEn: string;
 };
 
-export async function obtenerDatosReporte(rango: RangoResuelto): Promise<DatosReporte> {
+// Trae tickets entregados en un rango de fechas + sus pagos, aplicando el
+// filtro maestro (paquete/tamaño van directo a la base de datos; lavador,
+// texto y método dependen de tablas relacionadas, así que se aplican aquí
+// en JS) — se usa tanto para las tarjetas del período elegido como para la
+// tendencia mensual (últimos 12 meses), que ignora el período pero sí
+// respeta el resto del filtro.
+async function obtenerVentasFiltradas(
+  supabase: SupabaseClient<Database>,
+  desdeIso: string | null,
+  hastaIso: string | null,
+  filtros: FiltrosReporte
+) {
+  let query = supabase
+    .from("tickets")
+    .select("id, servicio_id, tamano_vehiculo, distintivo, placa, descuento_monto, descuento_autorizado_por, creado_por, hora_entrada")
+    .eq("estado", "entregado")
+    .order("hora_entrada", { ascending: false });
+  if (desdeIso) query = query.gte("hora_entrada", desdeIso);
+  if (hastaIso) query = query.lte("hora_entrada", hastaIso);
+  if (filtros.servicio) query = query.eq("servicio_id", filtros.servicio);
+  if (filtros.tamano) query = query.eq("tamano_vehiculo", filtros.tamano as TamanoVehiculo);
+
+  const { data: ticketsRaw } = await query;
+  const ticketIds = (ticketsRaw ?? []).map((t) => t.id);
+
+  const [{ data: pagosRaw }, { data: asignacionesRaw }] = await Promise.all([
+    ticketIds.length
+      ? supabase.from("pagos").select("ticket_id, monto, metodo").in("ticket_id", ticketIds)
+      : Promise.resolve({ data: [] }),
+    ticketIds.length
+      ? supabase.from("ticket_lavadores").select("ticket_id, lavador_id").in("ticket_id", ticketIds)
+      : Promise.resolve({ data: [] }),
+  ]);
+
+  const lavadorIdsPorTicket = new Map<string, string[]>();
+  for (const a of asignacionesRaw ?? []) {
+    const lista = lavadorIdsPorTicket.get(a.ticket_id) ?? [];
+    lista.push(a.lavador_id);
+    lavadorIdsPorTicket.set(a.ticket_id, lista);
+  }
+
+  const pagosPorTicket = new Map<string, { monto: number; metodo: PagoMetodo }[]>();
+  for (const p of pagosRaw ?? []) {
+    const lista = pagosPorTicket.get(p.ticket_id) ?? [];
+    lista.push({ monto: p.monto, metodo: p.metodo });
+    pagosPorTicket.set(p.ticket_id, lista);
+  }
+
+  const qNorm = (filtros.q ?? "").trim().toLowerCase();
+  const metodoFiltro = (filtros.metodo || null) as PagoMetodo | null;
+
+  const tickets = (ticketsRaw ?? []).filter((t) => {
+    if (filtros.lavador && !(lavadorIdsPorTicket.get(t.id) ?? []).includes(filtros.lavador)) return false;
+    if (qNorm) {
+      const candidatos = [t.distintivo, t.placa].filter((v): v is string => Boolean(v)).map((v) => v.toLowerCase());
+      if (!candidatos.some((c) => c.includes(qNorm))) return false;
+    }
+    if (metodoFiltro && !(pagosPorTicket.get(t.id) ?? []).some((p) => p.metodo === metodoFiltro)) return false;
+    return true;
+  });
+
+  return { tickets, pagosPorTicket };
+}
+
+export async function obtenerDatosReporte(rango: RangoResuelto, filtros: FiltrosReporte = {}): Promise<DatosReporte> {
   const supabase = await createClient();
 
   const turnosQuery = supabase
@@ -87,14 +172,10 @@ export async function obtenerDatosReporte(rango: RangoResuelto): Promise<DatosRe
   if (rango.desdeIso) turnosQuery.gte("hora_cierre", rango.desdeIso);
   if (rango.hastaIso) turnosQuery.lte("hora_cierre", rango.hastaIso);
 
-  const ticketsQuery = supabase
-    .from("tickets")
-    .select("id, servicio_id, empleado_id, creado_por, descuento_monto, descuento_autorizado_por, estado, hora_entrada")
-    .eq("estado", "entregado")
-    .order("hora_entrada", { ascending: false });
-  if (rango.desdeIso) ticketsQuery.gte("hora_entrada", rango.desdeIso);
-  if (rango.hastaIso) ticketsQuery.lte("hora_entrada", rango.hastaIso);
-
+  // Todos los pagos del período (sin el filtro maestro) — solo para los
+  // totales de caja por turno (tarjeta/transferencia), que deben quedarse
+  // como el negocio real sin importar si se está mirando nada más, por
+  // ejemplo, los lavados "chicos".
   const pagosQuery = supabase
     .from("pagos")
     .select("ticket_id, turno_id, monto, metodo, creado_en")
@@ -110,58 +191,123 @@ export async function obtenerDatosReporte(rango: RangoResuelto): Promise<DatosRe
   if (rango.desdeIso) ingresosQuery.gte("fecha", rango.desdeIso);
   if (rango.hastaIso) ingresosQuery.lte("fecha", rango.hastaIso);
 
-  const [
-    { data: turnosRaw },
-    { data: tickets },
-    { data: pagos },
-    { data: servicios },
-    { data: usuarios },
-    { data: gastosRaw },
-    { data: ingresosRaw },
-  ] = await Promise.all([
-    turnosQuery,
-    ticketsQuery,
-    pagosQuery,
-    supabase.from("servicios_catalogo").select("id, nombre"),
-    supabase.from("usuarios").select("id, nombre"),
-    gastosQuery,
-    ingresosQuery,
-  ]);
+  // Tendencia mensual: siempre los últimos 12 meses completos (sin importar
+  // el período de arriba), pero sí respeta el resto del filtro maestro —
+  // así "¿cómo van mis ventas de SUV mes a mes?" se contesta solo filtrando
+  // tamaño y viendo esta gráfica.
+  const desdeTendencia = inicioDeMesMX(MESES_TENDENCIA - 1);
+
+  const [{ data: turnosRaw }, { data: pagosTurno }, { data: servicios }, { data: usuarios }, { data: gastosRaw }, { data: ingresosRaw }, ventasPeriodo, ventasTendencia] =
+    await Promise.all([
+      turnosQuery,
+      pagosQuery,
+      supabase.from("servicios_catalogo").select("id, nombre"),
+      supabase.from("usuarios").select("id, nombre"),
+      gastosQuery,
+      ingresosQuery,
+      obtenerVentasFiltradas(supabase, rango.desdeIso, rango.hastaIso, filtros),
+      obtenerVentasFiltradas(supabase, desdeTendencia.toISOString(), null, filtros),
+    ]);
 
   const nombrePorUsuario = new Map((usuarios ?? []).map((u) => [u.id, u.nombre]));
   const nombrePorServicio = new Map((servicios ?? []).map((s) => [s.id, s.nombre]));
 
-  const montoPorTicket = new Map<string, number>();
   const tarjetaPorTurno = new Map<string, number>();
   const transferenciaPorTurno = new Map<string, number>();
-  const ventasPorMetodo: Record<string, number> = { efectivo: 0, tarjeta: 0, transferencia: 0 };
-  for (const pago of pagos ?? []) {
-    montoPorTicket.set(pago.ticket_id, (montoPorTicket.get(pago.ticket_id) ?? 0) + pago.monto);
+  let ventasTotalesPeriodo = 0;
+  for (const pago of pagosTurno ?? []) {
+    ventasTotalesPeriodo += pago.monto;
     if (pago.metodo === "tarjeta") {
       tarjetaPorTurno.set(pago.turno_id, (tarjetaPorTurno.get(pago.turno_id) ?? 0) + pago.monto);
     }
     if (pago.metodo === "transferencia") {
       transferenciaPorTurno.set(pago.turno_id, (transferenciaPorTurno.get(pago.turno_id) ?? 0) + pago.monto);
     }
-    ventasPorMetodo[pago.metodo] = (ventasPorMetodo[pago.metodo] ?? 0) + pago.monto;
   }
 
-  const ventasTotales = (pagos ?? []).reduce((acc, p) => acc + p.monto, 0);
-  const numTickets = (tickets ?? []).length;
+  // Tickets + pagos ya filtrados por el filtro maestro (paquete, tamaño,
+  // método, lavador, texto) — de aquí salen las tarjetas de ventas y las
+  // gráficas, para que respondan de verdad a lo que se esté buscando.
+  const { tickets: ticketsVentasFiltrados, pagosPorTicket } = ventasPeriodo;
+
+  const ventasPorMetodo: Record<string, number> = { efectivo: 0, tarjeta: 0, transferencia: 0, membresia: 0 };
+  let ventasTotales = 0;
+  for (const t of ticketsVentasFiltrados) {
+    for (const p of pagosPorTicket.get(t.id) ?? []) {
+      ventasPorMetodo[p.metodo] = (ventasPorMetodo[p.metodo] ?? 0) + p.monto;
+      ventasTotales += p.monto;
+    }
+  }
+
+  const numTickets = ticketsVentasFiltrados.length;
   const ticketPromedio = numTickets > 0 ? ventasTotales / numTickets : 0;
-  const totalDescuentos = (tickets ?? []).reduce((acc, t) => acc + t.descuento_monto, 0);
+  const totalDescuentos = ticketsVentasFiltrados.reduce((acc, t) => acc + t.descuento_monto, 0);
   const diferenciaAcumulada = (turnosRaw ?? []).reduce((acc, t) => acc + (t.diferencia ?? 0), 0);
   const turnosConAlerta = (turnosRaw ?? []).filter((t) => t.alerta_diferencia).length;
 
+  function montoTicket(ticketId: string) {
+    return (pagosPorTicket.get(ticketId) ?? []).reduce((acc, p) => acc + p.monto, 0);
+  }
+
   const ventasPorServicioMap = new Map<string, VentaPorServicio>();
-  for (const t of tickets ?? []) {
+  for (const t of ticketsVentasFiltrados) {
     const nombre = nombrePorServicio.get(t.servicio_id) ?? "—";
-    const entry = ventasPorServicioMap.get(t.servicio_id) ?? { nombre, tickets: 0, total: 0 };
+    const entry = ventasPorServicioMap.get(t.servicio_id) ?? { servicioId: t.servicio_id, nombre, tickets: 0, total: 0 };
     entry.tickets += 1;
-    entry.total += montoPorTicket.get(t.id) ?? 0;
+    entry.total += montoTicket(t.id);
     ventasPorServicioMap.set(t.servicio_id, entry);
   }
   const ventasPorServicio = Array.from(ventasPorServicioMap.values()).sort((a, b) => b.total - a.total);
+
+  const ventasPorTamanoMap = new Map<TamanoVehiculo, { tickets: number; total: number }>();
+  for (const t of ticketsVentasFiltrados) {
+    const entry = ventasPorTamanoMap.get(t.tamano_vehiculo) ?? { tickets: 0, total: 0 };
+    entry.tickets += 1;
+    entry.total += montoTicket(t.id);
+    ventasPorTamanoMap.set(t.tamano_vehiculo, entry);
+  }
+  const ventasPorTamano = TAMANOS_VEHICULO.map((tam) => ({
+    tamano: tam.value,
+    nombre: tam.label,
+    tickets: ventasPorTamanoMap.get(tam.value)?.tickets ?? 0,
+    total: ventasPorTamanoMap.get(tam.value)?.total ?? 0,
+  }))
+    .filter((v) => v.total > 0)
+    .sort((a, b) => b.total - a.total);
+
+  // Tendencia mensual — usa sus propios tickets/pagos (otro rango de
+  // fechas que el período principal), nunca montoTicket()/pagosPorTicket
+  // de arriba.
+  const totalPorMesMap = new Map<string, number>();
+  for (let i = MESES_TENDENCIA - 1; i >= 0; i--) {
+    totalPorMesMap.set(mesMX(inicioDeMesMX(i).toISOString()), 0);
+  }
+  for (const t of ventasTendencia.tickets) {
+    const mes = mesMX(t.hora_entrada);
+    if (!totalPorMesMap.has(mes)) continue;
+    const montoT = (ventasTendencia.pagosPorTicket.get(t.id) ?? []).reduce((acc, p) => acc + p.monto, 0);
+    totalPorMesMap.set(mes, (totalPorMesMap.get(mes) ?? 0) + montoT);
+  }
+  const ventasPorMes: VentaPorMes[] = Array.from(totalPorMesMap, ([mes, total]) => ({
+    mes,
+    etiqueta: new Date(`${mes}-01T12:00:00`).toLocaleDateString("es-MX", {
+      month: "short",
+      year: "2-digit",
+      timeZone: "America/Mexico_City",
+    }),
+    total,
+  }));
+
+  const descuentos: DescuentoDetalle[] = ticketsVentasFiltrados
+    .filter((t) => t.descuento_monto > 0)
+    .map((t) => ({
+      id: t.id,
+      fecha: t.hora_entrada,
+      servicio: nombrePorServicio.get(t.servicio_id) ?? "—",
+      empleado: nombrePorUsuario.get(t.creado_por) ?? "—",
+      autorizadoPor: t.descuento_autorizado_por ?? "—",
+      monto: t.descuento_monto,
+    }));
 
   const gastos: GastoDetalle[] = (gastosRaw ?? []).map((g) => ({
     id: g.id,
@@ -181,18 +327,11 @@ export async function obtenerDatosReporte(rango: RangoResuelto): Promise<DatosRe
   }));
   const totalIngresosExtra = ingresos.reduce((acc, i) => acc + i.monto, 0);
 
-  const gananciaNeta = ventasTotales + totalIngresosExtra - totalGastos;
-
-  const descuentos: DescuentoDetalle[] = (tickets ?? [])
-    .filter((t) => t.descuento_monto > 0)
-    .map((t) => ({
-      id: t.id,
-      fecha: t.hora_entrada,
-      servicio: nombrePorServicio.get(t.servicio_id) ?? "—",
-      empleado: nombrePorUsuario.get(t.creado_por) ?? "—",
-      autorizadoPor: t.descuento_autorizado_por ?? "—",
-      monto: t.descuento_monto,
-    }));
+  // La ganancia neta usa el total de ventas REAL del período (todos los
+  // métodos, sin el filtro maestro) — si se está mirando solo, por ejemplo,
+  // los lavados chicos, esta tarjeta sigue mostrando el negocio completo en
+  // vez de una mezcla rara de "ventas de un filtro" menos "gastos de todo".
+  const gananciaNeta = ventasTotalesPeriodo + totalIngresosExtra - totalGastos;
 
   // efectivo_contado nunca es null aquí: el trigger de cierre exige
   // capturarlo antes de dejar pasar un turno a "cerrado" (y esta consulta
@@ -225,6 +364,8 @@ export async function obtenerDatosReporte(rango: RangoResuelto): Promise<DatosRe
     turnosConAlerta,
     ventasPorMetodo,
     ventasPorServicio,
+    ventasPorTamano,
+    ventasPorMes,
     descuentos,
     turnos,
     gastos,

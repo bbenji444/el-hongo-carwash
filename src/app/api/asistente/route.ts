@@ -49,7 +49,20 @@ export async function POST(request: NextRequest) {
     supabase.from("ticket_lavadores").select("ticket_id", { count: "exact", head: true }),
     supabase.from("pagos").select("ticket_id", { count: "exact", head: true }),
   ]);
-  const debugDiagnostico = `userId=${user.id} tickets_entregados=${countTickets} ticket_lavadores=${countTicketLavadores} pagos=${countPagos}`;
+
+  // Réplica exacta de la consulta con filtro de fecha que usa
+  // ticketsLavadosEnRango (30 días) — esta vez SÍ revisando "error", que el
+  // código original nunca revisa (solo hace `?? []`, así que un error ahí
+  // se ve idéntico a "no hay tickets").
+  const { resolverRango } = await import("@/lib/rangoFechas");
+  const rango30d = resolverRango({ periodo: "30d" });
+  const { data: ticketsConFecha, error: errorTicketsFecha } = await supabase
+    .from("tickets")
+    .select("id")
+    .eq("estado", "entregado")
+    .gte("hora_entrada", rango30d.desdeIso!);
+
+  const debugDiagnostico = `userId=${user.id} tickets_entregados_total=${countTickets} ticket_lavadores_total=${countTicketLavadores} pagos_total=${countPagos} desdeIso_30d=${rango30d.desdeIso} tickets_con_filtro_fecha=${ticketsConFecha?.length ?? "null"} error_filtro_fecha=${errorTicketsFecha ? JSON.stringify(errorTicketsFecha) : "ninguno"}`;
   console.log("[asistente][diagnostico]", debugDiagnostico);
 
   let body: { mensajes?: MensajeEntrada[] };

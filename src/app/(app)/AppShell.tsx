@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOutAction } from "./actions";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { FloatingChatWidget } from "./FloatingChatWidget";
 import type { ConfiguracionApp } from "@/types/database.types";
 
 export function AppShell({
@@ -134,6 +135,8 @@ export function AppShell({
           <div className="relative z-10 p-6">{children}</div>
         </main>
       </div>
+
+      {pathname !== "/" && <FloatingChatWidget nombreUsuario={usuarioNombre} />}
     </div>
   );
 }

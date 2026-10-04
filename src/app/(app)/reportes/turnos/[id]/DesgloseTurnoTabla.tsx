@@ -89,12 +89,12 @@ export function DesgloseTurnoTabla({
               <th className="px-4 py-3">Cliente</th>
               <th className="px-4 py-3">Distintivo</th>
               <th className="px-4 py-3">Paquete</th>
-              <th className="px-4 py-3">Tamaño</th>
-              <th className="px-4 py-3">Empleado</th>
-              <th className="px-4 py-3">Lavador</th>
-              <th className="px-4 py-3">Tiempo de lavado</th>
-              <th className="px-4 py-3">Estado</th>
-              <th className="px-4 py-3">Método</th>
+              <th className="hidden px-4 py-3 lg:table-cell">Tamaño</th>
+              <th className="hidden px-4 py-3 lg:table-cell">Empleado</th>
+              <th className="hidden px-4 py-3 sm:table-cell">Lavador</th>
+              <th className="hidden px-4 py-3 lg:table-cell">Tiempo de lavado</th>
+              <th className="hidden px-4 py-3 md:table-cell">Estado</th>
+              <th className="hidden px-4 py-3 md:table-cell">Método</th>
               <th className="px-4 py-3">Monto</th>
               {puedeEditarTickets && <th className="px-4 py-3 text-right">Acciones</th>}
             </tr>
@@ -119,14 +119,14 @@ export function DesgloseTurnoTabla({
                   {t.servicio?.nombre ?? "—"}
                   {t.descuento_monto > 0 && <span className="text-warning"> · -{money(t.descuento_monto)}</span>}
                 </td>
-                <td className="px-4 py-3 text-muted">{nombreTamano(t.tamano_vehiculo)}</td>
-                <td className="px-4 py-3 text-foreground">{t.empleado?.nombre ?? "—"}</td>
-                <td className="px-4 py-3 text-muted">
+                <td className="hidden px-4 py-3 text-muted lg:table-cell">{nombreTamano(t.tamano_vehiculo)}</td>
+                <td className="hidden px-4 py-3 text-foreground lg:table-cell">{t.empleado?.nombre ?? "—"}</td>
+                <td className="hidden px-4 py-3 text-muted sm:table-cell">
                   {t.lavadores.length > 0 ? t.lavadores.map((l) => l.nombre).join(", ") : "—"}
                 </td>
-                <td className="px-4 py-3 text-muted">{duracionLavado(t) ?? "—"}</td>
-                <td className="px-4 py-3 text-muted">{ESTADO_LABEL[t.estado] ?? t.estado}</td>
-                <td className="px-4 py-3 text-muted">
+                <td className="hidden px-4 py-3 text-muted lg:table-cell">{duracionLavado(t) ?? "—"}</td>
+                <td className="hidden px-4 py-3 text-muted md:table-cell">{ESTADO_LABEL[t.estado] ?? t.estado}</td>
+                <td className="hidden px-4 py-3 text-muted md:table-cell">
                   {t.lavada_gratis
                     ? "Gratis"
                     : t.pagos.length > 0

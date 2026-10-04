@@ -292,8 +292,8 @@ export default async function ReportesPage({
               <tr>
                 <th className="px-4 py-3">Fecha</th>
                 <th className="px-4 py-3">Servicio</th>
-                <th className="px-4 py-3">Cajero</th>
-                <th className="px-4 py-3">Autorizado por</th>
+                <th className="hidden px-4 py-3 sm:table-cell">Cajero</th>
+                <th className="hidden px-4 py-3 sm:table-cell">Autorizado por</th>
                 <th className="px-4 py-3">Monto</th>
               </tr>
             </thead>
@@ -302,8 +302,8 @@ export default async function ReportesPage({
                 <tr key={d.id} className="border-t border-border transition-colors hover:bg-surface-hover">
                   <td className="px-4 py-3 text-muted">{new Date(d.fecha).toLocaleString("es-MX", { timeZone: "America/Mexico_City" })}</td>
                   <td className="px-4 py-3 text-foreground">{d.servicio}</td>
-                  <td className="px-4 py-3 text-foreground">{d.empleado}</td>
-                  <td className="px-4 py-3 text-foreground">{d.autorizadoPor}</td>
+                  <td className="hidden px-4 py-3 text-foreground sm:table-cell">{d.empleado}</td>
+                  <td className="hidden px-4 py-3 text-foreground sm:table-cell">{d.autorizadoPor}</td>
                   <td className="px-4 py-3 text-primary">{money(d.monto)}</td>
                 </tr>
               ))}
@@ -415,11 +415,11 @@ export default async function ReportesPage({
             <thead className="bg-surface-hover text-xs uppercase tracking-wide text-muted">
               <tr>
                 <th className="px-4 py-3">Cierre</th>
-                <th className="px-4 py-3">Abrió</th>
-                <th className="px-4 py-3">Cerró</th>
-                <th className="px-4 py-3">Inicial</th>
-                <th className="px-4 py-3">Efectivo esperado</th>
-                <th className="px-4 py-3">Efectivo contado</th>
+                <th className="hidden px-4 py-3 sm:table-cell">Abrió</th>
+                <th className="hidden px-4 py-3 sm:table-cell">Cerró</th>
+                <th className="hidden px-4 py-3 md:table-cell">Inicial</th>
+                <th className="hidden px-4 py-3 md:table-cell">Efectivo esperado</th>
+                <th className="hidden px-4 py-3 md:table-cell">Efectivo contado</th>
                 <th className="px-4 py-3">Diferencia</th>
                 <th className="px-4 py-3">Total</th>
                 <th className="px-4 py-3">Ganancia</th>
@@ -434,11 +434,11 @@ export default async function ReportesPage({
                       {t.horaCierre ? new Date(t.horaCierre).toLocaleString("es-MX", { timeZone: "America/Mexico_City" }) : "—"}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 text-foreground">{t.abrio}</td>
-                  <td className="px-4 py-3 text-foreground">{t.cerro}</td>
-                  <td className="px-4 py-3 text-muted">{money(t.inicial)}</td>
-                  <td className="px-4 py-3 text-muted">{t.esperado != null ? money(t.esperado) : "—"}</td>
-                  <td className="px-4 py-3 text-muted">{t.contado != null ? money(t.contado) : "—"}</td>
+                  <td className="hidden px-4 py-3 text-foreground sm:table-cell">{t.abrio}</td>
+                  <td className="hidden px-4 py-3 text-foreground sm:table-cell">{t.cerro}</td>
+                  <td className="hidden px-4 py-3 text-muted md:table-cell">{money(t.inicial)}</td>
+                  <td className="hidden px-4 py-3 text-muted md:table-cell">{t.esperado != null ? money(t.esperado) : "—"}</td>
+                  <td className="hidden px-4 py-3 text-muted md:table-cell">{t.contado != null ? money(t.contado) : "—"}</td>
                   <td className={`px-4 py-3 font-medium ${t.alertaDiferencia ? "text-primary" : "text-foreground"}`}>
                     {t.diferencia != null ? money(t.diferencia) : "—"}
                   </td>

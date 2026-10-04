@@ -951,11 +951,11 @@ export function GastosClient({
               <th className="px-4 py-3">Fecha</th>
               <th className="px-4 py-3">Concepto</th>
               <th className="px-4 py-3">Categoría</th>
-              <th className="px-4 py-3">Producto</th>
-              <th className="px-4 py-3">Lavador</th>
-              <th className="px-4 py-3">Notas</th>
-              <th className="px-4 py-3">Registró</th>
-              <th className="px-4 py-3">Archivo</th>
+              <th className="hidden px-4 py-3 sm:table-cell">Producto</th>
+              <th className="hidden px-4 py-3 md:table-cell">Lavador</th>
+              <th className="hidden px-4 py-3 lg:table-cell">Notas</th>
+              <th className="hidden px-4 py-3 md:table-cell">Registró</th>
+              <th className="hidden px-4 py-3 lg:table-cell">Archivo</th>
               <th className="px-4 py-3 text-right">Monto</th>
               <th className="px-4 py-3 text-right">Acciones</th>
             </tr>
@@ -980,7 +980,7 @@ export function GastosClient({
                     {nombreCategoriaGasto(g.categoria)}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-muted">
+                <td className="hidden px-4 py-3 text-muted sm:table-cell">
                   {g.subcategoriaNombre ? (
                     <span className="rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-xs text-accent">
                       {g.subcategoriaNombre}
@@ -989,10 +989,10 @@ export function GastosClient({
                     "—"
                   )}
                 </td>
-                <td className="px-4 py-3 text-muted">{g.lavadorNombre ?? "—"}</td>
-                <td className="px-4 py-3 text-muted">{g.notas ?? "—"}</td>
-                <td className="px-4 py-3 text-muted">{g.creadoPor}</td>
-                <td className="px-4 py-3">
+                <td className="hidden px-4 py-3 text-muted md:table-cell">{g.lavadorNombre ?? "—"}</td>
+                <td className="hidden px-4 py-3 text-muted lg:table-cell">{g.notas ?? "—"}</td>
+                <td className="hidden px-4 py-3 text-muted md:table-cell">{g.creadoPor}</td>
+                <td className="hidden px-4 py-3 lg:table-cell">
                   {g.archivos.length > 0 ? (
                     <div className="flex flex-col gap-0.5">
                       {g.archivos.map((a, i) => (

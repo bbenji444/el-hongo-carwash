@@ -263,12 +263,12 @@ export function TicketsDetalleSeccion({
               <th className="px-4 py-3">Cliente</th>
               <th className="px-4 py-3">Carro / Placa</th>
               <th className="px-4 py-3">Paquete</th>
-              <th className="px-4 py-3">Tamaño</th>
-              <th className="px-4 py-3">Lavador</th>
-              <th className="px-4 py-3">Estado</th>
-              <th className="px-4 py-3">Método</th>
+              <th className="hidden px-4 py-3 sm:table-cell">Tamaño</th>
+              <th className="hidden px-4 py-3 md:table-cell">Lavador</th>
+              <th className="hidden px-4 py-3 sm:table-cell">Estado</th>
+              <th className="hidden px-4 py-3 md:table-cell">Método</th>
               <th className="px-4 py-3 text-right">Monto</th>
-              <th className="px-4 py-3 text-right">Turno</th>
+              <th className="hidden px-4 py-3 text-right md:table-cell">Turno</th>
             </tr>
           </thead>
           <tbody>
@@ -284,12 +284,12 @@ export function TicketsDetalleSeccion({
                 <td className="px-4 py-3 text-foreground">{f.cliente}</td>
                 <td className="px-4 py-3 text-muted">{f.distintivoPlaca}</td>
                 <td className="px-4 py-3 text-foreground">{f.servicio}</td>
-                <td className="px-4 py-3 text-muted">{nombreTamano(f.tamanoVehiculo)}</td>
-                <td className="px-4 py-3 text-muted">{f.lavador}</td>
-                <td className="px-4 py-3 text-muted">{ESTADO_LABEL[f.estado] ?? f.estado}</td>
-                <td className="px-4 py-3 text-muted">{f.metodo}</td>
+                <td className="hidden px-4 py-3 text-muted sm:table-cell">{nombreTamano(f.tamanoVehiculo)}</td>
+                <td className="hidden px-4 py-3 text-muted md:table-cell">{f.lavador}</td>
+                <td className="hidden px-4 py-3 text-muted sm:table-cell">{ESTADO_LABEL[f.estado] ?? f.estado}</td>
+                <td className="hidden px-4 py-3 text-muted md:table-cell">{f.metodo}</td>
                 <td className="px-4 py-3 text-right font-medium text-foreground">{money(f.monto)}</td>
-                <td className="px-4 py-3 text-right">
+                <td className="hidden px-4 py-3 text-right md:table-cell">
                   {f.turnoId && (
                     <Link href={`/reportes/turnos/${f.turnoId}`} className="text-xs text-accent hover:underline">
                       Ver →

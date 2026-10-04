@@ -3,7 +3,7 @@ import { obtenerDatosReporte } from "@/app/(app)/reportes/data";
 import { obtenerDatosLavadores } from "@/app/(app)/lavadores/data";
 import { createClient } from "@/lib/supabase/server";
 import { nombreCategoriaGasto } from "@/lib/gastoCategorias";
-import { fetchPaginado } from "@/lib/supabaseBatch";
+import { fetchPaginado, fetchEnLotes } from "@/lib/supabaseBatch";
 import type { GastoCategoria } from "@/types/database.types";
 
 const PERIODOS_VALIDOS: Periodo[] = ["hoy", "7d", "30d", "todo"];
@@ -37,12 +37,22 @@ const PARAM_FECHA = {
   required: ["periodo"],
 } as const;
 
+// "en-CA" da el formato YYYY-MM-DD directo, sin tener que armarlo a mano.
+function hoyFechaMX(): string {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/Mexico_City" });
+}
+
 function resolverRangoDesdeArgs(args: Record<string, unknown>): RangoResuelto {
   if (args.periodo === "personalizado" && typeof args.desde === "string") {
-    return resolverRango({
-      desde: args.desde,
-      hasta: typeof args.hasta === "string" ? args.hasta : undefined,
-    });
+    // Si el modelo no manda "hasta", NO hay que dejarlo abierto para
+    // siempre — resolverRango trata un "hasta" ausente como "sin tope
+    // superior" (trae todo lo que sea posterior a "desde", sin límite),
+    // no como "hasta hoy". Esto es lo que causaba números distintos entre
+    // una pregunta y otra por el mismo mes: una llamada traía el mes
+    // completo y la siguiente, al no mandar "hasta", seguía sumando hasta
+    // la fecha real del servidor (más allá del mes preguntado).
+    const hasta = typeof args.hasta === "string" && args.hasta ? args.hasta : hoyFechaMX();
+    return resolverRango({ desde: args.desde, hasta });
   }
   const periodo =
     typeof args.periodo === "string" && (PERIODOS_VALIDOS as string[]).includes(args.periodo)
@@ -139,6 +149,66 @@ async function gastosPorCategoria(args: Record<string, unknown>) {
   };
 }
 
+// Desglose por PRODUCTO/INSUMO específico (ej. Teflón, Shampoo,
+// Abrillantador) — distinto de gastos_por_categoria, que solo agrupa en
+// categorías generales (Insumos, Nómina, etc). Mismo criterio que ya usa
+// la gráfica de Gastos: un gasto con "producto específico" puesto directo
+// cuenta completo ahí; uno sin eso pero con renglones desglosados (una
+// compra mixta de varios productos en un ticket) reparte su monto entre
+// los renglones que coincidan por nombre con el catálogo de productos.
+async function gastosPorProducto(args: Record<string, unknown>) {
+  const rango = resolverRangoDesdeArgs(args);
+  const supabase = await createClient();
+
+  const gastosRaw = await fetchPaginado((desde, hasta) => {
+    let q = supabase.from("gastos").select("id, subcategoria_id, monto").order("fecha", { ascending: false }).range(desde, hasta);
+    if (rango.desdeIso) q = q.gte("fecha", rango.desdeIso);
+    if (rango.hastaIso) q = q.lte("fecha", rango.hastaIso);
+    return q;
+  });
+
+  const { data: subcategoriasRaw } = await supabase.from("gasto_subcategorias").select("id, nombre").eq("activo", true);
+  const nombrePorSubcategoria = new Map((subcategoriasRaw ?? []).map((s) => [s.id, s.nombre]));
+  const idPorNombreSubcategoria = new Map((subcategoriasRaw ?? []).map((s) => [s.nombre.trim().toLowerCase(), s.id]));
+
+  const gastoIdsSinProducto = gastosRaw.filter((g) => !g.subcategoria_id).map((g) => g.id);
+  const items = await fetchEnLotes(gastoIdsSinProducto, (lote) =>
+    supabase.from("gasto_items").select("gasto_id, producto, cantidad, precio_unitario").in("gasto_id", lote)
+  );
+  const itemsPorGasto = new Map<string, typeof items>();
+  for (const it of items) {
+    const lista = itemsPorGasto.get(it.gasto_id) ?? [];
+    lista.push(it);
+    itemsPorGasto.set(it.gasto_id, lista);
+  }
+
+  const totalPorProducto = new Map<string, number>();
+  for (const g of gastosRaw) {
+    if (g.subcategoria_id) {
+      totalPorProducto.set(g.subcategoria_id, (totalPorProducto.get(g.subcategoria_id) ?? 0) + g.monto);
+      continue;
+    }
+    for (const it of itemsPorGasto.get(g.id) ?? []) {
+      const subId = idPorNombreSubcategoria.get(it.producto.trim().toLowerCase());
+      if (!subId) continue;
+      totalPorProducto.set(subId, (totalPorProducto.get(subId) ?? 0) + it.cantidad * it.precio_unitario);
+    }
+  }
+
+  const productos = Array.from(totalPorProducto.entries())
+    .map(([id, total]) => ({ producto: nombrePorSubcategoria.get(id) ?? "—", total }))
+    .sort((a, b) => b.total - a.total);
+
+  return {
+    periodo: rango.etiqueta,
+    // Puede ser menor al total real de gastos del período: solo cuenta lo
+    // que sí tiene un producto específico identificado (un gasto como
+    // "Renta" o "Luz" no tiene uno).
+    totalConProductoIdentificado: productos.reduce((acc, p) => acc + p.total, 0),
+    productos,
+  };
+}
+
 // Las herramientas financieras (ventas, gastos, ganancia neta, caja) se
 // ocultan para cajeros — mismo criterio que ya usan las páginas de
 // Reportes y Gastos (redirigen a un cajero que intente entrar).
@@ -178,11 +248,23 @@ export function construirHerramientas(incluirFinancieras: boolean): Herramienta[
           function: {
             name: "gastos_por_categoria",
             description:
-              "Desglose de los gastos del negocio por categoría (Nómina, Insumos/Productos, Servicios, Renta, Mantenimiento, Otros) en un período. Úsala para preguntas sobre en qué se está gastando más o el detalle de gastos.",
+              "Desglose de los gastos del negocio por CATEGORÍA GENERAL (Nómina, Insumos/Productos, Servicios, Renta, Mantenimiento, Otros) en un período. Úsala solo cuando pregunten por categorías generales. Si preguntan en qué PRODUCTO específico se gasta más (ej. Teflón, Shampoo, un insumo en particular), usa gastos_por_producto en vez de esta.",
             parameters: PARAM_FECHA,
           },
         },
         ejecutar: gastosPorCategoria,
+      },
+      {
+        definicion: {
+          type: "function",
+          function: {
+            name: "gastos_por_producto",
+            description:
+              "Desglose de los gastos del negocio por PRODUCTO O INSUMO ESPECÍFICO (ej. Teflón, Shampoo, Abrillantador, Toallas) en un período — no por categoría general. Úsala siempre que pregunten en qué producto/insumo concreto se está gastando más, cuánto se ha comprado de algo específico, etc.",
+            parameters: PARAM_FECHA,
+          },
+        },
+        ejecutar: gastosPorProducto,
       }
     );
   }

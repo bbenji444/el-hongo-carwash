@@ -200,13 +200,14 @@ export default async function DashboardPage({
   ]);
 
   // Autos lavados por lavador (últimos 7 días): igual que siempre, ventana
-  // móvil de 7 días.
-  const lavadoresActivos = lavadoresStats.filter((l) => l.activo);
+  // móvil de 7 días. Solo tipo "lavador" — un encargado (ej. Fani) no lava
+  // autos, así que no tiene sentido evaluarlo aquí.
+  const lavadoresActivos = lavadoresStats.filter((l) => l.activo && l.tipo === "lavador");
   const autosPorLavador = [...lavadoresActivos]
     .sort((a, b) => b.autosLavados - a.autosLavados)
     .map((l) => ({ nombre: l.nombre, autos: l.autosLavados }));
 
-  const lavadoresRendimientoActivos = lavadoresRendimiento.filter((l) => l.activo);
+  const lavadoresRendimientoActivos = lavadoresRendimiento.filter((l) => l.activo && l.tipo === "lavador");
 
   const relacionLavadores = lavadoresRendimientoActivos
     .filter((l) => l.eficiencia !== null && l.volumenAjustadoMin !== null)

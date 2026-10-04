@@ -68,7 +68,9 @@ async function rendimientoLavadores(args: Record<string, unknown>) {
   return {
     periodo: rango.etiqueta,
     lavadores: lavadores
-      .filter((l) => l.activo)
+      // Solo tipo "lavador" — un encargado (ej. Fani) no lava autos, así
+      // que no tiene sentido evaluarlo en rendimiento de lavado.
+      .filter((l) => l.activo && l.tipo === "lavador")
       .map((l) => ({
         nombre: l.nombre,
         autosLavados: l.autosLavados,

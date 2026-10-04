@@ -209,6 +209,67 @@ async function gastosPorProducto(args: Record<string, unknown>) {
   };
 }
 
+// Nómina pagada a cada lavador en un período — "¿cuánto se le ha pagado a
+// Fulano?", para comparar contra sus ventas generadas (rendimiento_lavadores)
+// y decidir cosas como sueldo fijo vs comisión por auto. Mismo criterio que
+// ya usa la gráfica "Nómina por lavador" de Gastos: un gasto de Nómina con
+// el lavador puesto directo cuenta completo; uno sin eso pero con renglones
+// desglosados (el "Sueldos" semanal normal, un renglón por persona) reparte
+// el monto entre los renglones cuyo nombre coincida con un lavador.
+async function nominaPorLavador(args: Record<string, unknown>) {
+  const rango = resolverRangoDesdeArgs(args);
+  const supabase = await createClient();
+
+  const gastosNomina = await fetchPaginado((desde, hasta) => {
+    let q = supabase
+      .from("gastos")
+      .select("id, monto, lavador_id")
+      .eq("categoria", "nomina")
+      .order("fecha", { ascending: false })
+      .range(desde, hasta);
+    if (rango.desdeIso) q = q.gte("fecha", rango.desdeIso);
+    if (rango.hastaIso) q = q.lte("fecha", rango.hastaIso);
+    return q;
+  });
+
+  const { data: lavadoresRaw } = await supabase.from("lavadores").select("id, nombre");
+  const idPorNombreLavador = new Map((lavadoresRaw ?? []).map((l) => [l.nombre.trim().toLowerCase(), l.id]));
+  const nombrePorLavador = new Map((lavadoresRaw ?? []).map((l) => [l.id, l.nombre]));
+
+  const gastoIdsSinLavador = gastosNomina.filter((g) => !g.lavador_id).map((g) => g.id);
+  const items = await fetchEnLotes(gastoIdsSinLavador, (lote) =>
+    supabase.from("gasto_items").select("gasto_id, producto, cantidad, precio_unitario").in("gasto_id", lote)
+  );
+  const itemsPorGasto = new Map<string, typeof items>();
+  for (const it of items) {
+    const lista = itemsPorGasto.get(it.gasto_id) ?? [];
+    lista.push(it);
+    itemsPorGasto.set(it.gasto_id, lista);
+  }
+
+  const totalPorLavador = new Map<string, number>();
+  for (const g of gastosNomina) {
+    if (g.lavador_id) {
+      totalPorLavador.set(g.lavador_id, (totalPorLavador.get(g.lavador_id) ?? 0) + g.monto);
+      continue;
+    }
+    for (const it of itemsPorGasto.get(g.id) ?? []) {
+      const lavId = idPorNombreLavador.get(it.producto.trim().toLowerCase());
+      if (!lavId) continue;
+      totalPorLavador.set(lavId, (totalPorLavador.get(lavId) ?? 0) + it.cantidad * it.precio_unitario);
+    }
+  }
+
+  const lavadores = Array.from(totalPorLavador.entries())
+    .map(([id, total]) => ({ lavador: nombrePorLavador.get(id) ?? "—", nominaPagada: total }))
+    .sort((a, b) => b.nominaPagada - a.nominaPagada);
+
+  return {
+    periodo: rango.etiqueta,
+    lavadores,
+  };
+}
+
 // Las herramientas financieras (ventas, gastos, ganancia neta, caja) se
 // ocultan para cajeros — mismo criterio que ya usan las páginas de
 // Reportes y Gastos (redirigen a un cajero que intente entrar).
@@ -265,6 +326,18 @@ export function construirHerramientas(incluirFinancieras: boolean): Herramienta[
           },
         },
         ejecutar: gastosPorProducto,
+      },
+      {
+        definicion: {
+          type: "function",
+          function: {
+            name: "nomina_por_lavador",
+            description:
+              "Cuánto se le ha pagado en Nómina (sueldo) a cada lavador en un período. Úsala para preguntas sobre sueldos/pagos a lavadores específicos, o para comparar sueldo fijo vs comisión — combínala con rendimiento_lavadores (que trae sus ventas generadas) para ese tipo de análisis.",
+            parameters: PARAM_FECHA,
+          },
+        },
+        ejecutar: nominaPorLavador,
       }
     );
   }

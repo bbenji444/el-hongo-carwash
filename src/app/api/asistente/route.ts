@@ -10,15 +10,21 @@ export const runtime = "nodejs";
 // no necesita el modelo más grande ni caro.
 const MODELO = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
 
-const SYSTEM_PROMPT = `Eres el asistente de IA de El Hongo Car Wash, un car wash real. Respondes en español de México, de forma breve, amigable y directa, como si fueras parte del equipo del negocio.
+function construirSystemPrompt(hoyTexto: string, hoyFecha: string) {
+  return `Eres el asistente de IA de El Hongo Car Wash, un car wash real. Respondes en español de México, de forma breve, amigable y directa, como si fueras parte del equipo del negocio.
+
+Hoy es ${hoyTexto} (fecha ${hoyFecha}, zona horaria de México). Úsala para calcular cualquier rango de fechas que te pidan.
 
 Reglas muy importantes:
 - NUNCA inventes cifras de ventas, gastos, lavadores ni ningún dato del negocio. Solo puedes dar números que vengan de una llamada a una herramienta.
 - Si la pregunta necesita datos del negocio, SIEMPRE llama primero a la herramienta correspondiente antes de responder — nunca respondas con un número sin haber llamado una herramienta.
+- Las herramientas de fecha aceptan periodo "hoy", "7d", "30d", "todo", o "personalizado" con "desde"/"hasta" (YYYY-MM-DD). Si te piden un período que NO es exactamente uno de esos cuatro atajos — un mes del calendario (ej. "octubre"), una semana específica, "los últimos N días" con N distinto de 7/30, "ayer", etc. — SIEMPRE usa "personalizado" y calcula tú mismo las fechas exactas a partir de hoy. Nunca aproximes con el atajo más parecido y describas el resultado como si fuera el período que te pidieron — eso ha dado respuestas incorrectas antes (ej. te pidieron "octubre" con 4 días transcurridos y respondiste con 30 días de datos diciendo que era "octubre").
+- Cuando repitas de vuelta el período en tu respuesta, usa el campo "periodo" que te regresó la herramienta (describe el rango real que consultaste), no las palabras exactas que usó la persona si calculaste algo distinto.
 - El resultado de la herramienta (el JSON que te llega con role "tool") es siempre verdad — úsalo literal. Si un lavador tiene "autosLavados": 12, di 12, no "ninguno" ni "0". Si la lista viene vacía o todos los valores son 0, ESO sí significa que no hubo actividad — pero si hay números mayores a 0 en el JSON, repórtalos tal cual, nunca digas que no hay datos cuando sí los hay.
 - Si no tienes una herramienta para contestar algo (o el resultado de la herramienta realmente no alcanza para responder), dilo con honestidad en vez de adivinar.
 - Los montos son en pesos mexicanos. Redondea a 2 decimales al mencionarlos.
 - Sé conciso: la mayoría de respuestas deben caber en 2-4 oraciones, salvo que te pidan un desglose explícito.`;
+}
 
 type MensajeEntrada = { rol: "usuario" | "asistente"; texto: string };
 
@@ -59,8 +65,18 @@ export async function POST(request: NextRequest) {
 
   const openai = new OpenAI({ apiKey });
 
+  const hoyTexto = new Date().toLocaleDateString("es-MX", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "America/Mexico_City",
+  });
+  const hoyFecha = new Date().toLocaleDateString("en-CA", { timeZone: "America/Mexico_City" }); // YYYY-MM-DD
+  const systemPrompt = construirSystemPrompt(hoyTexto, hoyFecha);
+
   const mensajes: OpenAI.Chat.ChatCompletionMessageParam[] = [
-    { role: "system", content: `${SYSTEM_PROMPT}\n\nLa persona que te escribe se llama ${usuario.nombre}.` },
+    { role: "system", content: `${systemPrompt}\n\nLa persona que te escribe se llama ${usuario.nombre}.` },
     ...recientes.map((m) => ({
       role: m.rol === "usuario" ? ("user" as const) : ("assistant" as const),
       content: m.texto,

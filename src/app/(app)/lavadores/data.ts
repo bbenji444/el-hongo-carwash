@@ -54,42 +54,74 @@ export type DatosLavadores = {
   generadoEn: string;
 };
 
+// PostgREST trae máximo 1000 renglones por consulta por default — con un
+// negocio activo, "30d" o "todo" fácilmente pasa de eso. Sin paginar, los
+// tickets de más allá del renglón 1000 simplemente desaparecían de las
+// estadísticas (sin ningún error visible).
+const TAMANO_PAGINA = 1000;
+// .in("ticket_id", ids) con miles de UUIDs arma una URL larguísima que
+// PostgREST puede rechazar — se manda en lotes chicos y se juntan los
+// resultados, en vez de una sola llamada con todos los ids.
+const TAMANO_LOTE_IN = 200;
+
+function enLotes<T>(arr: T[], tamano: number): T[][] {
+  const lotes: T[][] = [];
+  for (let i = 0; i < arr.length; i += tamano) lotes.push(arr.slice(i, i + tamano));
+  return lotes;
+}
+
 async function ticketsLavadosEnRango(rango: RangoResuelto) {
   const supabase = await createClient();
 
-  const ticketsQuery = supabase
-    .from("tickets")
-    .select("id, servicio_id, tamano_vehiculo, hora_entrada, hora_inicio_lavado, hora_fin_lavado, calificacion")
-    .eq("estado", "entregado");
-  if (rango.desdeIso) ticketsQuery.gte("hora_entrada", rango.desdeIso);
-  if (rango.hastaIso) ticketsQuery.lte("hora_entrada", rango.hastaIso);
+  const ticketsRaw: {
+    id: string;
+    servicio_id: string;
+    tamano_vehiculo: TamanoVehiculo;
+    hora_entrada: string;
+    hora_inicio_lavado: string | null;
+    hora_fin_lavado: string | null;
+    calificacion: number | null;
+  }[] = [];
+  for (let desde = 0; ; desde += TAMANO_PAGINA) {
+    let paginaQuery = supabase
+      .from("tickets")
+      .select("id, servicio_id, tamano_vehiculo, hora_entrada, hora_inicio_lavado, hora_fin_lavado, calificacion")
+      .eq("estado", "entregado")
+      .order("id")
+      .range(desde, desde + TAMANO_PAGINA - 1);
+    if (rango.desdeIso) paginaQuery = paginaQuery.gte("hora_entrada", rango.desdeIso);
+    if (rango.hastaIso) paginaQuery = paginaQuery.lte("hora_entrada", rango.hastaIso);
+    const { data: pagina } = await paginaQuery;
+    ticketsRaw.push(...(pagina ?? []));
+    if (!pagina || pagina.length < TAMANO_PAGINA) break;
+  }
 
-  const { data: ticketsRaw } = await ticketsQuery;
-  const ticketIds = (ticketsRaw ?? []).map((t) => t.id);
+  const ticketIds = ticketsRaw.map((t) => t.id);
+  const lotesIds = enLotes(ticketIds, TAMANO_LOTE_IN);
 
-  const [{ data: pagos }, { data: asignaciones }] = await Promise.all([
-    ticketIds.length
-      ? supabase.from("pagos").select("ticket_id, monto").in("ticket_id", ticketIds)
-      : Promise.resolve({ data: [] }),
-    ticketIds.length
-      ? supabase.from("ticket_lavadores").select("ticket_id, lavador_id").in("ticket_id", ticketIds)
-      : Promise.resolve({ data: [] }),
+  const [pagosPorLote, asignacionesPorLote] = await Promise.all([
+    Promise.all(lotesIds.map((lote) => supabase.from("pagos").select("ticket_id, monto").in("ticket_id", lote))),
+    Promise.all(
+      lotesIds.map((lote) => supabase.from("ticket_lavadores").select("ticket_id, lavador_id").in("ticket_id", lote))
+    ),
   ]);
+  const pagos = pagosPorLote.flatMap((r) => r.data ?? []);
+  const asignaciones = asignacionesPorLote.flatMap((r) => r.data ?? []);
 
   const montoPorTicket = new Map<string, number>();
-  for (const p of pagos ?? []) {
+  for (const p of pagos) {
     montoPorTicket.set(p.ticket_id, (montoPorTicket.get(p.ticket_id) ?? 0) + p.monto);
   }
 
   // Uno o más lavadores por ticket (empiezan a lavar en pareja a veces).
   const lavadorIdsPorTicket = new Map<string, string[]>();
-  for (const a of asignaciones ?? []) {
+  for (const a of asignaciones) {
     const lista = lavadorIdsPorTicket.get(a.ticket_id) ?? [];
     lista.push(a.lavador_id);
     lavadorIdsPorTicket.set(a.ticket_id, lista);
   }
 
-  return (ticketsRaw ?? [])
+  return ticketsRaw
     .map((t) => ({
       id: t.id,
       lavadorIds: lavadorIdsPorTicket.get(t.id) ?? [],

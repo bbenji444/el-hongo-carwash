@@ -41,30 +41,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Sesión no válida." }, { status: 401 });
   }
 
-  // DIAGNÓSTICO TEMPORAL — para encontrar en qué paso se pierden los datos
-  // (mismo cliente que ya autenticó arriba, para descartar que sea un
-  // problema de RLS/sesión vs. un bug de lógica en la consulta compuesta).
-  const [{ count: countTickets }, { count: countTicketLavadores }, { count: countPagos }] = await Promise.all([
-    supabase.from("tickets").select("id", { count: "exact", head: true }).eq("estado", "entregado"),
-    supabase.from("ticket_lavadores").select("ticket_id", { count: "exact", head: true }),
-    supabase.from("pagos").select("ticket_id", { count: "exact", head: true }),
-  ]);
-
-  // Réplica exacta de la consulta con filtro de fecha que usa
-  // ticketsLavadosEnRango (30 días) — esta vez SÍ revisando "error", que el
-  // código original nunca revisa (solo hace `?? []`, así que un error ahí
-  // se ve idéntico a "no hay tickets").
-  const { resolverRango } = await import("@/lib/rangoFechas");
-  const rango30d = resolverRango({ periodo: "30d" });
-  const { data: ticketsConFecha, error: errorTicketsFecha } = await supabase
-    .from("tickets")
-    .select("id")
-    .eq("estado", "entregado")
-    .gte("hora_entrada", rango30d.desdeIso!);
-
-  const debugDiagnostico = `userId=${user.id} tickets_entregados_total=${countTickets} ticket_lavadores_total=${countTicketLavadores} pagos_total=${countPagos} desdeIso_30d=${rango30d.desdeIso} tickets_con_filtro_fecha=${ticketsConFecha?.length ?? "null"} error_filtro_fecha=${errorTicketsFecha ? JSON.stringify(errorTicketsFecha) : "ninguno"}`;
-  console.log("[asistente][diagnostico]", debugDiagnostico);
-
   let body: { mensajes?: MensajeEntrada[] };
   try {
     body = await request.json();
@@ -107,11 +83,6 @@ export async function POST(request: NextRequest) {
 
     mensajes.push(mensaje);
 
-    // DEBUG TEMPORAL — se quita en cuanto encontremos el bug de los datos
-    // en 0. Se agrega al final de la respuesta lo que la herramienta
-    // REALMENTE regresó, para verlo sin depender de los Logs de Vercel.
-    const debugLlamadas: string[] = [];
-
     // Solo definimos herramientas de tipo "function" (no el tipo "custom"
     // más nuevo del SDK), así que toda llamada que recibamos de vuelta es
     // de ese tipo — se filtra explícito para que TypeScript lo sepa.
@@ -131,13 +102,11 @@ export async function POST(request: NextRequest) {
         }
         try {
           resultado = await herramienta.ejecutar(args);
-          console.log(`[asistente] ${llamada.function.name}(${JSON.stringify(args)}) ->`, JSON.stringify(resultado).slice(0, 2000));
         } catch (err) {
           console.error(`Error ejecutando la herramienta ${llamada.function.name}:`, err);
           resultado = { error: "No se pudo consultar ese dato en este momento." };
         }
       }
-      debugLlamadas.push(`${llamada.function.name}(${llamada.function.arguments}) -> ${JSON.stringify(resultado)}`);
       mensajes.push({
         role: "tool",
         tool_call_id: llamada.id,
@@ -151,10 +120,7 @@ export async function POST(request: NextRequest) {
       messages: mensajes,
     });
 
-    const respuestaFinal = segunda.choices[0].message.content ?? "No pude generar una respuesta.";
-    const conDebug = `${respuestaFinal}\n\n---\n🔧 DEBUG:\n${debugDiagnostico}\n${debugLlamadas.join("\n")}`;
-
-    return NextResponse.json({ respuesta: conDebug });
+    return NextResponse.json({ respuesta: segunda.choices[0].message.content ?? "No pude generar una respuesta." });
   } catch (err) {
     console.error("Error del asistente de IA:", err);
     return NextResponse.json(

@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { PERIODOS, resolverRango } from "@/lib/rangoFechas";
 import { CATEGORIAS_GASTO } from "@/lib/gastoCategorias";
 import { inicioDeMesMX, mesMX } from "@/lib/fecha";
+import { fetchPaginado, fetchEnLotes } from "@/lib/supabaseBatch";
 import type { GastoCategoria } from "@/types/database.types";
 import { GastosClient } from "./GastosClient";
 
@@ -104,17 +105,22 @@ export default async function GastosPage({
   // mismo criterio de "explotar por renglón" que ya usan las gráficas (ver
   // más abajo), y una compra de Dogo o un Sueldos itemizado no tiene esa
   // columna puesta directa en el gasto.
-  const gastosQuery = supabase.from("gastos").select("*").order("fecha", { ascending: false });
-  if (rango.desdeIso) gastosQuery.gte("fecha", rango.desdeIso);
-  if (rango.hastaIso) gastosQuery.lte("fecha", rango.hastaIso);
-  if (filtroCategoria) gastosQuery.eq("categoria", filtroCategoria as GastoCategoria);
-  if (filtroMontoMin) gastosQuery.gte("monto", Number(filtroMontoMin));
-  if (filtroMontoMax) gastosQuery.lte("monto", Number(filtroMontoMax));
-  if (filtroRegistradoPor) gastosQuery.eq("creado_por", filtroRegistradoPor);
+  // Paginado explícito (ver supabaseBatch.ts) — sin esto, PostgREST trae
+  // máximo 1000 renglones por consulta y, pasado ese punto, los gastos de
+  // más allá desaparecían en silencio (mismo bug ya encontrado en
+  // Reportes/Lavadores).
+  const gastosRaw = await fetchPaginado((desde, hasta) => {
+    let q = supabase.from("gastos").select("*").order("fecha", { ascending: false }).range(desde, hasta);
+    if (rango.desdeIso) q = q.gte("fecha", rango.desdeIso);
+    if (rango.hastaIso) q = q.lte("fecha", rango.hastaIso);
+    if (filtroCategoria) q = q.eq("categoria", filtroCategoria as GastoCategoria);
+    if (filtroMontoMin) q = q.gte("monto", Number(filtroMontoMin));
+    if (filtroMontoMax) q = q.lte("monto", Number(filtroMontoMax));
+    if (filtroRegistradoPor) q = q.eq("creado_por", filtroRegistradoPor);
+    return q;
+  });
 
-  const { data: gastosRaw } = await gastosQuery;
-
-  const gastoIds = (gastosRaw ?? []).map((g) => g.id);
+  const gastoIds = gastosRaw.map((g) => g.id);
 
   // Tendencia mensual: independiente del período de arriba (que puede estar
   // en "Hoy") — siempre mira los últimos 12 meses completos, para poder
@@ -123,45 +129,44 @@ export default async function GastosPage({
   // monto, quién lo registró) — así "¿cuánto gasto al mes en Nómina?" se
   // contesta nada más filtrando categoría y viendo esta misma gráfica.
   const desdeTendencia = inicioDeMesMX(MESES_TENDENCIA - 1);
-  const gastosTendenciaQuery = supabase.from("gastos").select("fecha, monto").gte("fecha", desdeTendencia.toISOString());
-  if (filtroCategoria) gastosTendenciaQuery.eq("categoria", filtroCategoria as GastoCategoria);
-  if (filtroMontoMin) gastosTendenciaQuery.gte("monto", Number(filtroMontoMin));
-  if (filtroMontoMax) gastosTendenciaQuery.lte("monto", Number(filtroMontoMax));
-  if (filtroRegistradoPor) gastosTendenciaQuery.eq("creado_por", filtroRegistradoPor);
+  const gastosTendenciaPromise = fetchPaginado((desde, hasta) => {
+    let q = supabase
+      .from("gastos")
+      .select("fecha, monto")
+      .gte("fecha", desdeTendencia.toISOString())
+      .range(desde, hasta);
+    if (filtroCategoria) q = q.eq("categoria", filtroCategoria as GastoCategoria);
+    if (filtroMontoMin) q = q.gte("monto", Number(filtroMontoMin));
+    if (filtroMontoMax) q = q.lte("monto", Number(filtroMontoMax));
+    if (filtroRegistradoPor) q = q.eq("creado_por", filtroRegistradoPor);
+    return q;
+  });
 
-  const [
-    { data: usuarios },
-    { data: archivosRaw },
-    { data: itemsRaw },
-    { data: subcategoriasRaw },
-    { data: lavadoresRaw },
-    { data: gastosTendenciaRaw },
-    { data: registradoresRaw },
-  ] = await Promise.all([
-    gastoIds.length
-      ? (async () => {
-          const usuarioIds = [...new Set((gastosRaw ?? []).map((g) => g.creado_por))];
-          return supabase.from("usuarios").select("id, nombre").in("id", usuarioIds);
-        })()
-      : Promise.resolve({ data: [] }),
-    gastoIds.length
-      ? supabase.from("gasto_archivos").select("id, gasto_id, archivo_nombre, archivo_tipo").in("gasto_id", gastoIds)
-      : Promise.resolve({ data: [] }),
-    gastoIds.length
-      ? supabase
+  const usuarioIds = [...new Set(gastosRaw.map((g) => g.creado_por))];
+
+  const [{ data: usuarios }, archivosRaw, itemsRaw, { data: subcategoriasRaw }, { data: lavadoresRaw }, gastosTendenciaRaw, { data: registradoresRaw }] =
+    await Promise.all([
+      usuarioIds.length ? supabase.from("usuarios").select("id, nombre").in("id", usuarioIds) : Promise.resolve({ data: [] }),
+      // .in("gasto_id", ids) en lotes chicos — con cientos/miles de gastos
+      // una sola llamada arma una URL tan larga que PostgREST la rechaza.
+      fetchEnLotes(gastoIds, (lote) =>
+        supabase.from("gasto_archivos").select("id, gasto_id, archivo_nombre, archivo_tipo").in("gasto_id", lote)
+      ),
+      fetchEnLotes(gastoIds, (lote) =>
+        supabase
           .from("gasto_items")
           .select("id, gasto_id, producto, cantidad, precio_unitario")
-          .in("gasto_id", gastoIds)
+          .in("gasto_id", lote)
           .order("creado_en", { ascending: true })
-      : Promise.resolve({ data: [] }),
-    supabase.from("gasto_subcategorias").select("id, nombre").eq("activo", true).order("nombre"),
-    supabase.from("lavadores").select("id, nombre").order("nombre"),
-    gastosTendenciaQuery,
-    // Opciones del filtro "Registró" — dueño/encargado son los únicos que
-    // pueden crear gastos (ver requiereDuenoOEncargado en actions.ts), así
-    // que son los únicos que puede haber registrado alguno.
-    supabase.from("usuarios").select("id, nombre").in("rol", ["dueno", "encargado"]).order("nombre"),
-  ]);
+      ),
+      supabase.from("gasto_subcategorias").select("id, nombre").eq("activo", true).order("nombre"),
+      supabase.from("lavadores").select("id, nombre").order("nombre"),
+      gastosTendenciaPromise,
+      // Opciones del filtro "Registró" — dueño/encargado son los únicos que
+      // pueden crear gastos (ver requiereDuenoOEncargado en actions.ts), así
+      // que son los únicos que puede haber registrado alguno.
+      supabase.from("usuarios").select("id, nombre").in("rol", ["dueno", "encargado"]).order("nombre"),
+    ]);
 
   const nombrePorUsuario = new Map((usuarios ?? []).map((u) => [u.id, u.nombre]));
   const subcategorias = subcategoriasRaw ?? [];
@@ -176,20 +181,20 @@ export default async function GastosPage({
   const idPorNombreLavador = new Map(lavadores.map((l) => [l.nombre.trim().toLowerCase(), l.id]));
 
   const archivosPorGasto = new Map<string, { id: string; nombre: string; tipo: string | null }[]>();
-  for (const a of archivosRaw ?? []) {
+  for (const a of archivosRaw) {
     const lista = archivosPorGasto.get(a.gasto_id) ?? [];
     lista.push({ id: a.id, nombre: a.archivo_nombre, tipo: a.archivo_tipo });
     archivosPorGasto.set(a.gasto_id, lista);
   }
 
   const itemsPorGasto = new Map<string, { id: string; producto: string; cantidad: number; precioUnitario: number }[]>();
-  for (const it of itemsRaw ?? []) {
+  for (const it of itemsRaw) {
     const lista = itemsPorGasto.get(it.gasto_id) ?? [];
     lista.push({ id: it.id, producto: it.producto, cantidad: it.cantidad, precioUnitario: it.precio_unitario });
     itemsPorGasto.set(it.gasto_id, lista);
   }
 
-  const gastos = (gastosRaw ?? []).map((g) => ({
+  const gastos = gastosRaw.map((g) => ({
     id: g.id,
     concepto: g.concepto,
     monto: g.monto,
@@ -336,7 +341,7 @@ export default async function GastosPage({
   for (let i = MESES_TENDENCIA - 1; i >= 0; i--) {
     totalPorMesMap.set(mesMX(inicioDeMesMX(i).toISOString()), 0);
   }
-  for (const g of gastosTendenciaRaw ?? []) {
+  for (const g of gastosTendenciaRaw) {
     const mes = mesMX(g.fecha);
     if (totalPorMesMap.has(mes)) {
       totalPorMesMap.set(mes, (totalPorMesMap.get(mes) ?? 0) + g.monto);

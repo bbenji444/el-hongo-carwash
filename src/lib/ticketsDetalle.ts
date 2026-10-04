@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import type { RangoResuelto } from "@/lib/rangoFechas";
+import { fetchPaginado, fetchEnLotes } from "@/lib/supabaseBatch";
 import type { TamanoVehiculo, PagoMetodo } from "@/types/database.types";
 
 export type FiltrosTicketsDetalle = {
@@ -35,42 +36,47 @@ const LIMITE_MOSTRADO = 300;
 export async function buscarTicketsDetalle(rango: RangoResuelto, filtros: FiltrosTicketsDetalle) {
   const supabase = await createClient();
 
-  let query = supabase
-    .from("tickets")
-    .select(
-      "id, turno_id, cliente_id, distintivo, placa, servicio_id, tamano_vehiculo, estado, hora_entrada, lavada_gratis"
-    )
-    .order("hora_entrada", { ascending: false })
-    .limit(TECHO_CONSULTA);
-
-  if (rango.desdeIso) query = query.gte("hora_entrada", rango.desdeIso);
-  if (rango.hastaIso) query = query.lte("hora_entrada", rango.hastaIso);
-  if (filtros.servicio) query = query.eq("servicio_id", filtros.servicio);
-  if (filtros.tamano) query = query.eq("tamano_vehiculo", filtros.tamano);
-
-  const { data: ticketsRaw } = await query;
-  const todosLosTickets = ticketsRaw ?? [];
+  // Paginado explícito hasta TECHO_CONSULTA — antes era un solo .limit(3000)
+  // sin .range(), pero PostgREST trae máximo 1000 renglones por consulta
+  // sin paginar: el límite de 3000 nunca se alcanzaba de verdad, se
+  // quedaba truncado en 1000 en silencio.
+  const todosLosTickets = await fetchPaginado(
+    (desde, hasta) => {
+      let query = supabase
+        .from("tickets")
+        .select("id, turno_id, cliente_id, distintivo, placa, servicio_id, tamano_vehiculo, estado, hora_entrada, lavada_gratis")
+        .order("hora_entrada", { ascending: false })
+        .range(desde, hasta);
+      if (rango.desdeIso) query = query.gte("hora_entrada", rango.desdeIso);
+      if (rango.hastaIso) query = query.lte("hora_entrada", rango.hastaIso);
+      if (filtros.servicio) query = query.eq("servicio_id", filtros.servicio);
+      if (filtros.tamano) query = query.eq("tamano_vehiculo", filtros.tamano);
+      return query;
+    },
+    1000,
+    TECHO_CONSULTA
+  );
 
   const servicioIds = [...new Set(todosLosTickets.map((t) => t.servicio_id))];
   const clienteIds = [...new Set(todosLosTickets.map((t) => t.cliente_id).filter(Boolean))] as string[];
   const ticketIdsTodos = todosLosTickets.map((t) => t.id);
 
-  const [{ data: servicios }, { data: clientes }, { data: lavadores }, { data: pagos }, { data: asignaciones }] =
-    await Promise.all([
-      servicioIds.length
-        ? supabase.from("servicios_catalogo").select("id, nombre").in("id", servicioIds)
-        : Promise.resolve({ data: [] }),
-      clienteIds.length
-        ? supabase.from("clientes").select("id, nombre").in("id", clienteIds)
-        : Promise.resolve({ data: [] }),
-      supabase.from("lavadores").select("id, nombre"),
-      ticketIdsTodos.length
-        ? supabase.from("pagos").select("ticket_id, monto, metodo").in("ticket_id", ticketIdsTodos)
-        : Promise.resolve({ data: [] }),
-      ticketIdsTodos.length
-        ? supabase.from("ticket_lavadores").select("ticket_id, lavador_id").in("ticket_id", ticketIdsTodos)
-        : Promise.resolve({ data: [] }),
-    ]);
+  const [{ data: servicios }, { data: clientes }, { data: lavadores }, pagos, asignaciones] = await Promise.all([
+    servicioIds.length
+      ? supabase.from("servicios_catalogo").select("id, nombre").in("id", servicioIds)
+      : Promise.resolve({ data: [] }),
+    clienteIds.length
+      ? supabase.from("clientes").select("id, nombre").in("id", clienteIds)
+      : Promise.resolve({ data: [] }),
+    supabase.from("lavadores").select("id, nombre"),
+    // .in("ticket_id", ids) en lotes chicos — con hasta 3000 ids una sola
+    // llamada arma una URL tan larga que PostgREST la rechaza, y el código
+    // nunca revisaba ese error (se veía idéntico a "sin pagos/lavador").
+    fetchEnLotes(ticketIdsTodos, (lote) => supabase.from("pagos").select("ticket_id, monto, metodo").in("ticket_id", lote)),
+    fetchEnLotes(ticketIdsTodos, (lote) =>
+      supabase.from("ticket_lavadores").select("ticket_id, lavador_id").in("ticket_id", lote)
+    ),
+  ]);
 
   const nombrePorServicio = new Map((servicios ?? []).map((s) => [s.id, s.nombre]));
   const nombrePorCliente = new Map((clientes ?? []).map((c) => [c.id, c.nombre]));
@@ -78,7 +84,7 @@ export async function buscarTicketsDetalle(rango: RangoResuelto, filtros: Filtro
 
   // Uno o más lavadores por ticket (empiezan a lavar en pareja a veces).
   const lavadorIdsPorTicket = new Map<string, string[]>();
-  for (const a of asignaciones ?? []) {
+  for (const a of asignaciones) {
     const lista = lavadorIdsPorTicket.get(a.ticket_id) ?? [];
     lista.push(a.lavador_id);
     lavadorIdsPorTicket.set(a.ticket_id, lista);
@@ -89,7 +95,7 @@ export async function buscarTicketsDetalle(rango: RangoResuelto, filtros: Filtro
     : todosLosTickets;
 
   const pagosPorTicket = new Map<string, { monto: number; metodo: PagoMetodo }[]>();
-  for (const p of pagos ?? []) {
+  for (const p of pagos) {
     const lista = pagosPorTicket.get(p.ticket_id) ?? [];
     lista.push({ monto: p.monto, metodo: p.metodo });
     pagosPorTicket.set(p.ticket_id, lista);

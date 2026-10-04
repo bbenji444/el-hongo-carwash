@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { PERIODOS, resolverRango, queryStringRango, type RangoResuelto } from "@/lib/rangoFechas";
 import { inicioDeMesMX, mesMX } from "@/lib/fecha";
 import { TAMANOS_VEHICULO } from "@/lib/servicios";
+import { fetchPaginado, fetchEnLotes } from "@/lib/supabaseBatch";
 import type { Database, TamanoVehiculo, PagoMetodo } from "@/types/database.types";
 
 // Se reexportan para no tener que tocar los imports existentes en page.tsx
@@ -109,37 +110,46 @@ async function obtenerVentasFiltradas(
   hastaIso: string | null,
   filtros: FiltrosReporte
 ) {
-  let query = supabase
-    .from("tickets")
-    .select("id, servicio_id, tamano_vehiculo, distintivo, placa, descuento_monto, descuento_autorizado_por, creado_por, hora_entrada")
-    .eq("estado", "entregado")
-    .order("hora_entrada", { ascending: false });
-  if (desdeIso) query = query.gte("hora_entrada", desdeIso);
-  if (hastaIso) query = query.lte("hora_entrada", hastaIso);
-  if (filtros.servicio) query = query.eq("servicio_id", filtros.servicio);
-  if (filtros.tamano) query = query.eq("tamano_vehiculo", filtros.tamano as TamanoVehiculo);
+  // Paginado explícito: PostgREST trae máximo 1000 renglones por consulta
+  // si no se pide así — con suficiente volumen (un período amplio como
+  // "30d" o "todo" en un negocio activo) los tickets de más allá del
+  // renglón 1000 desaparecían en silencio, sin ningún error.
+  const ticketsRaw = await fetchPaginado((desde, hasta) => {
+    let query = supabase
+      .from("tickets")
+      .select(
+        "id, servicio_id, tamano_vehiculo, distintivo, placa, descuento_monto, descuento_autorizado_por, creado_por, hora_entrada"
+      )
+      .eq("estado", "entregado")
+      .order("hora_entrada", { ascending: false })
+      .range(desde, hasta);
+    if (desdeIso) query = query.gte("hora_entrada", desdeIso);
+    if (hastaIso) query = query.lte("hora_entrada", hastaIso);
+    if (filtros.servicio) query = query.eq("servicio_id", filtros.servicio);
+    if (filtros.tamano) query = query.eq("tamano_vehiculo", filtros.tamano as TamanoVehiculo);
+    return query;
+  });
+  const ticketIds = ticketsRaw.map((t) => t.id);
 
-  const { data: ticketsRaw } = await query;
-  const ticketIds = (ticketsRaw ?? []).map((t) => t.id);
-
-  const [{ data: pagosRaw }, { data: asignacionesRaw }] = await Promise.all([
-    ticketIds.length
-      ? supabase.from("pagos").select("ticket_id, monto, metodo").in("ticket_id", ticketIds)
-      : Promise.resolve({ data: [] }),
-    ticketIds.length
-      ? supabase.from("ticket_lavadores").select("ticket_id, lavador_id").in("ticket_id", ticketIds)
-      : Promise.resolve({ data: [] }),
+  // .in("ticket_id", ids) en lotes chicos — con cientos/miles de ids una
+  // sola llamada arma una URL tan larga que PostgREST la rechaza, y el
+  // código nunca revisaba ese error (se veía idéntico a "sin pagos").
+  const [pagosRaw, asignacionesRaw] = await Promise.all([
+    fetchEnLotes(ticketIds, (lote) => supabase.from("pagos").select("ticket_id, monto, metodo").in("ticket_id", lote)),
+    fetchEnLotes(ticketIds, (lote) =>
+      supabase.from("ticket_lavadores").select("ticket_id, lavador_id").in("ticket_id", lote)
+    ),
   ]);
 
   const lavadorIdsPorTicket = new Map<string, string[]>();
-  for (const a of asignacionesRaw ?? []) {
+  for (const a of asignacionesRaw) {
     const lista = lavadorIdsPorTicket.get(a.ticket_id) ?? [];
     lista.push(a.lavador_id);
     lavadorIdsPorTicket.set(a.ticket_id, lista);
   }
 
   const pagosPorTicket = new Map<string, { monto: number; metodo: PagoMetodo }[]>();
-  for (const p of pagosRaw ?? []) {
+  for (const p of pagosRaw) {
     const lista = pagosPorTicket.get(p.ticket_id) ?? [];
     lista.push({ monto: p.monto, metodo: p.metodo });
     pagosPorTicket.set(p.ticket_id, lista);
@@ -148,7 +158,7 @@ async function obtenerVentasFiltradas(
   const qNorm = (filtros.q ?? "").trim().toLowerCase();
   const metodoFiltro = (filtros.metodo || null) as PagoMetodo | null;
 
-  const tickets = (ticketsRaw ?? []).filter((t) => {
+  const tickets = ticketsRaw.filter((t) => {
     if (filtros.lavador && !(lavadorIdsPorTicket.get(t.id) ?? []).includes(filtros.lavador)) return false;
     if (qNorm) {
       const candidatos = [t.distintivo, t.placa].filter((v): v is string => Boolean(v)).map((v) => v.toLowerCase());
@@ -164,32 +174,44 @@ async function obtenerVentasFiltradas(
 export async function obtenerDatosReporte(rango: RangoResuelto, filtros: FiltrosReporte = {}): Promise<DatosReporte> {
   const supabase = await createClient();
 
-  const turnosQuery = supabase
-    .from("turnos")
-    .select("*")
-    .eq("estado", "cerrado")
-    .order("hora_cierre", { ascending: false });
-  if (rango.desdeIso) turnosQuery.gte("hora_cierre", rango.desdeIso);
-  if (rango.hastaIso) turnosQuery.lte("hora_cierre", rango.hastaIso);
+  // Todas paginadas explícito (ver supabaseBatch.ts) — sin esto, PostgREST
+  // trae máximo 1000 renglones y, con suficiente volumen, "ganancia neta"
+  // y los totales de turno salían mal sin ningún error visible.
+  const turnosPromise = fetchPaginado((desde, hasta) => {
+    let q = supabase.from("turnos").select("*").eq("estado", "cerrado").order("hora_cierre", { ascending: false }).range(desde, hasta);
+    if (rango.desdeIso) q = q.gte("hora_cierre", rango.desdeIso);
+    if (rango.hastaIso) q = q.lte("hora_cierre", rango.hastaIso);
+    return q;
+  });
 
   // Todos los pagos del período (sin el filtro maestro) — solo para los
   // totales de caja por turno (tarjeta/transferencia), que deben quedarse
   // como el negocio real sin importar si se está mirando nada más, por
   // ejemplo, los lavados "chicos".
-  const pagosQuery = supabase
-    .from("pagos")
-    .select("ticket_id, turno_id, monto, metodo, creado_en")
-    .order("creado_en", { ascending: false });
-  if (rango.desdeIso) pagosQuery.gte("creado_en", rango.desdeIso);
-  if (rango.hastaIso) pagosQuery.lte("creado_en", rango.hastaIso);
+  const pagosTurnoPromise = fetchPaginado((desde, hasta) => {
+    let q = supabase
+      .from("pagos")
+      .select("ticket_id, turno_id, monto, metodo, creado_en")
+      .order("creado_en", { ascending: false })
+      .range(desde, hasta);
+    if (rango.desdeIso) q = q.gte("creado_en", rango.desdeIso);
+    if (rango.hastaIso) q = q.lte("creado_en", rango.hastaIso);
+    return q;
+  });
 
-  const gastosQuery = supabase.from("gastos").select("*").order("fecha", { ascending: false });
-  if (rango.desdeIso) gastosQuery.gte("fecha", rango.desdeIso);
-  if (rango.hastaIso) gastosQuery.lte("fecha", rango.hastaIso);
+  const gastosPromise = fetchPaginado((desde, hasta) => {
+    let q = supabase.from("gastos").select("*").order("fecha", { ascending: false }).range(desde, hasta);
+    if (rango.desdeIso) q = q.gte("fecha", rango.desdeIso);
+    if (rango.hastaIso) q = q.lte("fecha", rango.hastaIso);
+    return q;
+  });
 
-  const ingresosQuery = supabase.from("ingresos_extra").select("*").order("fecha", { ascending: false });
-  if (rango.desdeIso) ingresosQuery.gte("fecha", rango.desdeIso);
-  if (rango.hastaIso) ingresosQuery.lte("fecha", rango.hastaIso);
+  const ingresosPromise = fetchPaginado((desde, hasta) => {
+    let q = supabase.from("ingresos_extra").select("*").order("fecha", { ascending: false }).range(desde, hasta);
+    if (rango.desdeIso) q = q.gte("fecha", rango.desdeIso);
+    if (rango.hastaIso) q = q.lte("fecha", rango.hastaIso);
+    return q;
+  });
 
   // Tendencia mensual: siempre los últimos 12 meses completos (sin importar
   // el período de arriba), pero sí respeta el resto del filtro maestro —
@@ -197,14 +219,14 @@ export async function obtenerDatosReporte(rango: RangoResuelto, filtros: Filtros
   // tamaño y viendo esta gráfica.
   const desdeTendencia = inicioDeMesMX(MESES_TENDENCIA - 1);
 
-  const [{ data: turnosRaw }, { data: pagosTurno }, { data: servicios }, { data: usuarios }, { data: gastosRaw }, { data: ingresosRaw }, ventasPeriodo, ventasTendencia] =
+  const [turnosRaw, pagosTurno, { data: servicios }, { data: usuarios }, gastosRaw, ingresosRaw, ventasPeriodo, ventasTendencia] =
     await Promise.all([
-      turnosQuery,
-      pagosQuery,
+      turnosPromise,
+      pagosTurnoPromise,
       supabase.from("servicios_catalogo").select("id, nombre"),
       supabase.from("usuarios").select("id, nombre"),
-      gastosQuery,
-      ingresosQuery,
+      gastosPromise,
+      ingresosPromise,
       obtenerVentasFiltradas(supabase, rango.desdeIso, rango.hastaIso, filtros),
       obtenerVentasFiltradas(supabase, desdeTendencia.toISOString(), null, filtros),
     ]);
@@ -215,7 +237,7 @@ export async function obtenerDatosReporte(rango: RangoResuelto, filtros: Filtros
   const tarjetaPorTurno = new Map<string, number>();
   const transferenciaPorTurno = new Map<string, number>();
   let ventasTotalesPeriodo = 0;
-  for (const pago of pagosTurno ?? []) {
+  for (const pago of pagosTurno) {
     ventasTotalesPeriodo += pago.monto;
     if (pago.metodo === "tarjeta") {
       tarjetaPorTurno.set(pago.turno_id, (tarjetaPorTurno.get(pago.turno_id) ?? 0) + pago.monto);
@@ -242,8 +264,8 @@ export async function obtenerDatosReporte(rango: RangoResuelto, filtros: Filtros
   const numTickets = ticketsVentasFiltrados.length;
   const ticketPromedio = numTickets > 0 ? ventasTotales / numTickets : 0;
   const totalDescuentos = ticketsVentasFiltrados.reduce((acc, t) => acc + t.descuento_monto, 0);
-  const diferenciaAcumulada = (turnosRaw ?? []).reduce((acc, t) => acc + (t.diferencia ?? 0), 0);
-  const turnosConAlerta = (turnosRaw ?? []).filter((t) => t.alerta_diferencia).length;
+  const diferenciaAcumulada = turnosRaw.reduce((acc, t) => acc + (t.diferencia ?? 0), 0);
+  const turnosConAlerta = turnosRaw.filter((t) => t.alerta_diferencia).length;
 
   function montoTicket(ticketId: string) {
     return (pagosPorTicket.get(ticketId) ?? []).reduce((acc, p) => acc + p.monto, 0);
@@ -309,7 +331,7 @@ export async function obtenerDatosReporte(rango: RangoResuelto, filtros: Filtros
       monto: t.descuento_monto,
     }));
 
-  const gastos: GastoDetalle[] = (gastosRaw ?? []).map((g) => ({
+  const gastos: GastoDetalle[] = gastosRaw.map((g) => ({
     id: g.id,
     fecha: g.fecha,
     concepto: g.concepto,
@@ -318,7 +340,7 @@ export async function obtenerDatosReporte(rango: RangoResuelto, filtros: Filtros
   }));
   const totalGastos = gastos.reduce((acc, g) => acc + g.monto, 0);
 
-  const ingresos: IngresoDetalle[] = (ingresosRaw ?? []).map((i) => ({
+  const ingresos: IngresoDetalle[] = ingresosRaw.map((i) => ({
     id: i.id,
     fecha: i.fecha,
     concepto: i.concepto,
@@ -336,7 +358,7 @@ export async function obtenerDatosReporte(rango: RangoResuelto, filtros: Filtros
   // efectivo_contado nunca es null aquí: el trigger de cierre exige
   // capturarlo antes de dejar pasar un turno a "cerrado" (y esta consulta
   // solo trae turnos cerrados).
-  const turnos: CierreTurno[] = (turnosRaw ?? []).map((t) => {
+  const turnos: CierreTurno[] = turnosRaw.map((t) => {
     const tarjetaYTransferencia = (tarjetaPorTurno.get(t.id) ?? 0) + (transferenciaPorTurno.get(t.id) ?? 0);
     const total = (t.efectivo_contado ?? 0) + tarjetaYTransferencia;
     return {

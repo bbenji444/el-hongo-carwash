@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { PERIODOS, resolverRango, queryStringRango } from "@/lib/rangoFechas";
 import { nombreTamano } from "@/lib/servicios";
 import { obtenerConfiguracion } from "@/lib/configuracion";
+import { fetchPaginado, fetchEnLotes } from "@/lib/supabaseBatch";
 import type { TamanoVehiculo } from "@/types/database.types";
 
 function money(n: number) {
@@ -51,11 +52,15 @@ export default async function DesgloseLavadorPage({
   // histórico a propósito (todo el tiempo, no solo el período seleccionado
   // abajo) — es "cuánto se le ha pagado en total", no algo que tenga
   // sentido acotar por fecha cada vez que cambias el filtro de tickets.
-  const [{ data: usuario }, { data: lavador }, config, { data: nominaGastosRaw }] = await Promise.all([
+  const [{ data: usuario }, { data: lavador }, config, nominaGastos] = await Promise.all([
     supabase.from("usuarios").select("rol").eq("id", user.id).maybeSingle(),
     supabase.from("lavadores").select("*").eq("id", id).maybeSingle(),
     obtenerConfiguracion(),
-    supabase.from("gastos").select("id, monto, lavador_id").eq("categoria", "nomina"),
+    // Paginado — sin esto, PostgREST trae máximo 1000 renglones y, pasado
+    // ese punto, el total histórico de nómina saldría mal en silencio.
+    fetchPaginado((desde, hasta) =>
+      supabase.from("gastos").select("id, monto, lavador_id").eq("categoria", "nomina").range(desde, hasta)
+    ),
   ]);
 
   if (!usuario) {
@@ -77,14 +82,13 @@ export default async function DesgloseLavadorPage({
   // semanal normal, un renglón por quién cobró cuánto) cuenta si alguno de
   // sus renglones se llama igual que este lavador — mismo criterio que la
   // gráfica de "Nómina por lavador" en Gastos.
-  const nominaGastos = nominaGastosRaw ?? [];
   const nominaSinLavadorIds = nominaGastos.filter((g) => !g.lavador_id).map((g) => g.id);
-  const { data: nominaItemsRaw } = nominaSinLavadorIds.length
-    ? await supabase.from("gasto_items").select("gasto_id, producto, cantidad, precio_unitario").in("gasto_id", nominaSinLavadorIds)
-    : { data: [] };
+  const nominaItemsRaw = await fetchEnLotes(nominaSinLavadorIds, (lote) =>
+    supabase.from("gasto_items").select("gasto_id, producto, cantidad, precio_unitario").in("gasto_id", lote)
+  );
 
   const itemsPorGastoNomina = new Map<string, { producto: string; cantidad: number; precioUnitario: number }[]>();
-  for (const it of nominaItemsRaw ?? []) {
+  for (const it of nominaItemsRaw) {
     const lista = itemsPorGastoNomina.get(it.gasto_id) ?? [];
     lista.push({ producto: it.producto, cantidad: it.cantidad, precioUnitario: it.precio_unitario });
     itemsPorGastoNomina.set(it.gasto_id, lista);
@@ -107,11 +111,10 @@ export default async function DesgloseLavadorPage({
   const rango = resolverRango(searchParamsResueltos);
   const qs = queryStringRango(rango);
 
-  const { data: asignacionesLavador } = await supabase
-    .from("ticket_lavadores")
-    .select("ticket_id")
-    .eq("lavador_id", id);
-  const ticketIdsAsignados = (asignacionesLavador ?? []).map((a) => a.ticket_id);
+  const asignacionesLavador = await fetchPaginado((desde, hasta) =>
+    supabase.from("ticket_lavadores").select("ticket_id").eq("lavador_id", id).range(desde, hasta)
+  );
+  const ticketIdsAsignados = asignacionesLavador.map((a) => a.ticket_id);
 
   let tickets: Array<{
     id: string;
@@ -128,18 +131,18 @@ export default async function DesgloseLavadorPage({
   }> = [];
 
   if (ticketIdsAsignados.length > 0) {
-    const ticketsQuery = supabase
-      .from("tickets")
-      .select(
-        "id, cliente_id, vehiculo_id, distintivo, placa, servicio_id, tamano_vehiculo, estado, hora_entrada, hora_inicio_lavado, hora_fin_lavado"
-      )
-      .in("id", ticketIdsAsignados)
-      .order("hora_entrada", { ascending: false });
-    if (rango.desdeIso) ticketsQuery.gte("hora_entrada", rango.desdeIso);
-    if (rango.hastaIso) ticketsQuery.lte("hora_entrada", rango.hastaIso);
-
-    const { data } = await ticketsQuery;
-    tickets = data ?? [];
+    tickets = await fetchEnLotes(ticketIdsAsignados, (lote) => {
+      let q = supabase
+        .from("tickets")
+        .select(
+          "id, cliente_id, vehiculo_id, distintivo, placa, servicio_id, tamano_vehiculo, estado, hora_entrada, hora_inicio_lavado, hora_fin_lavado"
+        )
+        .in("id", lote)
+        .order("hora_entrada", { ascending: false });
+      if (rango.desdeIso) q = q.gte("hora_entrada", rango.desdeIso);
+      if (rango.hastaIso) q = q.lte("hora_entrada", rango.hastaIso);
+      return q;
+    });
   }
 
   const servicioIds = [...new Set((tickets ?? []).map((t) => t.servicio_id))];
@@ -147,7 +150,7 @@ export default async function DesgloseLavadorPage({
   const vehiculoIds = [...new Set((tickets ?? []).map((t) => t.vehiculo_id).filter(Boolean))] as string[];
   const ticketIds = (tickets ?? []).map((t) => t.id);
 
-  const [{ data: servicios }, { data: clientes }, { data: vehiculos }, { data: pagos }, { data: lavadoresTodos }, { data: asignacionesTodas }] =
+  const [{ data: servicios }, { data: clientes }, { data: vehiculos }, pagos, { data: lavadoresTodos }, asignacionesTodas] =
     await Promise.all([
       servicioIds.length
         ? supabase.from("servicios_catalogo").select("id, nombre").in("id", servicioIds)
@@ -158,13 +161,13 @@ export default async function DesgloseLavadorPage({
       vehiculoIds.length
         ? supabase.from("vehiculos").select("id, placas").in("id", vehiculoIds)
         : Promise.resolve({ data: [] }),
-      ticketIds.length
-        ? supabase.from("pagos").select("ticket_id, monto").in("ticket_id", ticketIds)
-        : Promise.resolve({ data: [] }),
+      // .in("ticket_id", ids) en lotes chicos — un lavador con mucha
+      // antigüedad puede acumular miles de tickets en "todo" el histórico.
+      fetchEnLotes(ticketIds, (lote) => supabase.from("pagos").select("ticket_id, monto").in("ticket_id", lote)),
       supabase.from("lavadores").select("id, nombre"),
-      ticketIds.length
-        ? supabase.from("ticket_lavadores").select("ticket_id, lavador_id").in("ticket_id", ticketIds)
-        : Promise.resolve({ data: [] }),
+      fetchEnLotes(ticketIds, (lote) =>
+        supabase.from("ticket_lavadores").select("ticket_id, lavador_id").in("ticket_id", lote)
+      ),
     ]);
 
   const nombrePorServicio = new Map((servicios ?? []).map((s) => [s.id, s.nombre]));
@@ -172,13 +175,13 @@ export default async function DesgloseLavadorPage({
   const placasPorVehiculo = new Map((vehiculos ?? []).map((v) => [v.id, v.placas]));
   const nombrePorLavador = new Map((lavadoresTodos ?? []).map((l) => [l.id, l.nombre]));
   const montoPorTicket = new Map<string, number>();
-  for (const p of pagos ?? []) {
+  for (const p of pagos) {
     montoPorTicket.set(p.ticket_id, (montoPorTicket.get(p.ticket_id) ?? 0) + p.monto);
   }
   // Quiénes más (aparte de este lavador) quedaron asignados a cada ticket —
   // para mostrar con quién hizo pareja en cada lavada.
   const companerosPorTicket = new Map<string, string[]>();
-  for (const a of asignacionesTodas ?? []) {
+  for (const a of asignacionesTodas) {
     if (a.lavador_id === id) continue;
     const lista = companerosPorTicket.get(a.ticket_id) ?? [];
     lista.push(nombrePorLavador.get(a.lavador_id) ?? "—");

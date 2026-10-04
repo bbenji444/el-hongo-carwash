@@ -3,6 +3,7 @@ import { obtenerDatosReporte } from "@/app/(app)/reportes/data";
 import { obtenerDatosLavadores } from "@/app/(app)/lavadores/data";
 import { createClient } from "@/lib/supabase/server";
 import { nombreCategoriaGasto } from "@/lib/gastoCategorias";
+import { fetchPaginado } from "@/lib/supabaseBatch";
 import type { GastoCategoria } from "@/types/database.types";
 
 const PERIODOS_VALIDOS: Periodo[] = ["hoy", "7d", "30d", "todo"];
@@ -89,13 +90,15 @@ async function rendimientoLavadores(args: Record<string, unknown>) {
 async function gastosPorCategoria(args: Record<string, unknown>) {
   const rango = resolverRango({ periodo: periodoValido(args.periodo) });
   const supabase = await createClient();
-  let query = supabase.from("gastos").select("categoria, monto").order("fecha", { ascending: false });
-  if (rango.desdeIso) query = query.gte("fecha", rango.desdeIso);
-  if (rango.hastaIso) query = query.lte("fecha", rango.hastaIso);
-  const { data } = await query;
+  const data = await fetchPaginado((desde, hasta) => {
+    let query = supabase.from("gastos").select("categoria, monto").order("fecha", { ascending: false }).range(desde, hasta);
+    if (rango.desdeIso) query = query.gte("fecha", rango.desdeIso);
+    if (rango.hastaIso) query = query.lte("fecha", rango.hastaIso);
+    return query;
+  });
 
   const totalesPorCategoria = new Map<GastoCategoria, number>();
-  for (const g of data ?? []) {
+  for (const g of data) {
     totalesPorCategoria.set(g.categoria, (totalesPorCategoria.get(g.categoria) ?? 0) + g.monto);
   }
   const categorias = Array.from(totalesPorCategoria.entries())

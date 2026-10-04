@@ -41,6 +41,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Sesión no válida." }, { status: 401 });
   }
 
+  // DIAGNÓSTICO TEMPORAL — para encontrar en qué paso se pierden los datos
+  // (mismo cliente que ya autenticó arriba, para descartar que sea un
+  // problema de RLS/sesión vs. un bug de lógica en la consulta compuesta).
+  const [{ count: countTickets }, { count: countTicketLavadores }, { count: countPagos }] = await Promise.all([
+    supabase.from("tickets").select("id", { count: "exact", head: true }).eq("estado", "entregado"),
+    supabase.from("ticket_lavadores").select("ticket_id", { count: "exact", head: true }),
+    supabase.from("pagos").select("ticket_id", { count: "exact", head: true }),
+  ]);
+  const debugDiagnostico = `userId=${user.id} tickets_entregados=${countTickets} ticket_lavadores=${countTicketLavadores} pagos=${countPagos}`;
+  console.log("[asistente][diagnostico]", debugDiagnostico);
+
   let body: { mensajes?: MensajeEntrada[] };
   try {
     body = await request.json();
@@ -128,7 +139,7 @@ export async function POST(request: NextRequest) {
     });
 
     const respuestaFinal = segunda.choices[0].message.content ?? "No pude generar una respuesta.";
-    const conDebug = `${respuestaFinal}\n\n---\n🔧 DEBUG:\n${debugLlamadas.join("\n")}`;
+    const conDebug = `${respuestaFinal}\n\n---\n🔧 DEBUG:\n${debugDiagnostico}\n${debugLlamadas.join("\n")}`;
 
     return NextResponse.json({ respuesta: conDebug });
   } catch (err) {

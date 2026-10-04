@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { MascotaAvatar } from "./MascotaAvatar";
-import { PREGUNTAS_SUGERIDAS, type ChatMensaje } from "./useAiChatDemo";
+import { PREGUNTAS_SUGERIDAS, type ChatMensaje } from "./useAiChat";
 
 export function ChatConversation({
   mensajes,

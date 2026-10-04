@@ -3,11 +3,11 @@
 import { MascotaAvatar } from "./MascotaAvatar";
 import { ChatConversation } from "./ChatConversation";
 import { ChatInputBar } from "./ChatInputBar";
-import { useAiChatDemo } from "./useAiChatDemo";
+import { useAiChat } from "./useAiChat";
 import { useState } from "react";
 
 export function AiAssistantCard({ nombreUsuario }: { nombreUsuario: string }) {
-  const { mensajes, enviando, enviarPregunta, reiniciar } = useAiChatDemo();
+  const { mensajes, enviando, enviarPregunta, reiniciar } = useAiChat();
   const [texto, setTexto] = useState("");
 
   function enviar(valor: string) {

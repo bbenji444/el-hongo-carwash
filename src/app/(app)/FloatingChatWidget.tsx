@@ -4,14 +4,14 @@ import { useState } from "react";
 import { MascotaAvatar } from "./MascotaAvatar";
 import { ChatConversation } from "./ChatConversation";
 import { ChatInputBar } from "./ChatInputBar";
-import { useAiChatDemo } from "./useAiChatDemo";
+import { useAiChat } from "./useAiChat";
 
 // Burbuja flotante del AI Assistant — visible en todas las páginas menos el
 // Dashboard (que ya trae la tarjeta grande). Cada una lleva su propia
 // conversación de demo, independiente de la del Dashboard.
 export function FloatingChatWidget({ nombreUsuario }: { nombreUsuario: string }) {
   const [abierto, setAbierto] = useState(false);
-  const { mensajes, enviando, enviarPregunta, reiniciar } = useAiChatDemo();
+  const { mensajes, enviando, enviarPregunta, reiniciar } = useAiChat();
   const [texto, setTexto] = useState("");
 
   function enviar(valor: string) {

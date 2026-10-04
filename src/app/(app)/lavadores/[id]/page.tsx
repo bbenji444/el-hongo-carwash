@@ -233,7 +233,7 @@ export default async function DesgloseLavadorPage({
     <div className="flex flex-col gap-6">
       <div>
         <Link href={`/lavadores${qs ? `?${qs}` : ""}`} className="text-sm text-accent hover:underline">
-          ← Volver a Lavadores
+          ← Volver a Trabajadores
         </Link>
         <h1 className="mt-2 text-2xl font-bold text-foreground">
           {config.emoji_lavador} {lavador.nombre}

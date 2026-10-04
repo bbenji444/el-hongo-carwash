@@ -4,6 +4,9 @@ import { useState, useTransition, type FormEvent } from "react";
 import Link from "next/link";
 import type { LavadorStat } from "./data";
 import { crearLavador, actualizarLavador, toggleActivoLavador, eliminarLavador } from "./actions";
+import type { LavadorTipo } from "@/types/database.types";
+
+const TIPO_LABEL: Record<LavadorTipo, string> = { lavador: "Lavador", encargado: "Encargado" };
 
 function money(n: number) {
   return `$${n.toFixed(2)}`;
@@ -22,6 +25,7 @@ export function LavadoresClient({
 }) {
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [nombre, setNombre] = useState("");
+  const [tipo, setTipo] = useState<LavadorTipo>("lavador");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [mostrarForm, setMostrarForm] = useState(false);
@@ -29,12 +33,14 @@ export function LavadoresClient({
   function abrirEdicion(lavador: LavadorStat) {
     setEditandoId(lavador.id);
     setNombre(lavador.nombre);
+    setTipo(lavador.tipo);
     setMostrarForm(true);
   }
 
   function abrirNuevo() {
     setEditandoId(null);
     setNombre("");
+    setTipo("lavador");
     setMostrarForm(true);
   }
 
@@ -48,7 +54,9 @@ export function LavadoresClient({
     }
 
     startTransition(async () => {
-      const result = editandoId ? await actualizarLavador(editandoId, nombre.trim()) : await crearLavador(nombre.trim());
+      const result = editandoId
+        ? await actualizarLavador(editandoId, nombre.trim(), tipo)
+        : await crearLavador(nombre.trim(), tipo);
 
       if (result.error) {
         setError(result.error);
@@ -57,6 +65,7 @@ export function LavadoresClient({
 
       setMostrarForm(false);
       setNombre("");
+      setTipo("lavador");
       setEditandoId(null);
     });
   }
@@ -87,7 +96,7 @@ export function LavadoresClient({
               onClick={abrirNuevo}
               className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-all duration-150 hover:-translate-y-0.5 hover:bg-primary-hover hover:shadow-lg hover:shadow-primary/25"
             >
-              + Nuevo lavador
+              + Nuevo trabajador
             </button>
           ) : (
             <form
@@ -95,13 +104,24 @@ export function LavadoresClient({
               className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-5 sm:flex-row sm:items-end sm:gap-4"
             >
               <div className="flex flex-1 flex-col gap-1.5">
-                <label className="text-xs font-medium text-muted">Nombre del lavador</label>
+                <label className="text-xs font-medium text-muted">Nombre</label>
                 <input
                   value={nombre}
                   onChange={(e) => setNombre(e.target.value)}
                   className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
                   placeholder="Carlos Ramírez"
                 />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-muted">Tipo</label>
+                <select
+                  value={tipo}
+                  onChange={(e) => setTipo(e.target.value as LavadorTipo)}
+                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+                >
+                  <option value="lavador">Lavador</option>
+                  <option value="encargado">Encargado</option>
+                </select>
               </div>
               <div className="flex gap-2">
                 <button
@@ -132,7 +152,8 @@ export function LavadoresClient({
         <table className="w-full text-left text-sm">
           <thead className="bg-surface-hover text-xs uppercase tracking-wide text-muted">
             <tr>
-              <th className="px-4 py-3">Lavador</th>
+              <th className="px-4 py-3">Nombre</th>
+              <th className="px-4 py-3">Tipo</th>
               <th className="px-4 py-3">Estado</th>
               <th className="px-4 py-3">Autos lavados</th>
               <th className="px-4 py-3">Ventas generadas</th>
@@ -144,7 +165,18 @@ export function LavadoresClient({
             {lavadores.map((l) => (
               <tr key={l.id} className="border-t border-border transition-colors hover:bg-surface-hover">
                 <td className="px-4 py-3 font-medium text-foreground">
-                  {emojiLavador} {l.nombre}
+                  {l.tipo === "lavador" ? emojiLavador : "👔"} {l.nombre}
+                </td>
+                <td className="px-4 py-3">
+                  <span
+                    className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${
+                      l.tipo === "encargado"
+                        ? "border-accent/40 bg-accent/10 text-accent"
+                        : "border-border bg-surface-hover text-muted"
+                    }`}
+                  >
+                    {TIPO_LABEL[l.tipo]}
+                  </span>
                 </td>
                 <td className="px-4 py-3">
                   <span
@@ -191,8 +223,8 @@ export function LavadoresClient({
             ))}
             {lavadores.length === 0 && (
               <tr>
-                <td colSpan={puedeEditar ? 6 : 5} className="px-4 py-6 text-center text-muted">
-                  Sin lavadores registrados.
+                <td colSpan={puedeEditar ? 7 : 6} className="px-4 py-6 text-center text-muted">
+                  Sin trabajadores registrados.
                 </td>
               </tr>
             )}

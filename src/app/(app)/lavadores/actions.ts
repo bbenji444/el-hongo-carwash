@@ -2,28 +2,31 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import type { LavadorTipo } from "@/types/database.types";
 
-export async function crearLavador(nombre: string) {
+export async function crearLavador(nombre: string, tipo: LavadorTipo) {
   const supabase = await createClient();
 
-  const { error } = await supabase.from("lavadores").insert({ nombre });
+  const { error } = await supabase.from("lavadores").insert({ nombre, tipo });
 
   if (error) return { error: error.message };
 
   revalidatePath("/lavadores");
   revalidatePath("/tickets");
+  revalidatePath("/gastos");
   return { error: null };
 }
 
-export async function actualizarLavador(id: string, nombre: string) {
+export async function actualizarLavador(id: string, nombre: string, tipo: LavadorTipo) {
   const supabase = await createClient();
 
-  const { error } = await supabase.from("lavadores").update({ nombre }).eq("id", id);
+  const { error } = await supabase.from("lavadores").update({ nombre, tipo }).eq("id", id);
 
   if (error) return { error: error.message };
 
   revalidatePath("/lavadores");
   revalidatePath("/tickets");
+  revalidatePath("/gastos");
   return { error: null };
 }
 

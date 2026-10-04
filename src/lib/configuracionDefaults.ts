@@ -12,7 +12,7 @@ export const CONFIGURACION_DEFAULT: ConfiguracionApp = {
   nav_dashboard: "Dashboard",
   nav_tickets: "Tickets",
   nav_servicios: "Servicios",
-  nav_lavadores: "Lavadores",
+  nav_lavadores: "Trabajadores",
   nav_turnos: "Caja y turnos",
   nav_clientes: "Clientes",
   nav_inventario: "Inventario",

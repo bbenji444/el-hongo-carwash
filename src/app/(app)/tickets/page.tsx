@@ -37,7 +37,9 @@ export default async function TicketsPage() {
     await Promise.all([
       supabase.from("turnos").select("*").eq("estado", "abierto").maybeSingle(),
       supabase.from("servicios_catalogo").select("*").eq("activo", true).order("orden").order("nombre"),
-      supabase.from("lavadores").select("*").eq("activo", true).order("nombre"),
+      // Solo "lavador" — los encargados (ej. Fani) se pagan en Nómina pero no
+      // se asignan para lavar un carro.
+      supabase.from("lavadores").select("*").eq("activo", true).eq("tipo", "lavador").order("nombre"),
       supabase.from("extras_catalogo").select("*").eq("activo", true).order("orden").order("nombre"),
     ]);
 

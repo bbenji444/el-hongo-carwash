@@ -561,7 +561,7 @@ export function GastosClient({
           <div>
             <h2 className="font-semibold text-foreground">¿A quién se le ha pagado cuánto en Nómina?</h2>
             <p className="text-xs text-muted">
-              Solo entre los gastos de Nómina de este período que ya tienen un lavador asignado.
+              Solo entre los gastos de Nómina de este período que ya tienen un trabajador asignado.
             </p>
           </div>
           {lavadorFiltro && (
@@ -618,7 +618,7 @@ export function GastosClient({
               {form.categoria === "nomina" && (
                 <div className="flex flex-col gap-1.5 sm:col-span-2">
                   <label className="text-xs font-medium text-muted">
-                    Lavador (opcional — para poder ver cuánto se le ha pagado a cada quién)
+                    Trabajador (opcional — para poder ver cuánto se le ha pagado a cada quién)
                   </label>
                   <select
                     value={form.lavadorId}
@@ -952,7 +952,7 @@ export function GastosClient({
               <th className="px-4 py-3">Concepto</th>
               <th className="px-4 py-3">Categoría</th>
               <th className="hidden px-4 py-3 sm:table-cell">Producto</th>
-              <th className="hidden px-4 py-3 md:table-cell">Lavador</th>
+              <th className="hidden px-4 py-3 md:table-cell">Trabajador</th>
               <th className="hidden px-4 py-3 lg:table-cell">Notas</th>
               <th className="hidden px-4 py-3 md:table-cell">Registró</th>
               <th className="hidden px-4 py-3 lg:table-cell">Archivo</th>

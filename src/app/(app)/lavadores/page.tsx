@@ -44,9 +44,9 @@ export default async function LavadoresPage({
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Lavadores</h1>
+        <h1 className="text-2xl font-bold text-foreground">Trabajadores</h1>
         <p className="text-sm text-muted">
-          Registro del personal que lava los autos y cuántos autos (y ventas) lleva cada quien.
+          Registro del personal del negocio — lavadores y encargados — y cuántos autos (y ventas) lleva cada quien.
         </p>
       </div>
 

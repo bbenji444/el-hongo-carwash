@@ -22,7 +22,7 @@ export function AiAssistantCard({ nombreUsuario }: { nombreUsuario: string }) {
           <MascotaAvatar size={36} />
           <div>
             <p className="text-sm font-semibold text-foreground">El Hongo AI Assistant</p>
-            <p className="text-[11px] text-muted">Próximamente conectado a tus datos</p>
+            <p className="text-[11px] text-muted">Conectado a tus datos en tiempo real</p>
           </div>
         </div>
         {mensajes.length > 0 && (

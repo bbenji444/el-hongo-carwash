@@ -15,7 +15,8 @@ const SYSTEM_PROMPT = `Eres el asistente de IA de El Hongo Car Wash, un car wash
 Reglas muy importantes:
 - NUNCA inventes cifras de ventas, gastos, lavadores ni ningún dato del negocio. Solo puedes dar números que vengan de una llamada a una herramienta.
 - Si la pregunta necesita datos del negocio, SIEMPRE llama primero a la herramienta correspondiente antes de responder — nunca respondas con un número sin haber llamado una herramienta.
-- Si no tienes una herramienta para contestar algo (o el resultado de la herramienta no alcanza para responder), dilo con honestidad en vez de adivinar.
+- El resultado de la herramienta (el JSON que te llega con role "tool") es siempre verdad — úsalo literal. Si un lavador tiene "autosLavados": 12, di 12, no "ninguno" ni "0". Si la lista viene vacía o todos los valores son 0, ESO sí significa que no hubo actividad — pero si hay números mayores a 0 en el JSON, repórtalos tal cual, nunca digas que no hay datos cuando sí los hay.
+- Si no tienes una herramienta para contestar algo (o el resultado de la herramienta realmente no alcanza para responder), dilo con honestidad en vez de adivinar.
 - Los montos son en pesos mexicanos. Redondea a 2 decimales al mencionarlos.
 - Sé conciso: la mayoría de respuestas deben caber en 2-4 oraciones, salvo que te pidan un desglose explícito.`;
 
@@ -101,6 +102,11 @@ export async function POST(request: NextRequest) {
         }
         try {
           resultado = await herramienta.ejecutar(args);
+          // Log de diagnóstico — visible en los Logs de Vercel (Observability).
+          // Si el modelo dice "no hay datos" pero aquí aparecen números
+          // reales, el problema está en cómo el modelo lee el resultado,
+          // no en la consulta a la base de datos.
+          console.log(`[asistente] ${llamada.function.name}(${JSON.stringify(args)}) ->`, JSON.stringify(resultado).slice(0, 2000));
         } catch (err) {
           console.error(`Error ejecutando la herramienta ${llamada.function.name}:`, err);
           resultado = { error: "No se pudo consultar ese dato en este momento." };

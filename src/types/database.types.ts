@@ -356,18 +356,21 @@ export interface Database {
           id: string;
           nombre: string;
           activo: boolean;
+          tipo: "lavador" | "encargado";
           creado_en: string;
         };
         Insert: {
           id?: string;
           nombre: string;
           activo?: boolean;
+          tipo?: "lavador" | "encargado";
           creado_en?: string;
         };
         Update: {
           id?: string;
           nombre?: string;
           activo?: boolean;
+          tipo?: "lavador" | "encargado";
           creado_en?: string;
         };
         Relationships: [];
@@ -767,6 +770,7 @@ export interface Database {
       pago_metodo: "efectivo" | "tarjeta" | "transferencia" | "membresia";
       tamano_vehiculo: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande" | "moto_chica" | "moto_grande";
       gasto_categoria: "nomina" | "insumos" | "servicios" | "renta" | "mantenimiento" | "otros";
+      lavador_tipo: "lavador" | "encargado";
     };
     CompositeTypes: Record<string, never>;
   };
@@ -779,6 +783,7 @@ export type TicketEstado = Database["public"]["Enums"]["ticket_estado"];
 export type PagoMetodo = Database["public"]["Enums"]["pago_metodo"];
 export type TamanoVehiculo = Database["public"]["Enums"]["tamano_vehiculo"];
 export type GastoCategoria = Database["public"]["Enums"]["gasto_categoria"];
+export type LavadorTipo = Database["public"]["Enums"]["lavador_tipo"];
 
 export type Usuario = Database["public"]["Tables"]["usuarios"]["Row"];
 export type UsuarioConCorreo = Database["public"]["Tables"]["usuarios_con_correo"]["Row"];

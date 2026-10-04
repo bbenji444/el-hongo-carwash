@@ -32,7 +32,7 @@ export function FloatingChatWidget({ nombreUsuario }: { nombreUsuario: string })
               <MascotaAvatar size={32} />
               <div>
                 <p className="text-sm font-semibold text-foreground">El Hongo AI Assistant</p>
-                <p className="text-[10px] text-muted">Próximamente conectado a tus datos</p>
+                <p className="text-[10px] text-muted">Conectado a tus datos en tiempo real</p>
               </div>
             </div>
             <div className="flex items-center gap-1">

@@ -445,7 +445,7 @@ export default async function GastosPage({
           </div>
           <div className="flex flex-col gap-1">
             <label htmlFor="lavador" className="text-[11px] text-muted">
-              Lavador
+              Trabajador
             </label>
             <select
               id="lavador"

@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import type { TamanoVehiculo } from "@/types/database.types";
+import type { TamanoVehiculo, LavadorTipo } from "@/types/database.types";
 import type { RangoResuelto } from "@/lib/rangoFechas";
 
 export type ConteoPorTamano = Record<TamanoVehiculo, number>;
@@ -19,6 +19,7 @@ export type LavadorStat = {
   id: string;
   nombre: string;
   activo: boolean;
+  tipo: LavadorTipo;
   autosLavados: number;
   ventasGeneradas: number;
   porTamano: ConteoPorTamano;
@@ -272,6 +273,7 @@ export async function obtenerDatosLavadores(rango: RangoResuelto): Promise<Datos
       id: l.id,
       nombre: l.nombre,
       activo: l.activo,
+      tipo: l.tipo,
       autosLavados: stat?.autos ?? 0,
       ventasGeneradas: stat?.ventas ?? 0,
       porTamano: stat?.porTamano ?? conteoVacio(),

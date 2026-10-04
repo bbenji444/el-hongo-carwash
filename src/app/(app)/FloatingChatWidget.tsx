@@ -7,8 +7,8 @@ import { ChatInputBar } from "./ChatInputBar";
 import { useAiChat } from "./useAiChat";
 
 // Burbuja flotante del AI Assistant — visible en todas las páginas menos el
-// Dashboard (que ya trae la tarjeta grande). Cada una lleva su propia
-// conversación de demo, independiente de la del Dashboard.
+// Dashboard (que ya trae la tarjeta grande). Lleva su propia conversación,
+// independiente de la del Dashboard.
 export function FloatingChatWidget({ nombreUsuario }: { nombreUsuario: string }) {
   const [abierto, setAbierto] = useState(false);
   const { mensajes, enviando, enviarPregunta, reiniciar } = useAiChat();
@@ -62,14 +62,20 @@ export function FloatingChatWidget({ nombreUsuario }: { nombreUsuario: string })
         </div>
       )}
 
-      <button
-        type="button"
-        onClick={() => setAbierto((v) => !v)}
-        aria-label={abierto ? "Cerrar chat" : "Abrir chat con El Hongo AI Assistant"}
-        className="fixed bottom-5 right-5 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-surface shadow-lg ring-2 ring-primary/30 transition hover:-translate-y-0.5 hover:shadow-xl"
-      >
-        {abierto ? <span className="text-xl text-muted">✕</span> : <MascotaAvatar size={48} className="border-2 border-primary/40" />}
-      </button>
+      {/* Con el panel abierto, este botón quedaba justo encima del botón de
+          "Enviar" del cuadro de texto en celular (ambos fixed bottom-right)
+          y tapaba el envío de mensajes — se oculta mientras está abierto;
+          la "✕" del encabezado del panel ya cierra el chat. */}
+      {!abierto && (
+        <button
+          type="button"
+          onClick={() => setAbierto(true)}
+          aria-label="Abrir chat con El Hongo AI Assistant"
+          className="fixed bottom-5 right-5 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-surface shadow-lg ring-2 ring-primary/30 transition hover:-translate-y-0.5 hover:shadow-xl"
+        >
+          <MascotaAvatar size={48} className="border-2 border-primary/40" />
+        </button>
+      )}
     </>
   );
 }

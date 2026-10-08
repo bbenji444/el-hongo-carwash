@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { registrarMovimiento } from "@/lib/historial";
 import type { GastoCategoria } from "@/types/database.types";
 
 async function requiereDuenoOEncargado() {
@@ -51,6 +52,15 @@ export async function crearGasto(input: {
 
   if (error) return { data: null, error: error.message };
 
+  await registrarMovimiento(
+    supabase,
+    userId!,
+    "crear",
+    "gasto",
+    data.id,
+    `Registró un gasto de $${input.monto.toFixed(2)} (${input.categoria}) — ${input.concepto}`
+  );
+
   revalidatePath("/", "layout");
   return { data, error: null };
 }
@@ -67,7 +77,7 @@ export async function actualizarGasto(
     lavadorId: string | null;
   }
 ) {
-  const { supabase, error: permisoError } = await requiereDuenoOEncargado();
+  const { supabase, userId, error: permisoError } = await requiereDuenoOEncargado();
   if (permisoError) return { error: permisoError };
 
   const { error } = await supabase
@@ -84,6 +94,15 @@ export async function actualizarGasto(
     .eq("id", gastoId);
 
   if (error) return { error: error.message };
+
+  await registrarMovimiento(
+    supabase,
+    userId!,
+    "editar",
+    "gasto",
+    gastoId,
+    `Editó un gasto de $${input.monto.toFixed(2)} (${input.categoria}) — ${input.concepto}`
+  );
 
   revalidatePath("/", "layout");
   return { error: null };
@@ -302,9 +321,10 @@ export async function obtenerUrlArchivoGasto(archivoId: string) {
 }
 
 export async function eliminarGasto(gastoId: string) {
-  const { supabase, error: permisoError } = await requiereDuenoOEncargado();
+  const { supabase, userId, error: permisoError } = await requiereDuenoOEncargado();
   if (permisoError) return { error: permisoError };
 
+  const { data: gasto } = await supabase.from("gastos").select("concepto, monto").eq("id", gastoId).maybeSingle();
   const { data: archivos } = await supabase.from("gasto_archivos").select("archivo_path").eq("gasto_id", gastoId);
 
   const { error } = await supabase.from("gastos").delete().eq("id", gastoId);
@@ -316,6 +336,15 @@ export async function eliminarGasto(gastoId: string) {
     // completó (gasto_archivos y gasto_items se borran solos por cascada).
     await supabase.storage.from("gastos").remove(archivos.map((a) => a.archivo_path));
   }
+
+  await registrarMovimiento(
+    supabase,
+    userId!,
+    "eliminar",
+    "gasto",
+    gastoId,
+    `Eliminó un gasto${gasto ? ` de $${gasto.monto.toFixed(2)} — ${gasto.concepto}` : ""}`
+  );
 
   revalidatePath("/", "layout");
   return { error: null };

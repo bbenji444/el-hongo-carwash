@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient as createSupabaseJsClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
+import { registrarMovimiento } from "@/lib/historial";
 import type { Database, RolUsuario } from "@/types/database.types";
 
 async function requiereDueno() {
@@ -58,7 +59,7 @@ export async function crearUsuario(input: {
   puedeEditarTurnos: boolean;
   puedeEliminarTurnos: boolean;
 }) {
-  const { supabase, error: permisoError } = await requiereDueno();
+  const { supabase, actorId, error: permisoError } = await requiereDueno();
   if (permisoError) return { error: permisoError };
 
   const { admin, error: adminError } = crearClienteAdmin();
@@ -92,6 +93,15 @@ export async function crearUsuario(input: {
     await admin.auth.admin.deleteUser(authData.user.id);
     return { error: insertError.message };
   }
+
+  await registrarMovimiento(
+    supabase,
+    actorId!,
+    "crear",
+    "usuario",
+    authData.user.id,
+    `Creó la cuenta de ${input.nombre} (${input.rol})`
+  );
 
   revalidatePath("/usuarios");
   return { error: null };
@@ -143,6 +153,8 @@ export async function actualizarUsuario(
 
   if (error) return { error: error.message };
 
+  await registrarMovimiento(supabase, actorId!, "editar", "usuario", id, `Editó la cuenta de ${input.nombre} (${input.rol})`);
+
   revalidatePath("/usuarios");
   return { error: null };
 }
@@ -166,9 +178,20 @@ export async function toggleActivoUsuario(id: string, activo: boolean) {
     return { error: "Solo la cuenta de Benjamin puede reactivar esta cuenta." };
   }
 
+  const { data: objetivo } = await supabase.from("usuarios").select("nombre").eq("id", id).maybeSingle();
+
   const { error } = await supabase.from("usuarios").update({ activo }).eq("id", id);
 
   if (error) return { error: error.message };
+
+  await registrarMovimiento(
+    supabase,
+    actorId!,
+    activo ? "activar" : "desactivar",
+    "usuario",
+    id,
+    `${activo ? "Activó" : "Desactivó"} la cuenta de ${objetivo?.nombre ?? "—"}`
+  );
 
   revalidatePath("/usuarios");
   return { error: null };

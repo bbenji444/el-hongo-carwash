@@ -3,9 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { PRECIOS_MOTO_FIJOS, nombreTamano } from "@/lib/servicios";
+import { registrarMovimiento } from "@/lib/historial";
 import type { TicketEstado, PagoMetodo, TamanoVehiculo } from "@/types/database.types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
+
+function resumenVehiculo(distintivo: string | null, placa: string | null) {
+  return [distintivo, placa].filter(Boolean).join(" · ") || "sin distintivo/placa";
+}
 
 // Registro automático de cliente: si un ticket trae distintivo Y placa pero
 // nadie escogió/creó un cliente a mano, se registra solo — usando el
@@ -257,6 +262,8 @@ export async function crearTicket(input: {
     const errorExtras = await sincronizarExtrasTicket(supabase, ticket.id, input.extraIds);
     if (errorExtras) return { error: errorExtras };
   }
+
+  await registrarMovimiento(supabase, user.id, "crear", "ticket", ticket.id, `Creó un ticket (${resumenVehiculo(input.distintivo, input.placa)})`);
 
   revalidatePath("/", "layout");
   return { error: null };
@@ -541,7 +548,7 @@ async function requierePermisoEditarTickets() {
     return { supabase, error: "No tienes permiso para editar o eliminar tickets." };
   }
 
-  return { supabase, error: null, esDueno: actor?.rol === "dueno" };
+  return { supabase, error: null, esDueno: actor?.rol === "dueno", actorId: user.id };
 }
 
 export async function actualizarTicket(
@@ -557,7 +564,7 @@ export async function actualizarTicket(
     extraIds: string[];
   }
 ) {
-  const { supabase, error: permisoError, esDueno } = await requierePermisoEditarTickets();
+  const { supabase, error: permisoError, esDueno, actorId } = await requierePermisoEditarTickets();
   if (permisoError) return { error: permisoError };
 
   // Editar un ticket ya entregado puede afectar una venta ya cobrada y
@@ -608,15 +615,28 @@ export async function actualizarTicket(
     if (errorExtras) return { error: errorExtras };
   }
 
+  await registrarMovimiento(
+    supabase,
+    actorId!,
+    "editar",
+    "ticket",
+    ticketId,
+    `Editó un ticket (${resumenVehiculo(input.distintivo, input.placa)})`
+  );
+
   revalidatePath("/", "layout");
   return { error: null };
 }
 
 export async function eliminarTicket(ticketId: string) {
-  const { supabase, error: permisoError, esDueno } = await requierePermisoEditarTickets();
+  const { supabase, error: permisoError, esDueno, actorId } = await requierePermisoEditarTickets();
   if (permisoError) return { error: permisoError };
 
-  const { data: ticket } = await supabase.from("tickets").select("estado").eq("id", ticketId).maybeSingle();
+  const { data: ticket } = await supabase
+    .from("tickets")
+    .select("estado, distintivo, placa")
+    .eq("id", ticketId)
+    .maybeSingle();
 
   if (!ticket) return { error: "El ticket ya no existe." };
   // Un ticket entregado puede tener pagos que ya se sumaron a la caja
@@ -636,6 +656,15 @@ export async function eliminarTicket(ticketId: string) {
   const { error } = await supabase.from("tickets").delete().eq("id", ticketId);
 
   if (error) return { error: error.message };
+
+  await registrarMovimiento(
+    supabase,
+    actorId!,
+    "eliminar",
+    "ticket",
+    ticketId,
+    `Eliminó un ticket (${resumenVehiculo(ticket.distintivo, ticket.placa)})`
+  );
 
   revalidatePath("/", "layout");
   return { error: null };

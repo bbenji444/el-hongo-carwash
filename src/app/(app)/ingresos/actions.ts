@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { registrarMovimiento } from "@/lib/historial";
 
 async function requiereDuenoOEncargado() {
   const supabase = await createClient();
@@ -39,6 +40,15 @@ export async function crearIngreso(input: { concepto: string; monto: number; fec
 
   if (error) return { data: null, error: error.message };
 
+  await registrarMovimiento(
+    supabase,
+    userId!,
+    "crear",
+    "ingreso_extra",
+    data.id,
+    `Registró un ingreso extra de $${input.monto.toFixed(2)} — ${input.concepto}`
+  );
+
   revalidatePath("/", "layout");
   return { data, error: null };
 }
@@ -47,7 +57,7 @@ export async function actualizarIngreso(
   ingresoId: string,
   input: { concepto: string; monto: number; fecha: string; notas: string | null }
 ) {
-  const { supabase, error: permisoError } = await requiereDuenoOEncargado();
+  const { supabase, userId, error: permisoError } = await requiereDuenoOEncargado();
   if (permisoError) return { error: permisoError };
 
   const { error } = await supabase
@@ -62,17 +72,41 @@ export async function actualizarIngreso(
 
   if (error) return { error: error.message };
 
+  await registrarMovimiento(
+    supabase,
+    userId!,
+    "editar",
+    "ingreso_extra",
+    ingresoId,
+    `Editó un ingreso extra de $${input.monto.toFixed(2)} — ${input.concepto}`
+  );
+
   revalidatePath("/", "layout");
   return { error: null };
 }
 
 export async function eliminarIngreso(ingresoId: string) {
-  const { supabase, error: permisoError } = await requiereDuenoOEncargado();
+  const { supabase, userId, error: permisoError } = await requiereDuenoOEncargado();
   if (permisoError) return { error: permisoError };
+
+  const { data: ingreso } = await supabase
+    .from("ingresos_extra")
+    .select("concepto, monto")
+    .eq("id", ingresoId)
+    .maybeSingle();
 
   const { error } = await supabase.from("ingresos_extra").delete().eq("id", ingresoId);
 
   if (error) return { error: error.message };
+
+  await registrarMovimiento(
+    supabase,
+    userId!,
+    "eliminar",
+    "ingreso_extra",
+    ingresoId,
+    `Eliminó un ingreso extra${ingreso ? ` de $${ingreso.monto.toFixed(2)} — ${ingreso.concepto}` : ""}`
+  );
 
   revalidatePath("/", "layout");
   return { error: null };

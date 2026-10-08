@@ -9,6 +9,7 @@ import { AnimatedNumber } from "@/components/AnimatedNumber";
 import { VentasPorServicioChart, TendenciaVentasChart, AutosPorLavadorChart, RelacionLavadoresChart } from "./DashboardCharts";
 import { TiemposPorPaqueteGrid } from "./TiemposPorPaqueteGrid";
 import { AiAssistantCard } from "./AiAssistantCard";
+import { HistorialMovimientos } from "./HistorialMovimientos";
 
 export default async function DashboardPage({
   searchParams,
@@ -28,7 +29,7 @@ export default async function DashboardPage({
 
   const { data: usuario } = await supabase
     .from("usuarios")
-    .select("nombre, rol")
+    .select("nombre, rol, puede_ver_historial")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -232,6 +233,8 @@ export default async function DashboardPage({
       </div>
 
       <AiAssistantCard nombreUsuario={usuario.nombre} />
+
+      {usuario.puede_ver_historial && <HistorialMovimientos />}
 
       {!turnoAbierto && (
         <p className="rounded-xl border border-dashed border-border p-4 text-center text-sm text-muted">

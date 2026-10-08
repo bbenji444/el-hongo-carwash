@@ -18,6 +18,7 @@ export interface Database {
           puede_editar_tickets: boolean;
           puede_editar_turnos: boolean;
           puede_eliminar_turnos: boolean;
+          puede_ver_historial: boolean;
           creado_en: string;
         };
         Insert: {
@@ -28,6 +29,7 @@ export interface Database {
           puede_editar_tickets?: boolean;
           puede_editar_turnos?: boolean;
           puede_eliminar_turnos?: boolean;
+          puede_ver_historial?: boolean;
           creado_en?: string;
         };
         Update: {
@@ -38,6 +40,7 @@ export interface Database {
           puede_editar_tickets?: boolean;
           puede_editar_turnos?: boolean;
           puede_eliminar_turnos?: boolean;
+          puede_ver_historial?: boolean;
           creado_en?: string;
         };
         Relationships: [];
@@ -371,6 +374,39 @@ export interface Database {
           nombre?: string;
           activo?: boolean;
           tipo?: "lavador" | "encargado";
+          creado_en?: string;
+        };
+        Relationships: [];
+      };
+      historial_movimientos: {
+        Row: {
+          id: string;
+          usuario_id: string | null;
+          usuario_nombre: string;
+          accion: string;
+          entidad: string;
+          entidad_id: string | null;
+          resumen: string;
+          creado_en: string;
+        };
+        Insert: {
+          id?: string;
+          usuario_id?: string | null;
+          usuario_nombre: string;
+          accion: string;
+          entidad: string;
+          entidad_id?: string | null;
+          resumen: string;
+          creado_en?: string;
+        };
+        Update: {
+          id?: string;
+          usuario_id?: string | null;
+          usuario_nombre?: string;
+          accion?: string;
+          entidad?: string;
+          entidad_id?: string | null;
+          resumen?: string;
           creado_en?: string;
         };
         Relationships: [];

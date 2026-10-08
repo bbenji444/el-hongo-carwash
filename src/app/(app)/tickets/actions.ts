@@ -420,6 +420,22 @@ export async function registrarPago(input: {
     return { error: null };
   }
 
+  // Un ticket solo se cobra una vez — esta es la única función que inserta
+  // en "pagos" en toda la app. Sin esta verificación, un doble clic o un
+  // reintento por red lenta (el botón de "Registrar pago" solo se
+  // deshabilita mientras la petición está en vuelo, no después de que ya
+  // se envió) insertaba dos renglones de pago para el mismo ticket,
+  // inflando las ventas reales — se encontraron 10 casos así en el
+  // histórico real del negocio.
+  const { count: pagosExistentes } = await supabase
+    .from("pagos")
+    .select("id", { count: "exact", head: true })
+    .eq("ticket_id", input.ticketId);
+  if (pagosExistentes && pagosExistentes > 0) {
+    revalidatePath("/", "layout");
+    return { error: null };
+  }
+
   const { error } = await supabase.from("pagos").insert({
     ticket_id: input.ticketId,
     turno_id: input.turnoId,

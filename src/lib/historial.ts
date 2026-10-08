@@ -79,15 +79,6 @@ export async function registrarMovimiento(
   entidadId: string | null,
   resumen: string
 ) {
-  // A petición explícita de Benjamin: su propia cuenta no deja rastro en el
-  // histórico de sus consultas, ediciones o eliminaciones — solo se
-  // registra cuando ÉL da de alta un ticket (su actividad operativa normal
-  // del día a día). Es una decisión consciente del dueño sobre su propia
-  // cuenta; no cambia nada para ningún otro usuario.
-  if (usuarioId === BENJAMIN_USER_ID && !(accion === "crear" && entidad === "ticket")) {
-    return;
-  }
-
   const { data: usuario } = await supabase.from("usuarios").select("nombre").eq("id", usuarioId).maybeSingle();
 
   const { error } = await supabase.from("historial_movimientos").insert({

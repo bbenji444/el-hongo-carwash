@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
-import { createClient } from "@/lib/supabase/client";
+import { iniciarSesionConUsuario } from "./actions";
 
 // API nativa del navegador para guardar/recuperar credenciales — soportada
 // en Chrome/Edge, no en Firefox/Safari, por eso todo esto va detrás de
@@ -39,7 +39,7 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const motivo = searchParams.get("motivo");
-  const [email, setEmail] = useState("");
+  const [usuario, setUsuario] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(motivo ? MOTIVOS[motivo] ?? null : null);
   const [loading, setLoading] = useState(false);
@@ -55,7 +55,7 @@ function LoginForm() {
       .then((credencial) => {
         const c = credencial as CredencialGuardada | null;
         if (c && c.type === "password" && c.password) {
-          setEmail(c.id);
+          setUsuario(c.id);
           setPassword(c.password);
         }
       })
@@ -70,39 +70,21 @@ function LoginForm() {
     setError(null);
     setLoading(true);
 
-    const supabase = createClient();
+    const { error: loginError } = await iniciarSesionConUsuario(usuario, password);
 
-    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (authError || !authData.user) {
-      setError("Correo o contraseña incorrectos.");
+    if (loginError) {
+      setError(loginError);
       setLoading(false);
       return;
     }
 
-    const { data: usuario, error: usuarioError } = await supabase
-      .from("usuarios")
-      .select("activo")
-      .eq("id", authData.user.id)
-      .maybeSingle();
-
-    if (usuarioError || !usuario || !usuario.activo) {
-      await supabase.auth.signOut();
-      setError("Tu cuenta no está autorizada en el sistema. Contacta al dueño.");
-      setLoading(false);
-      return;
-    }
-
-    // Le pide al navegador que guarde correo+contraseña para la próxima vez
+    // Le pide al navegador que guarde usuario+contraseña para la próxima vez
     // (equivalente a que aparezca el aviso de "¿Guardar contraseña?", pero
     // sin depender de que el navegador lo detecte solo en un login por
     // JavaScript en vez de un submit normal de formulario).
     if (window.PasswordCredential) {
       try {
-        await navigator.credentials.store(new window.PasswordCredential({ id: email, password, name: email }));
+        await navigator.credentials.store(new window.PasswordCredential({ id: usuario, password, name: usuario }));
       } catch {
         // Si el navegador lo rechaza (p. ej. el usuario ya dijo "nunca para
         // este sitio"), no es un error que deba bloquear el login.
@@ -149,19 +131,19 @@ function LoginForm() {
           style={{ animationDelay: "80ms" }}
         >
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="email" className="text-sm font-medium text-muted">
-              Correo
+            <label htmlFor="usuario" className="text-sm font-medium text-muted">
+              Usuario
             </label>
             <input
-              id="email"
-              name="email"
-              type="email"
+              id="usuario"
+              name="usuario"
+              type="text"
               required
               autoComplete="username"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              value={usuario}
+              onChange={(e) => setUsuario(e.target.value)}
               className="rounded-lg border border-border bg-background px-3 py-2.5 text-foreground outline-none transition focus:border-accent focus:ring-1 focus:ring-accent"
-              placeholder="tucorreo@elhongo.com"
+              placeholder="Benjamin"
             />
           </div>
 

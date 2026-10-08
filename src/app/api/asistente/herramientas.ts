@@ -1,11 +1,14 @@
 import { resolverRango, type Periodo, type RangoResuelto } from "@/lib/rangoFechas";
 import { obtenerDatosReporte } from "@/app/(app)/reportes/data";
 import { obtenerDatosLavadores } from "@/app/(app)/lavadores/data";
+import { obtenerDatosInventario } from "@/app/(app)/inventario/data";
+import { buscarClientes, detalleCliente } from "@/app/(app)/tickets/actions";
+import { buscarTicketsDetalle } from "@/lib/ticketsDetalle";
 import { createClient } from "@/lib/supabase/server";
 import { nombreCategoriaGasto } from "@/lib/gastoCategorias";
 import { fetchPaginado, fetchEnLotes } from "@/lib/supabaseBatch";
 import { ACCIONES_CAMBIO, type AccionHistorial, type EntidadHistorial } from "@/lib/historial";
-import type { GastoCategoria } from "@/types/database.types";
+import type { GastoCategoria, TicketEstado } from "@/types/database.types";
 
 const PERIODOS_VALIDOS: Periodo[] = ["hoy", "7d", "30d", "todo"];
 
@@ -334,6 +337,157 @@ async function consultarHistorial(args: Record<string, unknown>) {
   };
 }
 
+// Busca tickets/vehículos por texto (placa o distintivo) y/o estado, en un
+// período — "¿qué pasó con el Jetta gris?", "¿qué autos están en espera
+// ahorita?". Reutiliza buscarTicketsDetalle (el mismo motor de búsqueda de
+// Reportes/Turnos), así que respeta los mismos criterios de paginado.
+async function buscarTicket(args: Record<string, unknown>) {
+  const rango = resolverRangoDesdeArgs(args);
+  const texto = typeof args.texto === "string" ? args.texto : "";
+  const estado = typeof args.estado === "string" ? (args.estado as TicketEstado) : "";
+
+  const resultado = await buscarTicketsDetalle(rango, { q: texto });
+  const filas = estado ? resultado.filas.filter((f) => f.estado === estado) : resultado.filas;
+
+  return {
+    periodo: rango.etiqueta,
+    totalCoincidencias: filas.length,
+    tickets: filas.slice(0, 30).map((f) => ({
+      vehiculo: f.distintivoPlaca,
+      cliente: f.cliente,
+      servicio: f.servicio,
+      lavador: f.lavador,
+      estado: f.estado,
+      metodoPago: f.metodo,
+      monto: f.monto,
+      horaEntrada: f.horaEntrada,
+    })),
+  };
+}
+
+// Busca un cliente por nombre (o parte del nombre) y trae su progreso de
+// lealtad, visitas totales, gasto acumulado y vehículos registrados —
+// "¿cuántas visitas lleva Juan?", "¿le toca lavada gratis?".
+async function buscarCliente(args: Record<string, unknown>) {
+  const nombre = typeof args.nombre === "string" ? args.nombre.trim() : "";
+  if (!nombre) return { error: "Falta el nombre (o parte del nombre) del cliente a buscar." };
+
+  const { data: coincidencias } = await buscarClientes(nombre);
+  if (!coincidencias || coincidencias.length === 0) {
+    return { encontrados: 0, clientes: [] };
+  }
+
+  const detalles = await Promise.all(
+    coincidencias.slice(0, 5).map(async (c) => {
+      const { data } = await detalleCliente(c.id);
+      if (!data) return null;
+      return {
+        nombre: data.cliente.nombre,
+        telefono: data.cliente.telefono,
+        vehiculos: data.vehiculos.map((v) => v.placas),
+        visitasTotales: data.visitasTotales,
+        gastoTotalHistorico: data.gastoTotal,
+        ultimaVisita: data.ultimaVisita,
+        lavadasEnCicloActual: data.lavadasEnCiclo,
+        proximaLavadaGratis: data.proximaGratis,
+      };
+    })
+  );
+
+  return {
+    encontrados: coincidencias.length,
+    clientes: detalles.filter((d): d is NonNullable<typeof d> => d !== null),
+  };
+}
+
+// Estado del inventario de insumos — qué está agotado, qué está bajo de
+// stock, y el valor total guardado. Disponible para cualquier rol (la
+// página de Inventario tampoco está restringida a cajeros).
+async function estadoInventario(args: Record<string, unknown>) {
+  const soloBajo = args.soloBajo === true;
+  const datos = await obtenerDatosInventario(soloBajo);
+  return {
+    totalInsumos: datos.totalInsumos,
+    numAgotados: datos.numAgotados,
+    numBajoDeStock: datos.numBajo,
+    valorTotalInventario: Math.round(datos.valorTotalInventario * 100) / 100,
+    insumos: datos.insumos.slice(0, 50).map((i) => ({
+      nombre: i.nombre_insumo,
+      stockActual: i.stock_actual,
+      stockMinimo: i.stock_minimo,
+      costoUnitario: i.costo_unitario,
+      agotado: i.stock_actual <= 0,
+      bajoDeStock: i.stock_actual > 0 && i.stock_actual <= i.stock_minimo,
+    })),
+  };
+}
+
+// Estado del turno/caja ABIERTO en este momento — "¿cuánto llevamos en
+// caja ahorita?", "¿hay turno abierto?". Distinto de resumen_negocio (que
+// es financiero por período): esto es un snapshot del instante actual.
+async function turnoActual() {
+  const supabase = await createClient();
+  const { data: turno } = await supabase.from("turnos").select("*").eq("estado", "abierto").maybeSingle();
+
+  if (!turno) {
+    return { hayTurnoAbierto: false };
+  }
+
+  const [{ data: pagos }, { count: pendientes }] = await Promise.all([
+    supabase.from("pagos").select("metodo, monto").eq("turno_id", turno.id),
+    supabase
+      .from("tickets")
+      .select("*", { count: "exact", head: true })
+      .eq("turno_id", turno.id)
+      .neq("estado", "entregado"),
+  ]);
+
+  const totales: Record<string, number> = { efectivo: 0, tarjeta: 0, transferencia: 0 };
+  for (const p of pagos ?? []) {
+    totales[p.metodo] = (totales[p.metodo] ?? 0) + p.monto;
+  }
+
+  return {
+    hayTurnoAbierto: true,
+    horaApertura: turno.hora_apertura,
+    efectivoInicial: turno.efectivo_inicial,
+    totalesPorMetodoDePago: totales,
+    efectivoEsperadoEnCaja: Math.round((turno.efectivo_inicial + totales.efectivo) * 100) / 100,
+    ticketsPendientesDeEntregar: pendientes ?? 0,
+  };
+}
+
+// Desglose de ingresos extra (pensiones de estacionamiento, etc.) por
+// concepto en un período — paralelo a gastos_por_categoria pero para
+// ingresos_extra.
+async function ingresosExtraDetalle(args: Record<string, unknown>) {
+  const rango = resolverRangoDesdeArgs(args);
+  const supabase = await createClient();
+
+  const data = await fetchPaginado((desde, hasta) => {
+    let q = supabase
+      .from("ingresos_extra")
+      .select("concepto, monto")
+      .order("fecha", { ascending: false })
+      .range(desde, hasta);
+    if (rango.desdeIso) q = q.gte("fecha", rango.desdeIso);
+    if (rango.hastaIso) q = q.lte("fecha", rango.hastaIso);
+    return q;
+  });
+
+  const porConcepto = new Map<string, number>();
+  for (const i of data) {
+    porConcepto.set(i.concepto, (porConcepto.get(i.concepto) ?? 0) + i.monto);
+  }
+
+  return {
+    periodo: rango.etiqueta,
+    totalIngresosExtra: data.reduce((acc, i) => acc + i.monto, 0),
+    numRegistros: data.length,
+    porConcepto: Array.from(porConcepto, ([concepto, total]) => ({ concepto, total })).sort((a, b) => b.total - a.total),
+  };
+}
+
 // Las herramientas financieras (ventas, gastos, ganancia neta, caja) se
 // ocultan para cajeros — mismo criterio que ya usan las páginas de
 // Reportes y Gastos (redirigen a un cajero que intente entrar). La de
@@ -352,6 +506,71 @@ export function construirHerramientas(incluirFinancieras: boolean, incluirHistor
         },
       },
       ejecutar: rendimientoLavadores,
+    },
+    {
+      definicion: {
+        type: "function",
+        function: {
+          name: "buscar_ticket",
+          description:
+            "Busca tickets/autos por texto (placa o distintivo) y/o estado, en un período. Úsala para preguntas sobre un vehículo o cliente específico (ej. '¿qué pasó con el Jetta gris?', '¿ya se entregó el carro de Juan?') o sobre qué tickets están en cierto estado ahorita (ej. '¿qué autos están en espera?').",
+          parameters: {
+            type: "object",
+            properties: {
+              ...PARAM_FECHA.properties,
+              texto: {
+                type: "string",
+                description: "Placa o distintivo (o parte de ellos) a buscar. Omite si solo filtras por estado.",
+              },
+              estado: {
+                type: "string",
+                enum: ["en_espera", "en_proceso", "terminado", "entregado"],
+                description: "Filtra solo tickets en este estado. Omite para incluir todos los estados.",
+              },
+            },
+            required: ["periodo"],
+          },
+        },
+      },
+      ejecutar: buscarTicket,
+    },
+    {
+      definicion: {
+        type: "function",
+        function: {
+          name: "buscar_cliente",
+          description:
+            "Busca un cliente por nombre (o parte del nombre) y trae su progreso de lealtad (lavadas en el ciclo actual, si le toca la 6ta gratis), visitas totales, gasto acumulado histórico y sus vehículos registrados.",
+          parameters: {
+            type: "object",
+            properties: {
+              nombre: { type: "string", description: "Nombre o parte del nombre del cliente a buscar." },
+            },
+            required: ["nombre"],
+          },
+        },
+      },
+      ejecutar: buscarCliente,
+    },
+    {
+      definicion: {
+        type: "function",
+        function: {
+          name: "estado_inventario",
+          description:
+            "Estado del inventario de insumos: cuáles están agotados, cuáles están bajos de stock, y el valor total del inventario guardado. Úsala para preguntas sobre qué insumo falta, qué hay que comprar, o el valor del inventario.",
+          parameters: {
+            type: "object",
+            properties: {
+              soloBajo: {
+                type: "boolean",
+                description: "true para traer solo los insumos agotados o bajos de stock; false (default) trae todos.",
+              },
+            },
+          },
+        },
+      },
+      ejecutar: estadoInventario,
     },
   ];
 
@@ -404,6 +623,30 @@ export function construirHerramientas(incluirFinancieras: boolean, incluirHistor
           },
         },
         ejecutar: nominaPorLavador,
+      },
+      {
+        definicion: {
+          type: "function",
+          function: {
+            name: "turno_actual",
+            description:
+              "Estado del turno/caja ABIERTO en este momento (si lo hay): efectivo inicial, totales por método de pago, efectivo esperado en caja y tickets pendientes de entregar. Úsala para preguntas sobre 'ahorita'/'en este momento', no para períodos pasados (para eso usa resumen_negocio).",
+            parameters: { type: "object", properties: {} },
+          },
+        },
+        ejecutar: turnoActual,
+      },
+      {
+        definicion: {
+          type: "function",
+          function: {
+            name: "ingresos_extra_detalle",
+            description:
+              "Desglose de ingresos extra (pensiones de estacionamiento, etc., todo lo que no viene de un ticket de lavado) por concepto, en un período. Úsala para preguntas sobre ingresos extra específicos o de qué conceptos vienen.",
+            parameters: PARAM_FECHA,
+          },
+        },
+        ejecutar: ingresosExtraDetalle,
       }
     );
   }

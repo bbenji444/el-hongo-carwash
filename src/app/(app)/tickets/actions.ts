@@ -580,16 +580,29 @@ export async function actualizarTicket(
   const { supabase, error: permisoError, esDueno, actorId } = await requierePermisoEditarTickets();
   if (permisoError) return { error: permisoError };
 
+  // Se trae el estado ANTES de la edición junto con todo lo que el histórico
+  // va a necesitar para armar un "qué cambió" (paquete, tamaño, lavadores,
+  // extras, vehículo) — una sola consulta en vez de pedir el estado aparte
+  // como antes.
+  const [{ data: ticketAntes }, { data: lavadoresAntesRaw }, { data: extrasAntesRaw }] = await Promise.all([
+    supabase
+      .from("tickets")
+      .select("estado, servicio_id, tamano_vehiculo, distintivo, placa")
+      .eq("id", ticketId)
+      .maybeSingle(),
+    supabase.from("ticket_lavadores").select("lavador_id").eq("ticket_id", ticketId),
+    supabase.from("ticket_extras").select("nombre").eq("ticket_id", ticketId),
+  ]);
+
+  if (!ticketAntes) return { error: "El ticket ya no existe." };
+
   // Editar un ticket ya entregado puede afectar una venta ya cobrada y
   // sumada a una caja que quizás ya cerró — solo el dueño puede hacerlo
   // (mismo criterio que eliminar un ticket entregado). A un
   // encargado/cajero con el permiso normal de editar tickets se le sigue
   // bloqueando en ese caso.
-  if (!esDueno) {
-    const { data: ticket } = await supabase.from("tickets").select("estado").eq("id", ticketId).maybeSingle();
-    if (ticket?.estado === "entregado") {
-      return { error: "Solo el dueño puede editar un ticket ya entregado." };
-    }
+  if (!esDueno && ticketAntes.estado === "entregado") {
+    return { error: "Solo el dueño puede editar un ticket ya entregado." };
   }
 
   let clienteId = input.clienteId;
@@ -623,9 +636,60 @@ export async function actualizarTicket(
   const { error: borrarError } = await supabase.from("ticket_extras").delete().eq("ticket_id", ticketId);
   if (borrarError) return { error: borrarError.message };
 
+  let extrasDespuesRaw: { nombre: string }[] = [];
   if (input.extraIds.length > 0) {
-    const errorExtras = await sincronizarExtrasTicket(supabase, ticketId, input.extraIds);
-    if (errorExtras) return { error: errorExtras };
+    const { data: extrasCatalogo, error: errorExtras } = await supabase
+      .from("extras_catalogo")
+      .select("id, nombre, precio")
+      .in("id", input.extraIds);
+    if (errorExtras) return { error: errorExtras.message };
+
+    const { error: insertExtrasError } = await supabase.from("ticket_extras").insert(
+      (extrasCatalogo ?? []).map((e) => ({ ticket_id: ticketId, extra_id: e.id, nombre: e.nombre, precio: e.precio }))
+    );
+    if (insertExtrasError) return { error: insertExtrasError.message };
+    extrasDespuesRaw = extrasCatalogo ?? [];
+  }
+
+  // Arma el "qué cambió" del histórico: compara cada campo antes/después y
+  // solo menciona los que de verdad cambiaron — para que un editor vea de
+  // un vistazo "paquete: Plus → Premium" o "lavador: Tripas → Manuel" en vez
+  // de solo "editó un ticket" a secas.
+  const idsLavadoresNecesarios = [...new Set([...(lavadoresAntesRaw ?? []).map((l) => l.lavador_id), ...input.lavadorIds])];
+  const idsServiciosNecesarios = [...new Set([ticketAntes.servicio_id, input.servicioId])];
+  const [{ data: lavadoresNombresRaw }, { data: serviciosNombresRaw }] = await Promise.all([
+    idsLavadoresNecesarios.length
+      ? supabase.from("lavadores").select("id, nombre").in("id", idsLavadoresNecesarios)
+      : Promise.resolve({ data: [] }),
+    supabase.from("servicios_catalogo").select("id, nombre").in("id", idsServiciosNecesarios),
+  ]);
+  const nombrePorLavador = new Map((lavadoresNombresRaw ?? []).map((l) => [l.id, l.nombre]));
+  const nombrePorServicio = new Map((serviciosNombresRaw ?? []).map((s) => [s.id, s.nombre]));
+
+  const cambios: string[] = [];
+
+  if (ticketAntes.servicio_id !== input.servicioId) {
+    cambios.push(
+      `paquete: ${nombrePorServicio.get(ticketAntes.servicio_id) ?? "—"} → ${nombrePorServicio.get(input.servicioId) ?? "—"}`
+    );
+  }
+  if (ticketAntes.tamano_vehiculo !== input.tamanoVehiculo) {
+    cambios.push(`tamaño: ${nombreTamano(ticketAntes.tamano_vehiculo)} → ${nombreTamano(input.tamanoVehiculo)}`);
+  }
+  const vehAntes = resumenVehiculo(ticketAntes.distintivo, ticketAntes.placa);
+  const vehDespues = resumenVehiculo(input.distintivo, input.placa);
+  if (vehAntes !== vehDespues) {
+    cambios.push(`vehículo: ${vehAntes} → ${vehDespues}`);
+  }
+  const lavadoresAntesTexto = (lavadoresAntesRaw ?? []).map((l) => nombrePorLavador.get(l.lavador_id) ?? "—").sort().join(", ") || "nadie";
+  const lavadoresDespuesTexto = input.lavadorIds.map((id) => nombrePorLavador.get(id) ?? "—").sort().join(", ") || "nadie";
+  if (lavadoresAntesTexto !== lavadoresDespuesTexto) {
+    cambios.push(`lavador: ${lavadoresAntesTexto} → ${lavadoresDespuesTexto}`);
+  }
+  const extrasAntesTexto = (extrasAntesRaw ?? []).map((e) => e.nombre).sort().join(", ") || "ninguno";
+  const extrasDespuesTexto = extrasDespuesRaw.map((e) => e.nombre).sort().join(", ") || "ninguno";
+  if (extrasAntesTexto !== extrasDespuesTexto) {
+    cambios.push(`extras: ${extrasAntesTexto} → ${extrasDespuesTexto}`);
   }
 
   await registrarMovimiento(
@@ -634,7 +698,7 @@ export async function actualizarTicket(
     "editar",
     "ticket",
     ticketId,
-    `Editó un ticket (${resumenVehiculo(input.distintivo, input.placa)})`
+    `Editó un ticket (${resumenVehiculo(input.distintivo, input.placa)})${cambios.length ? ` — ${cambios.join(", ")}` : ""}`
   );
 
   revalidatePath("/", "layout");

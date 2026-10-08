@@ -147,12 +147,23 @@ export async function actualizarUsuario(
   return { error: null };
 }
 
+// Cuenta original del negocio (elhongo@hotmail.com) — tiene ligado
+// prácticamente todo el historial real (tickets, pagos, turnos, gastos),
+// así que se desactivó en vez de eliminarse para no romper esos registros.
+// A petición expresa de Benjamin, solo SU cuenta puede reactivarla.
+const USUARIO_HISTORICO_ID = "5b5c8903-d8fb-492f-be78-0aeaff716355";
+const BENJAMIN_USER_ID = "3069df5a-d7c0-4f0a-8b6e-7d8914f13a51";
+
 export async function toggleActivoUsuario(id: string, activo: boolean) {
   const { supabase, actorId, error: permisoError } = await requiereDueno();
   if (permisoError) return { error: permisoError };
 
   if (id === actorId && !activo) {
     return { error: "No puedes desactivar tu propia cuenta." };
+  }
+
+  if (id === USUARIO_HISTORICO_ID && activo && actorId !== BENJAMIN_USER_ID) {
+    return { error: "Solo la cuenta de Benjamin puede reactivar esta cuenta." };
   }
 
   const { error } = await supabase.from("usuarios").update({ activo }).eq("id", id);

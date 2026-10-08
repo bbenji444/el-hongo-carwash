@@ -4,6 +4,7 @@ import { obtenerDatosLavadores } from "@/app/(app)/lavadores/data";
 import { createClient } from "@/lib/supabase/server";
 import { nombreCategoriaGasto } from "@/lib/gastoCategorias";
 import { fetchPaginado, fetchEnLotes } from "@/lib/supabaseBatch";
+import { ACCIONES_CAMBIO, type AccionHistorial, type EntidadHistorial } from "@/lib/historial";
 import type { GastoCategoria } from "@/types/database.types";
 
 const PERIODOS_VALIDOS: Periodo[] = ["hoy", "7d", "30d", "todo"];
@@ -270,10 +271,75 @@ async function nominaPorLavador(args: Record<string, unknown>) {
   };
 }
 
+// Reportes sobre el histórico de movimientos (auditoría): quién hizo qué,
+// cuánto ha hecho cada quien, en qué secciones ha estado entrando alguien,
+// etc. La consulta corre con el cliente de la sesión (createClient()), así
+// que el RLS de historial_movimientos sigue aplicando igual que en la
+// página — esta herramienta solo se ofrece (ver construirHerramientas) a
+// quien de verdad tiene puede_ver_historial, así que nunca debería llegar
+// vacía por falta de permiso.
+async function consultarHistorial(args: Record<string, unknown>) {
+  const rango = resolverRangoDesdeArgs(args);
+  const supabase = await createClient();
+
+  const tipo = typeof args.tipo === "string" ? args.tipo : "todos";
+  const entidad = typeof args.entidad === "string" ? (args.entidad as EntidadHistorial) : undefined;
+  const usuarioNombre = typeof args.usuario === "string" ? args.usuario.trim() : "";
+
+  const construirQuery = (desde: number, hasta: number) => {
+    let q = supabase
+      .from("historial_movimientos")
+      .select("usuario_nombre, accion, entidad, resumen, creado_en")
+      .order("creado_en", { ascending: false })
+      .range(desde, hasta);
+    if (rango.desdeIso) q = q.gte("creado_en", rango.desdeIso);
+    if (rango.hastaIso) q = q.lte("creado_en", rango.hastaIso);
+    if (tipo === "cambios") q = q.in("accion", ACCIONES_CAMBIO);
+    if (tipo === "actividad") q = q.eq("accion", "ver");
+    if (entidad) q = q.eq("entidad", entidad);
+    if (usuarioNombre) q = q.ilike("usuario_nombre", `%${usuarioNombre}%`);
+    return q;
+  };
+
+  // Tope de seguridad (el negocio es chico, pero por si el período es
+  // "todo" sobre meses de operación) — de sobra para cualquier reporte
+  // razonable sin mandar una respuesta gigante al modelo.
+  const movimientos = await fetchPaginado(construirQuery, 1000, 2000);
+
+  const porUsuario = new Map<string, number>();
+  const porAccion = new Map<string, number>();
+  const porEntidad = new Map<string, number>();
+  for (const m of movimientos) {
+    porUsuario.set(m.usuario_nombre, (porUsuario.get(m.usuario_nombre) ?? 0) + 1);
+    porAccion.set(m.accion, (porAccion.get(m.accion) ?? 0) + 1);
+    porEntidad.set(m.entidad, (porEntidad.get(m.entidad) ?? 0) + 1);
+  }
+
+  return {
+    periodo: rango.etiqueta,
+    totalMovimientos: movimientos.length,
+    conteoPorUsuario: Array.from(porUsuario, ([usuario, total]) => ({ usuario, total })).sort((a, b) => b.total - a.total),
+    conteoPorAccion: Array.from(porAccion, ([accion, total]) => ({ accion, total })).sort((a, b) => b.total - a.total),
+    conteoPorEntidad: Array.from(porEntidad, ([entidad, total]) => ({ entidad, total })).sort((a, b) => b.total - a.total),
+    // Los 50 más recientes que coincidan con el filtro — si se necesita ver
+    // más detalle de un usuario/sección puntual, hay que acotar con los
+    // filtros de usuario/entidad/tipo en vez de pedir todo junto.
+    movimientosRecientes: movimientos.slice(0, 50).map((m) => ({
+      usuario: m.usuario_nombre,
+      accion: m.accion as AccionHistorial,
+      entidad: m.entidad as EntidadHistorial,
+      resumen: m.resumen,
+      fecha: m.creado_en,
+    })),
+  };
+}
+
 // Las herramientas financieras (ventas, gastos, ganancia neta, caja) se
 // ocultan para cajeros — mismo criterio que ya usan las páginas de
-// Reportes y Gastos (redirigen a un cajero que intente entrar).
-export function construirHerramientas(incluirFinancieras: boolean): Herramienta[] {
+// Reportes y Gastos (redirigen a un cajero que intente entrar). La de
+// histórico se oculta para cualquiera sin puede_ver_historial — mismo
+// criterio que la página /historial.
+export function construirHerramientas(incluirFinancieras: boolean, incluirHistorial: boolean): Herramienta[] {
   const herramientas: Herramienta[] = [
     {
       definicion: {
@@ -340,6 +406,42 @@ export function construirHerramientas(incluirFinancieras: boolean): Herramienta[
         ejecutar: nominaPorLavador,
       }
     );
+  }
+
+  if (incluirHistorial) {
+    herramientas.push({
+      definicion: {
+        type: "function",
+        function: {
+          name: "consultar_historial",
+          description:
+            "Consulta el histórico de movimientos (auditoría): quién creó, editó, eliminó, activó/desactivó, abrió/cerró un turno, o consultó/visitó una sección, y cuándo. Úsala para cualquier pregunta sobre actividad de usuarios — qué ha hecho alguien, cuántas veces entró a algo, en qué ha estado consultando cada quien, o reportes generales del histórico. Devuelve conteos por usuario/acción/sección y los movimientos más recientes que coincidan.",
+          parameters: {
+            type: "object",
+            properties: {
+              ...PARAM_FECHA.properties,
+              usuario: {
+                type: "string",
+                description: "Nombre (o parte del nombre) de la persona a filtrar, ej. 'Fany'. Omite para incluir a todos.",
+              },
+              tipo: {
+                type: "string",
+                enum: ["todos", "cambios", "actividad"],
+                description:
+                  "'cambios' = solo crear/editar/eliminar/activar/desactivar/abrir turno/cerrar turno. 'actividad' = solo consultas/visitas a secciones. 'todos' (default) incluye ambos.",
+              },
+              entidad: {
+                type: "string",
+                enum: ["ticket", "gasto", "ingreso_extra", "usuario", "turno", "lavador", "reporte"],
+                description: "Sección específica a filtrar, ej. 'gasto' o 'lavador'. Omite para incluir todas.",
+              },
+            },
+            required: ["periodo"],
+          },
+        },
+      },
+      ejecutar: consultarHistorial,
+    });
   }
 
   return herramientas;

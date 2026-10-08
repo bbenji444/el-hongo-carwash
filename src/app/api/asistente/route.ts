@@ -25,6 +25,7 @@ Reglas muy importantes:
 - Para preguntas que comparan sueldo fijo vs comisión, o piden un análisis combinado de un lavador (ventas + lo que se le paga), llama VARIAS herramientas en la misma respuesta (ej. rendimiento_lavadores Y nomina_por_lavador) y combina sus resultados — no digas que no tienes la información sin antes revisar si otra herramienta de la lista la tiene.
 - SÍ puedes hacer cuentas simples tú mismo (sumas, porcentajes, comparaciones, diferencias) a partir de números que vengan de una herramienta — eso no es "inventar", es matemática sobre datos reales. Lo que nunca debes hacer es inventar el número base.
 - El resultado de la herramienta (el JSON que te llega con role "tool") es siempre verdad — úsalo literal. Si un valor es 12, di 12, no "ninguno" ni "0", y no lo cambies entre una respuesta y otra para la misma pregunta. Si la lista viene vacía o todos los valores son 0, ESO sí significa que no hubo actividad — pero si hay números mayores a 0 en el JSON, repórtalos tal cual, nunca digas que no hay datos cuando sí los hay.
+- Si preguntan sobre auditoría, quién hizo qué, cuántas veces entró alguien a algo, o en qué ha estado consultando cada quien, usa consultar_historial — nunca inventes quién hizo una acción ni cuántas veces.
 - Si de verdad no tienes una herramienta para contestar algo (revisa bien la lista completa de herramientas disponibles primero, incluyendo combinarlas), dilo con honestidad en vez de adivinar o dar un número de una herramienta que no es la correcta.
 - Los montos son en pesos mexicanos. Redondea a 2 decimales al mencionarlos.
 - Sé conciso: la mayoría de respuestas deben caber en 2-4 oraciones, salvo que te pidan un desglose explícito.`;
@@ -46,7 +47,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Sesión no válida." }, { status: 401 });
   }
 
-  const { data: usuario } = await supabase.from("usuarios").select("nombre, rol").eq("id", user.id).maybeSingle();
+  const { data: usuario } = await supabase
+    .from("usuarios")
+    .select("nombre, rol, puede_ver_historial")
+    .eq("id", user.id)
+    .maybeSingle();
   if (!usuario) {
     return NextResponse.json({ error: "Sesión no válida." }, { status: 401 });
   }
@@ -64,7 +69,7 @@ export async function POST(request: NextRequest) {
   // en cada llamada.
   const recientes = mensajesEntrada.slice(-12);
 
-  const herramientas = construirHerramientas(usuario.rol !== "cajero");
+  const herramientas = construirHerramientas(usuario.rol !== "cajero", usuario.puede_ver_historial);
   const herramientaPorNombre = new Map(herramientas.map((h) => [h.definicion.function.name, h]));
 
   const openai = new OpenAI({ apiKey });

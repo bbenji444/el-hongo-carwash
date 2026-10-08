@@ -445,7 +445,19 @@ export async function registrarPago(input: {
     usuario_id: user.id,
   });
 
-  if (error) return { error: error.message };
+  if (error) {
+    // 23505 = violó la restricción única de pagos.ticket_id — pasa solo si
+    // dos peticiones llegaron tan pegadas que ambas pasaron la revisión de
+    // arriba antes de que la primera terminara de insertar (la base de
+    // datos es la última línea de defensa para ese caso). Es el mismo caso
+    // que arriba: el ticket ya está cobrado, no es un error real que el
+    // cajero deba ver.
+    if (error.code === "23505") {
+      revalidatePath("/", "layout");
+      return { error: null };
+    }
+    return { error: error.message };
+  }
 
   revalidatePath("/", "layout");
   return { error: null };

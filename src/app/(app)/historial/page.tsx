@@ -7,10 +7,12 @@ import {
   ACCION_LABEL,
   ACCIONES_CAMBIO,
   ENTIDAD_LABEL,
+  BENJAMIN_USER_ID,
   tiempoRelativo,
   type AccionHistorial,
   type EntidadHistorial,
 } from "@/lib/historial";
+import { HistorialRowActions } from "./HistorialRowActions";
 
 const PAGE_SIZE = 100;
 
@@ -58,6 +60,10 @@ export default async function HistorialPage({
   if (!actor?.puede_ver_historial) {
     redirect("/");
   }
+
+  // Editar/eliminar renglones es exclusivo de Benjamin — ni siquiera otras
+  // cuentas con puede_ver_historial (ej. Pepe) tienen esta opción.
+  const esBenjamin = user.id === BENJAMIN_USER_ID;
 
   const filtroTipo = (params.tipo === "cambios" || params.tipo === "actividad" ? params.tipo : "todos") as
     | "todos"
@@ -219,6 +225,7 @@ export default async function HistorialPage({
                   {ACCION_LABEL[m.accion as AccionHistorial] ?? m.accion}
                 </span>
               </p>
+              {esBenjamin && <HistorialRowActions id={m.id} resumenActual={m.resumen} />}
             </div>
           </div>
         ))}

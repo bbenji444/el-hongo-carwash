@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient as createSupabaseJsClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
-import { registrarMovimiento } from "@/lib/historial";
+import { registrarMovimiento, BENJAMIN_USER_ID } from "@/lib/historial";
 import type { Database, RolUsuario } from "@/types/database.types";
 
 async function requiereDueno() {
@@ -164,7 +164,6 @@ export async function actualizarUsuario(
 // así que se desactivó en vez de eliminarse para no romper esos registros.
 // A petición expresa de Benjamin, solo SU cuenta puede reactivarla.
 const USUARIO_HISTORICO_ID = "5b5c8903-d8fb-492f-be78-0aeaff716355";
-const BENJAMIN_USER_ID = "3069df5a-d7c0-4f0a-8b6e-7d8914f13a51";
 
 export async function toggleActivoUsuario(id: string, activo: boolean) {
   const { supabase, actorId, error: permisoError } = await requiereDueno();

@@ -1,6 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
 
+// Cuenta de Benjamin — la única con permiso para editar/eliminar renglones
+// del histórico (ver historial/actions.ts) y la única cuyas propias
+// consultas/ediciones/eliminaciones se excluyen de quedar registradas (ver
+// nota en registrarMovimiento). Mismo id que USUARIO_HISTORICO_ID usa en
+// usuarios/actions.ts para la reactivación de la cuenta original.
+export const BENJAMIN_USER_ID = "3069df5a-d7c0-4f0a-8b6e-7d8914f13a51";
+
 export type AccionHistorial = "crear" | "editar" | "eliminar" | "activar" | "desactivar" | "abrir" | "cerrar" | "ver";
 export type EntidadHistorial = "ticket" | "gasto" | "ingreso_extra" | "usuario" | "turno" | "lavador" | "reporte";
 
@@ -72,6 +79,15 @@ export async function registrarMovimiento(
   entidadId: string | null,
   resumen: string
 ) {
+  // A petición explícita de Benjamin: su propia cuenta no deja rastro en el
+  // histórico de sus consultas, ediciones o eliminaciones — solo se
+  // registra cuando ÉL da de alta un ticket (su actividad operativa normal
+  // del día a día). Es una decisión consciente del dueño sobre su propia
+  // cuenta; no cambia nada para ningún otro usuario.
+  if (usuarioId === BENJAMIN_USER_ID && !(accion === "crear" && entidad === "ticket")) {
+    return;
+  }
+
   const { data: usuario } = await supabase.from("usuarios").select("nombre").eq("id", usuarioId).maybeSingle();
 
   const { error } = await supabase.from("historial_movimientos").insert({

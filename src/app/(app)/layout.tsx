@@ -19,7 +19,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // la app (layout raíz), así que es el punto con más impacto de todos
   // para acelerar la navegación entre secciones.
   const [{ data: usuario }, config] = await Promise.all([
-    supabase.from("usuarios").select("nombre, rol, activo").eq("id", user.id).maybeSingle(),
+    supabase.from("usuarios").select("nombre, rol, activo, puede_ver_historial").eq("id", user.id).maybeSingle(),
     obtenerConfiguracion(),
   ]);
 
@@ -28,7 +28,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <AppShell usuarioNombre={usuario.nombre} esDueno={usuario.rol === "dueno"} config={config}>
+    <AppShell
+      usuarioNombre={usuario.nombre}
+      esDueno={usuario.rol === "dueno"}
+      puedeVerHistorial={usuario.puede_ver_historial}
+      config={config}
+    >
       {children}
     </AppShell>
   );

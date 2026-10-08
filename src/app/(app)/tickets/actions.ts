@@ -78,10 +78,14 @@ export async function abrirTurno(efectivoInicial: number) {
     return { error: "Ya hay un turno abierto." };
   }
 
-  const { error } = await supabase.from("turnos").insert({
-    usuario_apertura_id: user.id,
-    efectivo_inicial: efectivoInicial,
-  });
+  const { data: nuevoTurno, error } = await supabase
+    .from("turnos")
+    .insert({
+      usuario_apertura_id: user.id,
+      efectivo_inicial: efectivoInicial,
+    })
+    .select("id")
+    .single();
 
   if (error) {
     if (error.code === "23505") {
@@ -90,6 +94,15 @@ export async function abrirTurno(efectivoInicial: number) {
     }
     return { error: error.message };
   }
+
+  await registrarMovimiento(
+    supabase,
+    user.id,
+    "abrir",
+    "turno",
+    nuevoTurno?.id ?? null,
+    `Abrió un turno con $${efectivoInicial.toFixed(2)} de caja inicial`
+  );
 
   revalidatePath("/", "layout");
   return { error: null };

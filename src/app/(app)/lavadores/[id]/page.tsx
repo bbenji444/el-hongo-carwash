@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { registrarMovimiento } from "@/lib/historial";
 import { PERIODOS, resolverRango, queryStringRango } from "@/lib/rangoFechas";
 import { nombreTamano } from "@/lib/servicios";
 import { obtenerConfiguracion } from "@/lib/configuracion";
@@ -70,6 +71,8 @@ export default async function DesgloseLavadorPage({
   if (!lavador) {
     notFound();
   }
+
+  await registrarMovimiento(supabase, user.id, "ver", "lavador", id, `Ingresó al perfil de ${lavador.nombre}`);
 
   // RLS ya le bloquea a un cajero poder leer "gastos" (regresa vacío, no
   // error) — pero igual se oculta la tarjeta a propósito en vez de

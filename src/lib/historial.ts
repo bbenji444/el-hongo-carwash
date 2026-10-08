@@ -1,8 +1,63 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
 
-export type AccionHistorial = "crear" | "editar" | "eliminar" | "activar" | "desactivar";
-export type EntidadHistorial = "ticket" | "gasto" | "ingreso_extra" | "usuario";
+export type AccionHistorial = "crear" | "editar" | "eliminar" | "activar" | "desactivar" | "abrir" | "cerrar" | "ver";
+export type EntidadHistorial = "ticket" | "gasto" | "ingreso_extra" | "usuario" | "turno" | "lavador" | "reporte";
+
+export const ACCION_EMOJI: Record<AccionHistorial, string> = {
+  crear: "✅",
+  editar: "✏️",
+  eliminar: "🗑️",
+  activar: "🔓",
+  desactivar: "🔒",
+  abrir: "🟢",
+  cerrar: "🔴",
+  ver: "👁️",
+};
+
+export const ACCION_LABEL: Record<AccionHistorial, string> = {
+  crear: "Creó",
+  editar: "Editó",
+  eliminar: "Eliminó",
+  activar: "Activó",
+  desactivar: "Desactivó",
+  abrir: "Abrió turno",
+  cerrar: "Cerró turno",
+  ver: "Consultó / visitó",
+};
+
+export const ENTIDAD_LABEL: Record<EntidadHistorial, string> = {
+  ticket: "Ticket",
+  gasto: "Gasto",
+  ingreso_extra: "Ingreso extra",
+  usuario: "Usuario",
+  turno: "Turno",
+  lavador: "Trabajador",
+  reporte: "Reportes",
+};
+
+// Acciones que representan un cambio real contra el negocio (vs. solo
+// consultar/ver algo) — usado por el filtro de /historial.
+export const ACCIONES_CAMBIO: AccionHistorial[] = [
+  "crear",
+  "editar",
+  "eliminar",
+  "activar",
+  "desactivar",
+  "abrir",
+  "cerrar",
+];
+
+export function tiempoRelativo(fechaIso: string): string {
+  const diffMs = Date.now() - new Date(fechaIso).getTime();
+  const minutos = Math.floor(diffMs / 60000);
+  if (minutos < 1) return "justo ahora";
+  if (minutos < 60) return `hace ${minutos} min`;
+  const horas = Math.floor(minutos / 60);
+  if (horas < 24) return `hace ${horas}h`;
+  const dias = Math.floor(horas / 24);
+  return `hace ${dias}d`;
+}
 
 // Registra un renglón en el histórico de movimientos — se usa desde cada
 // Server Action que crea/edita/elimina algo importante. Nunca bloquea la

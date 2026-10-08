@@ -12,11 +12,13 @@ import type { ConfiguracionApp } from "@/types/database.types";
 export function AppShell({
   usuarioNombre,
   esDueno,
+  puedeVerHistorial,
   config,
   children,
 }: {
   usuarioNombre: string;
   esDueno: boolean;
+  puedeVerHistorial: boolean;
   config: ConfiguracionApp;
   children: React.ReactNode;
 }) {
@@ -35,6 +37,7 @@ export function AppShell({
     { label: config.nav_gastos, href: "/gastos" },
     { label: config.nav_ingresos, href: "/ingresos" },
     ...(esDueno ? [{ label: "Usuarios", href: "/usuarios" }, { label: "Ajustes", href: "/ajustes" }] : []),
+    ...(puedeVerHistorial ? [{ label: "Histórico", href: "/historial" }] : []),
   ];
 
   const variablesColor = {

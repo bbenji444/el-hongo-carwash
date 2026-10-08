@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { registrarMovimiento } from "@/lib/historial";
 import { TurnoActivoCard } from "./TurnoActivoCard";
 import { HistorialTurnos } from "./HistorialTurnos";
 import { RealtimeSync } from "@/components/RealtimeSync";
@@ -73,6 +74,8 @@ export default async function TurnosPage({
   if (!usuario) {
     redirect("/login");
   }
+
+  await registrarMovimiento(supabase, user.id, "ver", "turno", null, `Consultó Caja y turnos (${rango.etiqueta})`);
 
   const puedeEditarTurnos = usuario.rol === "dueno" || usuario.puede_editar_turnos;
   const puedeEliminarTurnos = usuario.rol === "dueno" || usuario.puede_eliminar_turnos;

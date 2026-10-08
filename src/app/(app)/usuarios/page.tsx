@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { registrarMovimiento } from "@/lib/historial";
 import { UsuariosClient } from "./UsuariosClient";
 
 export default async function UsuariosPage() {
@@ -31,6 +32,8 @@ export default async function UsuariosPage() {
     .from("usuarios_con_correo")
     .select("*")
     .order("creado_en");
+
+  await registrarMovimiento(supabase, user.id, "ver", "usuario", null, "Consultó la lista de Usuarios");
 
   return (
     <div className="flex flex-col gap-6">

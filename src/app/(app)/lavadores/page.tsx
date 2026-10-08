@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { registrarMovimiento } from "@/lib/historial";
 import { PERIODOS, resolverRango, queryStringRango } from "@/lib/rangoFechas";
 import { obtenerConfiguracion } from "@/lib/configuracion";
 import { obtenerDatosLavadores } from "./data";
@@ -40,6 +41,8 @@ export default async function LavadoresPage({
   const rango = resolverRango(params);
   const [{ lavadores }, config] = await Promise.all([obtenerDatosLavadores(rango), obtenerConfiguracion()]);
   const qs = queryStringRango(rango);
+
+  await registrarMovimiento(supabase, user.id, "ver", "lavador", null, `Consultó la lista de Trabajadores (${rango.etiqueta})`);
 
   return (
     <div className="flex flex-col gap-6">

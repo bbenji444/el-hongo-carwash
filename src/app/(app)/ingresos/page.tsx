@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { registrarMovimiento } from "@/lib/historial";
 import { PERIODOS, resolverRango } from "@/lib/rangoFechas";
 import { IngresosClient } from "./IngresosClient";
 
@@ -63,6 +64,8 @@ export default async function IngresosPage({
   }));
 
   const totalIngresos = ingresos.reduce((acc, i) => acc + i.monto, 0);
+
+  await registrarMovimiento(supabase, user.id, "ver", "ingreso_extra", null, `Consultó Ingresos extra (${rango.etiqueta})`);
 
   return (
     <div className="flex flex-col gap-6">

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { registrarMovimiento } from "@/lib/historial";
 import { PERIODOS, resolverRango, queryStringRango, obtenerDatosReporte, type FiltrosReporte } from "./data";
 import { AnimatedNumber } from "@/components/AnimatedNumber";
 import { buscarTicketsDetalle } from "@/lib/ticketsDetalle";
@@ -164,6 +165,29 @@ export default async function ReportesPage({
     .sort((a, b) => b.total - a.total);
 
   const qs = queryStringRango(rango);
+
+  // Deja rastro de quién consultó Reportes y con qué filtro — pedido
+  // explícito del dueño para poder ver "en qué están curioseando" dentro
+  // de la sección financiera más sensible del sistema.
+  const detalleFiltroReporte: string[] = [];
+  if (filtroServicio) {
+    const nombreServ = (servicios ?? []).find((s) => s.id === filtroServicio)?.nombre;
+    if (nombreServ) detalleFiltroReporte.push(`paquete: ${nombreServ}`);
+  }
+  if (filtroMetodo) detalleFiltroReporte.push(`método: ${METODO_LABEL[filtroMetodo] ?? filtroMetodo}`);
+  if (filtroLavador) {
+    const nombreLav = (lavadores ?? []).find((l) => l.id === filtroLavador)?.nombre;
+    if (nombreLav) detalleFiltroReporte.push(`lavador: ${nombreLav}`);
+  }
+  if (filtroQ) detalleFiltroReporte.push(`texto: "${filtroQ}"`);
+  await registrarMovimiento(
+    supabase,
+    user.id,
+    "ver",
+    "reporte",
+    null,
+    `Consultó Reportes (${rango.etiqueta})${detalleFiltroReporte.length ? ` — ${detalleFiltroReporte.join(", ")}` : ""}`
+  );
 
   return (
     <div className="flex flex-col gap-6">

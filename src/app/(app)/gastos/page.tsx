@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { registrarMovimiento } from "@/lib/historial";
 import { PERIODOS, resolverRango } from "@/lib/rangoFechas";
 import { CATEGORIAS_GASTO } from "@/lib/gastoCategorias";
 import { inicioDeMesMX, mesMX } from "@/lib/fecha";
@@ -356,6 +357,35 @@ export default async function GastosPage({
     }),
     total,
   }));
+
+  // Deja rastro de quién consultó Gastos y con qué filtro (ej. "consultó
+  // los gastos de los últimos 30 días") — pedido explícito del dueño.
+  const detalleFiltroGasto: string[] = [];
+  if (filtroCategoria) {
+    const catLabel = CATEGORIAS_GASTO.find((c) => c.value === filtroCategoria)?.label;
+    if (catLabel) detalleFiltroGasto.push(`categoría: ${catLabel}`);
+  }
+  if (filtroSubcategoria) {
+    const nombreSub = nombrePorSubcategoria.get(filtroSubcategoria);
+    if (nombreSub) detalleFiltroGasto.push(`producto: ${nombreSub}`);
+  }
+  if (filtroLavador) {
+    const nombreLav = nombrePorLavador.get(filtroLavador);
+    if (nombreLav) detalleFiltroGasto.push(`trabajador: ${nombreLav}`);
+  }
+  if (filtroQ) detalleFiltroGasto.push(`texto: "${filtroQ}"`);
+  if (filtroRegistradoPor) {
+    const nombreReg = registradores.find((r) => r.id === filtroRegistradoPor)?.nombre;
+    if (nombreReg) detalleFiltroGasto.push(`registró: ${nombreReg}`);
+  }
+  await registrarMovimiento(
+    supabase,
+    user.id,
+    "ver",
+    "gasto",
+    null,
+    `Consultó Gastos (${rango.etiqueta})${detalleFiltroGasto.length ? ` — ${detalleFiltroGasto.join(", ")}` : ""}`
+  );
 
   return (
     <div className="flex flex-col gap-6">

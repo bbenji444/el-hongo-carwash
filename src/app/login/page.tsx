@@ -1,12 +1,12 @@
 "use client";
 
-import { Suspense, useEffect, useState, type FormEvent } from "react";
+import { Suspense, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { iniciarSesionConUsuario } from "./actions";
 
-// API nativa del navegador para guardar/recuperar credenciales — soportada
-// en Chrome/Edge, no en Firefox/Safari, por eso todo esto va detrás de
+// API nativa del navegador para guardar credenciales tras un login exitoso
+// — soportada en Chrome/Edge, no en Firefox/Safari, por eso va detrás de
 // comprobar que exista antes de usarla.
 declare global {
   interface Window {
@@ -14,14 +14,7 @@ declare global {
       new (data: { id: string; password: string; name?: string }): Credential;
     };
   }
-  // TypeScript ya trae "mediation" en CredentialRequestOptions, pero no
-  // "password" (esa parte del spec es más nueva que sus tipos de DOM).
-  interface CredentialRequestOptions {
-    password?: boolean;
-  }
 }
-
-type CredencialGuardada = Credential & { id: string; password?: string };
 
 const MOTIVOS: Record<string, string> = {
   cuenta_inactiva: "Tu cuenta fue desactivada. Contacta al dueño.",
@@ -44,26 +37,15 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(motivo ? MOTIVOS[motivo] ?? null : null);
   const [loading, setLoading] = useState(false);
 
-  // Si el navegador ya tiene una credencial guardada para este sitio (por
-  // haber iniciado sesión antes), se rellenan solos correo y contraseña —
-  // así no hay que volver a escribirlos cada vez. mediation "optional" deja
-  // que el navegador decida si lo hace en silencio o pide confirmar.
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.PasswordCredential || !navigator.credentials) return;
-    navigator.credentials
-      .get({ password: true, mediation: "optional" })
-      .then((credencial) => {
-        const c = credencial as CredencialGuardada | null;
-        if (c && c.type === "password" && c.password) {
-          setUsuario(c.id);
-          setPassword(c.password);
-        }
-      })
-      .catch(() => {
-        // El usuario pudo haber cancelado el selector, o el navegador no
-        // tiene nada guardado — no es un error real, se ignora.
-      });
-  }, []);
+  // A propósito NO se auto-rellena el usuario al cargar la página (antes
+  // se hacía con navigator.credentials.get({mediation:"optional"}), pero
+  // eso dejaba el campo "Usuario" pre-llenado con el último que inició
+  // sesión en ESE dispositivo/navegador para CUALQUIERA que abriera la
+  // página — un problema real en un dispositivo compartido del negocio.
+  // El guardado de credenciales (de abajo, al iniciar sesión con éxito)
+  // sigue funcionando: cada quien puede seleccionar su propio usuario
+  // guardado desde el administrador de contraseñas del navegador tocando
+  // el campo, pero ya no aparece solo, sin que nadie lo pida.
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();

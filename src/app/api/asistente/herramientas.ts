@@ -2,13 +2,14 @@ import { resolverRango, type Periodo, type RangoResuelto } from "@/lib/rangoFech
 import { obtenerDatosReporte } from "@/app/(app)/reportes/data";
 import { obtenerDatosLavadores } from "@/app/(app)/lavadores/data";
 import { obtenerDatosInventario } from "@/app/(app)/inventario/data";
-import { buscarClientes, detalleCliente } from "@/app/(app)/tickets/actions";
+import { buscarClientes, detalleCliente, crearTicket } from "@/app/(app)/tickets/actions";
 import { buscarTicketsDetalle } from "@/lib/ticketsDetalle";
 import { createClient } from "@/lib/supabase/server";
 import { nombreCategoriaGasto } from "@/lib/gastoCategorias";
+import { TAMANOS_VEHICULO, nombreTamano } from "@/lib/servicios";
 import { fetchPaginado, fetchEnLotes } from "@/lib/supabaseBatch";
 import { ACCIONES_CAMBIO, type AccionHistorial, type EntidadHistorial } from "@/lib/historial";
-import type { GastoCategoria, TicketEstado } from "@/types/database.types";
+import type { GastoCategoria, TicketEstado, TamanoVehiculo } from "@/types/database.types";
 
 const PERIODOS_VALIDOS: Periodo[] = ["hoy", "7d", "30d", "todo"];
 
@@ -488,6 +489,99 @@ async function ingresosExtraDetalle(args: Record<string, unknown>) {
   };
 }
 
+// Crea un ticket real a partir de lo que diga la persona en el chat — la
+// única herramienta de las de aquí que ESCRIBE en el sistema (todas las
+// demás son de solo lectura). Reutiliza crearTicket (la misma Server Action
+// del formulario de Tickets), así que respeta las mismas reglas: necesita
+// un turno abierto, auto-registra cliente si llegan distintivo Y placa, y
+// el trigger de descuento/lealtad corre igual que si se hubiera creado
+// desde la pantalla normal.
+async function crearTicketAsistente(args: Record<string, unknown>) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Sesión no válida." };
+
+  const { data: turnoAbierto } = await supabase.from("turnos").select("id").eq("estado", "abierto").maybeSingle();
+  if (!turnoAbierto) {
+    return {
+      error:
+        "No hay un turno abierto en este momento — hay que abrir un turno primero desde la sección de Tickets antes de poder registrar uno.",
+    };
+  }
+
+  const servicioNombre = typeof args.servicio === "string" ? args.servicio.trim() : "";
+  const tamano = typeof args.tamano === "string" ? (args.tamano as TamanoVehiculo) : ("" as TamanoVehiculo);
+  if (!servicioNombre) return { error: "Falta el nombre del paquete/servicio." };
+  if (!TAMANOS_VEHICULO.some((t) => t.value === tamano)) {
+    return {
+      error: "Falta o no es válido el tamaño del vehículo.",
+      tamanosValidos: TAMANOS_VEHICULO.map((t) => t.value),
+    };
+  }
+
+  const { data: serviciosCoincidentes } = await supabase
+    .from("servicios_catalogo")
+    .select("id, nombre")
+    .ilike("nombre", `%${servicioNombre}%`);
+
+  if (!serviciosCoincidentes || serviciosCoincidentes.length === 0) {
+    const { data: todos } = await supabase.from("servicios_catalogo").select("nombre").order("nombre");
+    return {
+      error: `No encontré un paquete llamado "${servicioNombre}".`,
+      paquetesDisponibles: (todos ?? []).map((s) => s.nombre),
+    };
+  }
+  if (serviciosCoincidentes.length > 1) {
+    return {
+      error: `Hay más de un paquete que coincide con "${servicioNombre}" — pregunta a la persona cuál exactamente antes de crear el ticket.`,
+      coincidencias: serviciosCoincidentes.map((s) => s.nombre),
+    };
+  }
+  const servicio = serviciosCoincidentes[0];
+
+  const distintivo = typeof args.distintivo === "string" && args.distintivo.trim() ? args.distintivo.trim() : null;
+  const placa = typeof args.placa === "string" && args.placa.trim() ? args.placa.trim() : null;
+
+  const nombresLavadores = Array.isArray(args.lavadores)
+    ? (args.lavadores as unknown[]).filter((v): v is string => typeof v === "string")
+    : [];
+  const lavadorIds: string[] = [];
+  const lavadoresNoEncontrados: string[] = [];
+  if (nombresLavadores.length > 0) {
+    const { data: lavadoresRaw } = await supabase.from("lavadores").select("id, nombre").eq("activo", true);
+    for (const nombre of nombresLavadores) {
+      const match = (lavadoresRaw ?? []).find((l) => l.nombre.trim().toLowerCase() === nombre.trim().toLowerCase());
+      if (match) lavadorIds.push(match.id);
+      else lavadoresNoEncontrados.push(nombre);
+    }
+  }
+
+  const resultado = await crearTicket({
+    clienteId: null,
+    vehiculoId: null,
+    distintivo,
+    placa,
+    servicioId: servicio.id,
+    tamanoVehiculo: tamano,
+    empleadoId: user.id,
+    lavadorIds,
+    turnoId: turnoAbierto.id,
+  });
+
+  if (resultado.error) return { error: resultado.error };
+
+  return {
+    creado: true,
+    paquete: servicio.nombre,
+    tamano: nombreTamano(tamano),
+    vehiculo: [distintivo, placa].filter(Boolean).join(" · ") || "sin distintivo/placa",
+    lavadoresAsignados: lavadorIds.length,
+    lavadoresNoEncontrados: lavadoresNoEncontrados.length > 0 ? lavadoresNoEncontrados : undefined,
+  };
+}
+
 // Las herramientas financieras (ventas, gastos, ganancia neta, caja) se
 // ocultan para cajeros — mismo criterio que ya usan las páginas de
 // Reportes y Gastos (redirigen a un cajero que intente entrar). La de
@@ -571,6 +665,45 @@ export function construirHerramientas(incluirFinancieras: boolean, incluirHistor
         },
       },
       ejecutar: estadoInventario,
+    },
+    {
+      definicion: {
+        type: "function",
+        function: {
+          name: "crear_ticket",
+          description:
+            "Crea un ticket real (registra un auto para lavar) en el turno abierto ahorita. Requiere que ya haya un turno abierto. Es una ACCIÓN REAL que escribe en el sistema, no una consulta — antes de llamarla, asegúrate de tener claro el paquete y el tamaño del vehículo (pregunta si la persona no los dio claros), y confirma con un '¿lo registro así?' antes de ejecutar salvo que la petición ya haya sido explícita y completa en un solo mensaje. Si la herramienta regresa un error (sin turno abierto, paquete no encontrado o ambiguo, etc.), explica el problema con claridad en vez de adivinar o reintentar con datos inventados.",
+          parameters: {
+            type: "object",
+            properties: {
+              servicio: {
+                type: "string",
+                description: "Nombre (o parte del nombre) del paquete/servicio, ej. 'Plus', 'Premium'.",
+              },
+              tamano: {
+                type: "string",
+                enum: TAMANOS_VEHICULO.map((t) => t.value),
+                description: "Tamaño del vehículo.",
+              },
+              distintivo: {
+                type: "string",
+                description: "Distintivo/apodo del cliente o descripción del carro (ej. 'Jetta gris'). Opcional.",
+              },
+              placa: {
+                type: "string",
+                description: "Placa del vehículo. Opcional, pero recomendable para poder identificarlo después.",
+              },
+              lavadores: {
+                type: "array",
+                items: { type: "string" },
+                description: "Nombre(s) de el/los lavador(es) a asignar, si ya se sabe quién(es). Opcional.",
+              },
+            },
+            required: ["servicio", "tamano"],
+          },
+        },
+      },
+      ejecutar: crearTicketAsistente,
     },
   ];
 

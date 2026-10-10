@@ -130,7 +130,6 @@ function nuevoRenglonItem(): ItemForm {
 }
 
 const emptyForm = {
-  concepto: "",
   monto: "",
   fecha: fechaInput(new Date().toISOString()),
   notas: "",
@@ -281,7 +280,6 @@ export function GastosClient({
   function abrirEdicion(g: Gasto) {
     setEditandoId(g.id);
     setForm({
-      concepto: g.concepto,
       monto: String(g.monto),
       fecha: fechaInput(g.fecha),
       notas: g.notas ?? "",
@@ -357,11 +355,6 @@ export function GastosClient({
     e.preventDefault();
     setError(null);
 
-    if (!form.concepto.trim()) {
-      setError("Escribe el concepto del gasto (ej. Sueldos, Insumos).");
-      return;
-    }
-
     const renglones = itemsForm
       .filter((it) => it.producto.trim() !== "")
       .map((it) => ({ ...it, cantidadNum: Number(it.cantidad), precioNum: Number(it.precioUnitario) }));
@@ -389,8 +382,17 @@ export function GastosClient({
       return;
     }
 
+    // El concepto ya no se escribe a mano — se arma solo a partir de lo que
+    // ya se eligió en las opciones precargadas (producto específico si hay
+    // uno, si no la categoría general). Si se quiere aclarar algo puntual
+    // de ese gasto, para eso está el campo de Notas.
+    const subcategoriaNombre = form.subcategoriaId
+      ? subcategoriasLocal.find((s) => s.id === form.subcategoriaId)?.nombre
+      : null;
+    const conceptoCalculado = subcategoriaNombre || nombreCategoriaGasto(form.categoria);
+
     const datosGasto = {
-      concepto: form.concepto.trim(),
+      concepto: conceptoCalculado,
       monto: montoCalculado,
       fecha: new Date(`${form.fecha}T12:00:00`).toISOString(),
       notas: form.notas.trim() || null,
@@ -592,15 +594,6 @@ export function GastosClient({
             className="flex flex-col gap-4 rounded-xl border border-border bg-surface p-5"
           >
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-muted">Concepto</label>
-                <input
-                  value={form.concepto}
-                  onChange={(e) => setForm((f) => ({ ...f, concepto: e.target.value }))}
-                  placeholder="Ej. Sueldos, Insumos, Luz"
-                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
-                />
-              </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-medium text-muted">Categoría</label>
                 <select
@@ -955,7 +948,6 @@ export function GastosClient({
               <th className="hidden px-4 py-3 md:table-cell">Trabajador</th>
               <th className="hidden px-4 py-3 lg:table-cell">Notas</th>
               <th className="hidden px-4 py-3 md:table-cell">Registró</th>
-              <th className="hidden px-4 py-3 lg:table-cell">Archivo</th>
               <th className="px-4 py-3 text-right">Monto</th>
               <th className="px-4 py-3 text-right">Acciones</th>
             </tr>
@@ -973,6 +965,26 @@ export function GastosClient({
                     >
                       🧾 {g.items.length} producto{g.items.length > 1 ? "s" : ""}
                     </button>
+                  )}
+                  {/* Visible en cualquier tamaño de pantalla a propósito (antes
+                      vivía solo en la columna "Archivo", escondida en celular
+                      con lg:table-cell) — para ver el ticket/recibo sin tener
+                      que entrar a Editar cada gasto uno por uno. */}
+                  {g.archivos.length > 0 && (
+                    <div className="flex flex-col">
+                      {g.archivos.map((a, i) => (
+                        <button
+                          key={a.id}
+                          onClick={() => handleVerArchivo(a.id)}
+                          disabled={verArchivoPendiente === a.id}
+                          className="block text-left text-[11px] text-accent hover:underline disabled:opacity-60"
+                        >
+                          {verArchivoPendiente === a.id
+                            ? "Abriendo..."
+                            : `📎 Ver ${g.archivos.length > 1 ? `ticket ${i + 1}` : "ticket"}`}
+                        </button>
+                      ))}
+                    </div>
                   )}
                 </td>
                 <td className="px-4 py-3 text-muted">
@@ -992,24 +1004,6 @@ export function GastosClient({
                 <td className="hidden px-4 py-3 text-muted md:table-cell">{g.lavadorNombre ?? "—"}</td>
                 <td className="hidden px-4 py-3 text-muted lg:table-cell">{g.notas ?? "—"}</td>
                 <td className="hidden px-4 py-3 text-muted md:table-cell">{g.creadoPor}</td>
-                <td className="hidden px-4 py-3 lg:table-cell">
-                  {g.archivos.length > 0 ? (
-                    <div className="flex flex-col gap-0.5">
-                      {g.archivos.map((a, i) => (
-                        <button
-                          key={a.id}
-                          onClick={() => handleVerArchivo(a.id)}
-                          disabled={verArchivoPendiente === a.id}
-                          className="text-left text-xs text-accent hover:underline disabled:opacity-60"
-                        >
-                          {verArchivoPendiente === a.id ? "Abriendo..." : g.archivos.length > 1 ? `Ver archivo ${i + 1}` : "Ver archivo"}
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <span className="text-xs text-muted">—</span>
-                  )}
-                </td>
                 <td className="px-4 py-3 text-right font-medium text-primary">{money(g.monto)}</td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex justify-end gap-2">
@@ -1032,7 +1026,7 @@ export function GastosClient({
             ))}
             {gastosFiltrados.length === 0 && (
               <tr>
-                <td colSpan={10} className="px-4 py-6 text-center text-muted">
+                <td colSpan={9} className="px-4 py-6 text-center text-muted">
                   {categoriaFiltro || subcategoriaFiltro || lavadorFiltro
                     ? "Ningún gasto coincide con el filtro seleccionado."
                     : "Sin gastos registrados en este período."}

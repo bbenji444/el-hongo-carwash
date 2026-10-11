@@ -1,11 +1,12 @@
-import { inicioDeDiaMX, inicioDeDiaMXDesdeFecha, finDeDiaMXDesdeFecha } from "@/lib/fecha";
+import { inicioDeDiaMX, inicioDeMesMX, inicioDeDiaMXDesdeFecha, finDeDiaMXDesdeFecha } from "@/lib/fecha";
 
-export type Periodo = "hoy" | "7d" | "30d" | "todo";
+export type Periodo = "hoy" | "7d" | "30d" | "mes_actual" | "todo";
 
 export const PERIODOS: { value: Periodo; label: string }[] = [
   { value: "hoy", label: "Hoy" },
   { value: "7d", label: "Últimos 7 días" },
   { value: "30d", label: "Últimos 30 días" },
+  { value: "mes_actual", label: "Este mes" },
   { value: "todo", label: "Todo" },
 ];
 
@@ -57,6 +58,10 @@ export function resolverRango(params: ParamsRango): RangoResuelto {
     desdeIso = inicioDeDiaMX(6).toISOString();
   } else if (periodo === "30d") {
     desdeIso = inicioDeDiaMX(29).toISOString();
+  } else if (periodo === "mes_actual") {
+    // Del día 1 del mes en curso (hora de México) a hoy — se detecta solo
+    // según la fecha real, sin importar en qué mes estemos.
+    desdeIso = inicioDeMesMX(0).toISOString();
   } else {
     desdeIso = null;
   }

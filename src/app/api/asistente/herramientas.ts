@@ -11,16 +11,20 @@ import { fetchPaginado, fetchEnLotes } from "@/lib/supabaseBatch";
 import { ACCIONES_CAMBIO, type AccionHistorial, type EntidadHistorial } from "@/lib/historial";
 import type { GastoCategoria, TicketEstado, TamanoVehiculo } from "@/types/database.types";
 
-const PERIODOS_VALIDOS: Periodo[] = ["hoy", "7d", "30d", "todo"];
+const PERIODOS_VALIDOS: Periodo[] = ["hoy", "7d", "30d", "mes_actual", "todo"];
 
-// Atajos fijos (hoy/7d/30d/todo) + "personalizado" para CUALQUIER otro
-// período con nombre (un mes del calendario, una semana específica, "los
-// últimos 4 días", etc.) — el modelo ya recibe la fecha de hoy en el
-// system prompt y calcula "desde"/"hasta" él mismo. Antes solo existían
-// los 4 atajos fijos: preguntar por "octubre" el día 4 de octubre hacía
-// que el modelo aproximara con "30d" (que se va hasta principios de
-// septiembre) pero describiera el resultado como si fuera "octubre" —
-// esto se quita por completo dándole la herramienta correcta.
+// Atajos fijos (hoy/7d/30d/mes_actual/todo) + "personalizado" para
+// CUALQUIER otro período con nombre (un mes YA terminado, una semana
+// específica, "los últimos 4 días", etc.) — el modelo ya recibe la fecha de
+// hoy en el system prompt y calcula "desde"/"hasta" él mismo para esos
+// casos. Antes solo existían los atajos fijos: preguntar por "octubre" el
+// día 4 de octubre hacía que el modelo aproximara con "30d" (que se va
+// hasta principios de septiembre) pero describiera el resultado como si
+// fuera "octubre" — esto se quita por completo dándole la herramienta
+// correcta. "mes_actual" existe aparte para el caso más común de todos
+// ("este mes"): usa el mismo cálculo que el botón "Este mes" de la UI
+// (día 1 del mes en curso, hora de México, hasta hoy), así el modelo no
+// tiene que calcularlo él mismo y arriesgarse a un error de un día.
 const PARAM_FECHA = {
   type: "object",
   properties: {
@@ -28,7 +32,7 @@ const PARAM_FECHA = {
       type: "string",
       enum: [...PERIODOS_VALIDOS, "personalizado"],
       description:
-        "'hoy', '7d' (últimos 7 días), '30d' (últimos 30 días) o 'todo' el histórico. Usa 'personalizado' junto con 'desde' (y opcionalmente 'hasta') para cualquier período con nombre que no sea exactamente uno de esos cuatro — un mes del calendario, una semana específica, 'los últimos N días' con N distinto de 7/30, etc. — calculando tú mismo las fechas a partir de la fecha de hoy que ya tienes.",
+        "'hoy', '7d' (últimos 7 días), '30d' (últimos 30 días), 'mes_actual' (del día 1 del mes en curso a hoy — úsalo para 'este mes') o 'todo' el histórico. Usa 'personalizado' junto con 'desde' (y opcionalmente 'hasta') para cualquier período con nombre que no sea exactamente uno de esos cinco — un mes YA terminado, una semana específica, 'los últimos N días' con N distinto de 7/30, etc. — calculando tú mismo las fechas a partir de la fecha de hoy que ya tienes.",
     },
     desde: {
       type: "string",

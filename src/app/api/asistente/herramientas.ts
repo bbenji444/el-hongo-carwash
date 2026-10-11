@@ -5,6 +5,7 @@ import { obtenerDatosInventario } from "@/app/(app)/inventario/data";
 import { buscarClientes, detalleCliente, crearTicket } from "@/app/(app)/tickets/actions";
 import { buscarTicketsDetalle } from "@/lib/ticketsDetalle";
 import { createClient } from "@/lib/supabase/server";
+import { diaMX } from "@/lib/fecha";
 import { nombreCategoriaGasto } from "@/lib/gastoCategorias";
 import { TAMANOS_VEHICULO, nombreTamano } from "@/lib/servicios";
 import { fetchPaginado, fetchEnLotes } from "@/lib/supabaseBatch";
@@ -129,6 +130,64 @@ async function rendimientoLavadores(args: Record<string, unknown>) {
         puntaje: l.puntaje,
       }))
       .sort((a, b) => b.autosLavados - a.autosLavados),
+  };
+}
+
+// Desglose de autos entregados y ventas por DÍA en un período — "¿cuál fue
+// el día que más carros se lavaron?", "¿qué día vendimos más?". Antes no
+// había ninguna herramienta para esto, así que el modelo inventaba
+// fechas/números en vez de admitir que no tenía cómo contestar — el día
+// ganador se calcula aquí mismo (no se le deja al modelo buscarlo en una
+// lista), para que no haya margen de error.
+async function ventasPorDia(args: Record<string, unknown>) {
+  const rango = resolverRangoDesdeArgs(args);
+  const supabase = await createClient();
+
+  // Mismo criterio que el resto de la app: un auto "se lavó" el día que se
+  // ENTREGÓ (hora_salida), no el día que llegó.
+  const entregados = await fetchPaginado((desde, hasta) => {
+    let q = supabase
+      .from("tickets")
+      .select("id, hora_salida")
+      .eq("estado", "entregado")
+      .range(desde, hasta);
+    if (rango.desdeIso) q = q.gte("hora_salida", rango.desdeIso);
+    if (rango.hastaIso) q = q.lte("hora_salida", rango.hastaIso);
+    return q;
+  });
+
+  const ticketIds = entregados.map((t) => t.id);
+  const pagos = await fetchEnLotes(ticketIds, (lote) => supabase.from("pagos").select("ticket_id, monto").in("ticket_id", lote));
+  const montoPorTicket = new Map<string, number>();
+  for (const p of pagos) {
+    montoPorTicket.set(p.ticket_id, (montoPorTicket.get(p.ticket_id) ?? 0) + p.monto);
+  }
+
+  const porDia = new Map<string, { autos: number; ventas: number }>();
+  for (const t of entregados) {
+    if (!t.hora_salida) continue;
+    const dia = diaMX(t.hora_salida);
+    const entry = porDia.get(dia) ?? { autos: 0, ventas: 0 };
+    entry.autos += 1;
+    entry.ventas += montoPorTicket.get(t.id) ?? 0;
+    porDia.set(dia, entry);
+  }
+
+  const dias = Array.from(porDia, ([fecha, v]) => ({
+    fecha,
+    autosLavados: v.autos,
+    ventas: Math.round(v.ventas * 100) / 100,
+  }));
+  const porAutos = [...dias].sort((a, b) => b.autosLavados - a.autosLavados);
+  const porVentas = [...dias].sort((a, b) => b.ventas - a.ventas);
+
+  return {
+    periodo: rango.etiqueta,
+    totalDiasConActividad: dias.length,
+    diaConMasAutosLavados: porAutos[0] ?? null,
+    diaConMasVentas: porVentas[0] ?? null,
+    top10DiasPorAutosLavados: porAutos.slice(0, 10),
+    top10DiasPorVentas: porVentas.slice(0, 10),
   };
 }
 
@@ -604,6 +663,18 @@ export function construirHerramientas(incluirFinancieras: boolean, incluirHistor
         },
       },
       ejecutar: rendimientoLavadores,
+    },
+    {
+      definicion: {
+        type: "function",
+        function: {
+          name: "ventas_por_dia",
+          description:
+            "Desglose de autos lavados (entregados) y ventas por cada día dentro de un período. Úsala para cualquier pregunta sobre 'el día que más/menos' autos se lavaron o se vendió, rachas, o comparar días específicos — te regresa directamente cuál fue el día con más autos y el día con más ventas, además del top 10 de cada uno. NUNCA inventes ni calcules esto de memoria ni con otra herramienta — esta es la única que lo sabe con certeza.",
+          parameters: PARAM_FECHA,
+        },
+      },
+      ejecutar: ventasPorDia,
     },
     {
       definicion: {

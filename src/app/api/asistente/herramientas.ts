@@ -670,7 +670,7 @@ export function construirHerramientas(incluirFinancieras: boolean, incluirHistor
         function: {
           name: "ventas_por_dia",
           description:
-            "Desglose de autos lavados (entregados) y ventas por cada día dentro de un período. Úsala para cualquier pregunta sobre 'el día que más/menos' autos se lavaron o se vendió, rachas, o comparar días específicos — te regresa directamente cuál fue el día con más autos y el día con más ventas, además del top 10 de cada uno. NUNCA inventes ni calcules esto de memoria ni con otra herramienta — esta es la única que lo sabe con certeza.",
+            "Desglose de autos lavados (entregados) y ventas por cada día dentro de un período. Úsala para cualquier pregunta sobre 'el día que más/menos' autos se lavaron o se vendió, rachas, récords, o comparar días específicos — te regresa directamente cuál fue el día con más autos y el día con más ventas, además del top 10 de cada uno. Si preguntan por el 'récord' del negocio o 'el mejor día de la historia' sin dar un período, usa periodo 'todo' (todo el histórico), no 'hoy'. NUNCA inventes ni calcules esto de memoria ni con otra herramienta — esta es la única que lo sabe con certeza.",
           parameters: PARAM_FECHA,
         },
       },

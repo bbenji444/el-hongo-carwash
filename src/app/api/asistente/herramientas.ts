@@ -33,7 +33,16 @@ const PARAM_FECHA = {
       type: "string",
       enum: [...PERIODOS_VALIDOS, "personalizado"],
       description:
-        "'hoy', '7d' (últimos 7 días), '30d' (últimos 30 días), 'mes_actual' (del día 1 del mes en curso a hoy — úsalo para 'este mes') o 'todo' el histórico. Usa 'personalizado' junto con 'desde' (y opcionalmente 'hasta') para cualquier período con nombre que no sea exactamente uno de esos cinco — un mes YA terminado, una semana específica, 'los últimos N días' con N distinto de 7/30, etc. — calculando tú mismo las fechas a partir de la fecha de hoy que ya tienes.",
+        "'hoy', '7d' (últimos 7 días), '30d' (últimos 30 días), 'mes_actual' (del día 1 del mes en curso a hoy — úsalo para 'este mes') o 'todo' el histórico. Usa 'personalizado' junto con 'desde' (y opcionalmente 'hasta') para cualquier período con nombre que no sea un mes del calendario y no sea exactamente uno de esos cinco atajos — una semana específica, 'los últimos N días' con N distinto de 7/30, etc. Para un MES DEL CALENDARIO con nombre (ej. 'septiembre', 'en marzo'), NO uses 'periodo' — usa 'anio'+'mes' (ver abajo) en su lugar, sea el mes en curso o uno ya terminado.",
+    },
+    anio: {
+      type: "number",
+      description:
+        "Úsalo junto con 'mes' (y OMITE 'periodo'/'desde'/'hasta') cuando pregunten por un mes del calendario con nombre — ej. 'septiembre', 'en marzo', 'el mes pasado'. El sistema calcula el rango exacto del mes completo (día 1 al último día, sin que tengas que saber cuántos días tiene ni hacer la cuenta tú mismo — así nunca sale un rango con fechas inventadas o de más/menos). Si no te dan el año, usa el año en curso — salvo que ese mes todavía no haya pasado este año, en cuyo caso es del año anterior.",
+    },
+    mes: {
+      type: "number",
+      description: "Mes del 1 (enero) al 12 (diciembre). Solo se usa junto con 'anio'.",
     },
     desde: {
       type: "string",
@@ -44,7 +53,7 @@ const PARAM_FECHA = {
       description: "Fecha de fin en formato YYYY-MM-DD (incluida). Solo se usa si periodo es 'personalizado'; si se omite, llega hasta hoy.",
     },
   },
-  required: ["periodo"],
+  required: [],
 } as const;
 
 // "en-CA" da el formato YYYY-MM-DD directo, sin tener que armarlo a mano.
@@ -52,7 +61,36 @@ function hoyFechaMX(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/Mexico_City" });
 }
 
+// Rango exacto de un mes de calendario dado (anio + mes 1-12) — el
+// reemplazo confiable de dejar que el modelo calcule "desde"/"hasta" de un
+// mes con 'personalizado' (que requiere que sepa cuántos días tiene ese
+// mes específico). El "fin" se calcula como "inicio del mes SIGUIENTE menos
+// 1 milisegundo", nunca restando días a mano — así nunca importa si el mes
+// tiene 28, 29, 30 o 31 días, ni qué pasa en diciembre->enero.
+function rangoMesEspecifico(anio: number, mes: number): RangoResuelto {
+  const OFFSET_MX_MS = 6 * 3600 * 1000;
+  const inicioMs = Date.UTC(anio, mes - 1, 1, 0, 0, 0, 0) + OFFSET_MX_MS;
+  const finMs = Date.UTC(anio, mes, 1, 0, 0, 0, 0) + OFFSET_MX_MS - 1;
+  const etiqueta = new Date(inicioMs).toLocaleDateString("es-MX", {
+    month: "long",
+    year: "numeric",
+    timeZone: "America/Mexico_City",
+  });
+  return {
+    desdeIso: new Date(inicioMs).toISOString(),
+    hastaIso: new Date(finMs).toISOString(),
+    personalizado: true,
+    periodo: "todo",
+    etiqueta: etiqueta.charAt(0).toUpperCase() + etiqueta.slice(1),
+    desdeInput: "",
+    hastaInput: "",
+  };
+}
+
 function resolverRangoDesdeArgs(args: Record<string, unknown>): RangoResuelto {
+  if (typeof args.anio === "number" && typeof args.mes === "number" && args.mes >= 1 && args.mes <= 12) {
+    return rangoMesEspecifico(args.anio, args.mes);
+  }
   if (args.periodo === "personalizado" && typeof args.desde === "string") {
     // Si el modelo no manda "hasta", NO hay que dejarlo abierto para
     // siempre — resolverRango trata un "hasta" ausente como "sin tope
@@ -697,7 +735,7 @@ export function construirHerramientas(incluirFinancieras: boolean, incluirHistor
                 description: "Filtra solo tickets en este estado. Omite para incluir todos los estados.",
               },
             },
-            required: ["periodo"],
+            required: [],
           },
         },
       },
@@ -887,7 +925,7 @@ export function construirHerramientas(incluirFinancieras: boolean, incluirHistor
                 description: "Sección específica a filtrar, ej. 'gasto' o 'lavador'. Omite para incluir todas.",
               },
             },
-            required: ["periodo"],
+            required: [],
           },
         },
       },

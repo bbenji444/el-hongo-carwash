@@ -219,7 +219,12 @@ export async function obtenerDatosReporte(rango: RangoResuelto, filtros: Filtros
   // tamaño y viendo esta gráfica.
   const desdeTendencia = inicioDeMesMX(MESES_TENDENCIA - 1);
 
-  const [turnosRaw, pagosTurno, { data: servicios }, { data: usuarios }, gastosRaw, ingresosRaw, ventasPeriodo, ventasTendencia] =
+  // Si hay filtro maestro, "ganancia neta" necesita las ventas del negocio
+  // COMPLETO (ver nota más abajo) — una segunda consulta, sin filtro.
+  // Cuando no hay filtro, es idéntica a ventasPeriodo, así que no se repite.
+  const hayFiltroMaestro = Boolean(filtros.servicio || filtros.tamano || filtros.metodo || filtros.lavador || filtros.q);
+
+  const [turnosRaw, pagosTurno, { data: servicios }, { data: usuarios }, gastosRaw, ingresosRaw, ventasPeriodo, ventasTendencia, ventasSinFiltroRaw] =
     await Promise.all([
       turnosPromise,
       pagosTurnoPromise,
@@ -229,6 +234,7 @@ export async function obtenerDatosReporte(rango: RangoResuelto, filtros: Filtros
       ingresosPromise,
       obtenerVentasFiltradas(supabase, rango.desdeIso, rango.hastaIso, filtros),
       obtenerVentasFiltradas(supabase, desdeTendencia.toISOString(), null, filtros),
+      hayFiltroMaestro ? obtenerVentasFiltradas(supabase, rango.desdeIso, rango.hastaIso, {}) : Promise.resolve(null),
     ]);
 
   const nombrePorUsuario = new Map((usuarios ?? []).map((u) => [u.id, u.nombre]));
@@ -236,9 +242,7 @@ export async function obtenerDatosReporte(rango: RangoResuelto, filtros: Filtros
 
   const tarjetaPorTurno = new Map<string, number>();
   const transferenciaPorTurno = new Map<string, number>();
-  let ventasTotalesPeriodo = 0;
   for (const pago of pagosTurno) {
-    ventasTotalesPeriodo += pago.monto;
     if (pago.metodo === "tarjeta") {
       tarjetaPorTurno.set(pago.turno_id, (tarjetaPorTurno.get(pago.turno_id) ?? 0) + pago.monto);
     }
@@ -353,7 +357,24 @@ export async function obtenerDatosReporte(rango: RangoResuelto, filtros: Filtros
   // métodos, sin el filtro maestro) — si se está mirando solo, por ejemplo,
   // los lavados chicos, esta tarjeta sigue mostrando el negocio completo en
   // vez de una mezcla rara de "ventas de un filtro" menos "gastos de todo".
-  const gananciaNeta = ventasTotalesPeriodo + totalIngresosExtra - totalGastos;
+  //
+  // Antes esto se sacaba sumando los pagos del período por SU PROPIA fecha
+  // de registro (pago.creado_en) — un cálculo aparte, con un criterio de
+  // fecha distinto al de "Ventas totales" de arriba (que cuenta por la
+  // llegada del ticket, hora_entrada). Un ticket cobrado unos días después
+  // de registrado quedaba contado en un mes distinto en cada número, y
+  // "Ganancia neta" no cuadraba exacto con "Ventas totales + Ingresos -
+  // Gastos" aunque los tres estuvieran en la misma pantalla. Ahora usa el
+  // mismo ticket-set (sin filtro) y el mismo criterio que ventasTotales,
+  // para que los dos números siempre reconcilien.
+  const ventasSinFiltro = ventasSinFiltroRaw ?? ventasPeriodo;
+  let ventasTotalesNegocioCompleto = 0;
+  for (const t of ventasSinFiltro.tickets) {
+    for (const p of ventasSinFiltro.pagosPorTicket.get(t.id) ?? []) {
+      ventasTotalesNegocioCompleto += p.monto;
+    }
+  }
+  const gananciaNeta = ventasTotalesNegocioCompleto + totalIngresosExtra - totalGastos;
 
   // efectivo_contado nunca es null aquí: el trigger de cierre exige
   // capturarlo antes de dejar pasar un turno a "cerrado" (y esta consulta

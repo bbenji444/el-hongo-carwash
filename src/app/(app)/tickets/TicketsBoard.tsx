@@ -12,7 +12,7 @@ import { CobroModal } from "./CobroModal";
 import { CalificacionModal } from "./CalificacionModal";
 import { DescuentoModal } from "./DescuentoModal";
 import { ClienteDetalleModal } from "./ClienteDetalleModal";
-import { actualizarEstadoTicket, retrocederEstadoTicket } from "./actions";
+import { actualizarEstadoTicket, retrocederEstadoTicket, registrarPago } from "./actions";
 import { useRealtimeRefresh } from "@/lib/useRealtimeRefresh";
 
 const COLUMNAS: { estado: TicketConDetalle["estado"]; titulo: string }[] = [
@@ -124,6 +124,7 @@ export function TicketsBoard({
   // avanzar el ticket a Entregado. Si se disparó desde el botón suelto "Cobrar"
   // en una columna anterior, solo debe registrar el pago sin saltarse pasos.
   const [cobroYEntregar, setCobroYEntregar] = useState(false);
+  const [pagandoTicketId, setPagandoTicketId] = useState<string | null>(null);
   const [descuentoTicket, setDescuentoTicket] = useState<TicketConDetalle | null>(null);
   const [calificacionTicketId, setCalificacionTicketId] = useState<string | null>(null);
   const [clienteDetalleTicket, setClienteDetalleTicket] = useState<TicketConDetalle | null>(null);
@@ -185,10 +186,49 @@ export function TicketsBoard({
     );
   }
 
+  function totalTicket(ticket: TicketConDetalle) {
+    const base = precioPorTamano(ticket.servicio?.precios, ticket.tamano_vehiculo);
+    return Math.max(base + sumaExtras(ticket.extras) - ticket.descuento_monto, 0);
+  }
+
+  // Cobro en línea: la palomita ✓ de "Terminado" despliega ahí mismo los
+  // métodos de pago; al tocar uno se registra el pago (por el total, sin
+  // capturar monto) y se entrega el ticket en un solo paso.
+  function cobrarYEntregarEnLinea(ticket: TicketConDetalle, metodo: "efectivo" | "tarjeta" | "transferencia") {
+    if (!turno) return;
+    setErrorAvance(null);
+    startTransition(async () => {
+      if (!ticket.tienePago) {
+        const total = totalTicket(ticket);
+        const pago = await registrarPago({
+          ticketId: ticket.id,
+          turnoId: turno.id,
+          metodo,
+          monto: total,
+          montoRecibido: null,
+        });
+        if (pago.error) {
+          setErrorAvance(pago.error);
+          return;
+        }
+      }
+      const result = await actualizarEstadoTicket(ticket.id, "entregado");
+      if (result.error) {
+        setErrorAvance(result.error);
+      } else {
+        setPagandoTicketId(null);
+        setCalificacionTicketId(ticket.id);
+      }
+    });
+  }
+
   function avanzar(ticket: TicketConDetalle, nuevoEstado: TicketConDetalle["estado"]) {
     if (nuevoEstado === "entregado" && !ticket.tienePago) {
-      setCobroTicket(ticket);
-      setCobroYEntregar(true);
+      if (totalTicket(ticket) === 0) {
+        cobrarYEntregarEnLinea(ticket, "efectivo");
+      } else {
+        setPagandoTicketId(ticket.id);
+      }
       return;
     }
     setErrorAvance(null);
@@ -441,14 +481,40 @@ export function TicketsBoard({
                           ↩ Regresar
                         </button>
                       )}
-                      {col.estado === "terminado" && (
+                      {col.estado === "terminado" && pagandoTicketId !== ticket.id && (
                         <button
                           onClick={() => avanzar(ticket, "entregado")}
                           disabled={pending}
-                          className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-hover disabled:opacity-60"
+                          aria-label="Cobrar y entregar"
+                          className="rounded-lg bg-primary px-4 py-1.5 text-sm font-bold text-white hover:bg-primary-hover disabled:opacity-60"
                         >
-                          {ticket.tienePago ? "Entregar" : "Cobrar y entregar"}
+                          ✓
                         </button>
+                      )}
+                      {col.estado === "terminado" && pagandoTicketId === ticket.id && (
+                        <div className="flex w-full flex-col gap-1.5">
+                          <p className="text-[11px] text-muted">
+                            Total ${totalTicket(ticket).toFixed(2)} — ¿cómo pagó?
+                          </p>
+                          <div className="grid grid-cols-3 gap-1.5">
+                            {(["efectivo", "tarjeta", "transferencia"] as const).map((m) => (
+                              <button
+                                key={m}
+                                onClick={() => cobrarYEntregarEnLinea(ticket, m)}
+                                disabled={pending}
+                                className="rounded-lg bg-primary px-2 py-1.5 text-xs font-semibold text-white hover:bg-primary-hover disabled:opacity-60"
+                              >
+                                {METODO_LABEL[m]}
+                              </button>
+                            ))}
+                          </div>
+                          <button
+                            onClick={() => setPagandoTicketId(null)}
+                            className="text-[11px] text-muted hover:text-foreground"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
                       )}
                       {col.estado !== "entregado" && ticket.descuento_monto === 0 && (
                         <button

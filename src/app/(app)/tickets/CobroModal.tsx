@@ -30,73 +30,25 @@ export function CobroModal({
   const esGratis = totalSugerido === 0;
 
   const [metodo, setMetodo] = useState<PagoMetodo>("efectivo");
-  const [monto, setMonto] = useState(String(totalSugerido.toFixed(2)));
-  const [montoRecibido, setMontoRecibido] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const montoNum = Number(monto);
-  const montoRecibidoNum = Number(montoRecibido);
-  const esEfectivo = metodo === "efectivo";
-  const cambio =
-    esEfectivo && montoRecibido !== "" && Number.isFinite(montoRecibidoNum)
-      ? montoRecibidoNum - montoNum
-      : null;
-
+  // El monto ya no se captura: siempre es el total del ticket (precio +
+  // extras - descuento). Solo se elige el método de pago y se confirma.
   function handleSubmit() {
     setError(null);
-
-    // La lavada gratis no muestra método de pago ni "¿con cuánto paga?"
-    // (esos campos ni existen en ese caso) — de ahí para abajo no hay nada
-    // que validar, se manda derecho con monto 0.
-    if (esGratis) {
-      startTransition(async () => {
-        const result = await registrarPago({
-          ticketId: ticket.id,
-          turnoId,
-          metodo,
-          monto: 0,
-          montoRecibido: null,
-        });
-        if (result.error) {
-          setError(result.error);
-          return;
-        }
-        onPagado();
-      });
-      return;
-    }
-
-    if (!Number.isFinite(montoNum) || montoNum < 0) {
-      setError("Ingresa un monto válido.");
-      return;
-    }
-
-    if (esEfectivo) {
-      if (montoRecibido === "" || !Number.isFinite(montoRecibidoNum)) {
-        setError("Ingresa con cuánto paga el cliente.");
-        return;
-      }
-      if (montoRecibidoNum < montoNum) {
-        setError("Lo que paga el cliente no puede ser menor al total a cobrar.");
-        return;
-      }
-    }
-
     startTransition(async () => {
       const result = await registrarPago({
         ticketId: ticket.id,
         turnoId,
         metodo,
-        monto: montoNum,
-        montoRecibido: esEfectivo ? montoRecibidoNum : null,
+        monto: esGratis ? 0 : totalSugerido,
+        montoRecibido: null,
       });
-
       if (result.error) {
         setError(result.error);
         return;
       }
-
       onPagado();
     });
   }
@@ -131,61 +83,29 @@ export function CobroModal({
             </p>
           ) : (
             <>
+              <div className="rounded-lg border border-border bg-background px-3 py-2 text-center">
+                <p className="text-xs text-muted">Total a cobrar</p>
+                <p className="text-2xl font-bold text-foreground">${totalSugerido.toFixed(2)}</p>
+              </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-medium text-muted">Método de pago</label>
-                <select
-                  value={metodo}
-                  onChange={(e) => setMetodo(e.target.value as PagoMetodo)}
-                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
-                >
+                <div className="grid grid-cols-3 gap-2">
                   {METODOS.map((m) => (
-                    <option key={m.value} value={m.value}>
+                    <button
+                      key={m.value}
+                      type="button"
+                      onClick={() => setMetodo(m.value)}
+                      className={`rounded-lg border px-2 py-2.5 text-sm font-medium transition ${
+                        metodo === m.value
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border text-muted hover:text-foreground"
+                      }`}
+                    >
                       {m.label}
-                    </option>
+                    </button>
                   ))}
-                </select>
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-muted">Monto a cobrar</label>
-                <input
-                  value={monto}
-                  onChange={(e) => setMonto(e.target.value)}
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
-                />
-              </div>
-
-              {esEfectivo && (
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-medium text-muted">¿Con cuánto paga el cliente?</label>
-                  <input
-                    value={montoRecibido}
-                    onChange={(e) => setMontoRecibido(e.target.value)}
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="Ej. 200"
-                    className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
-                  />
                 </div>
-              )}
-
-              {esEfectivo && cambio !== null && (
-                <div
-                  className={`rounded-lg border px-3 py-2 text-sm font-semibold ${
-                    cambio < 0
-                      ? "border-primary/40 bg-primary/10 text-primary"
-                      : "border-success/40 bg-success/10 text-success"
-                  }`}
-                >
-                  {cambio < 0
-                    ? `Falta $${Math.abs(cambio).toFixed(2)} para cubrir el total.`
-                    : `Cambio a devolver: $${cambio.toFixed(2)}`}
-                </div>
-              )}
+              </div>
             </>
           )}
 
@@ -200,7 +120,7 @@ export function CobroModal({
             disabled={pending}
             className="rounded-lg bg-primary px-4 py-2.5 font-semibold text-white transition hover:bg-primary-hover disabled:opacity-60"
           >
-            {pending ? "Cobrando..." : esGratis ? "Marcar como cobrada" : "Registrar pago"}
+            {pending ? "Guardando..." : esGratis ? "Marcar como cobrada" : "✓ Pagado"}
           </button>
         </div>
       </div>

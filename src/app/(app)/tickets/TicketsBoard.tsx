@@ -9,7 +9,6 @@ import { AbrirTurnoForm } from "./AbrirTurnoForm";
 import { NuevoTicketModal } from "./NuevoTicketModal";
 import { EditarTicketModal } from "./EditarTicketModal";
 import { CobroModal } from "./CobroModal";
-import { CalificacionModal } from "./CalificacionModal";
 import { DescuentoModal } from "./DescuentoModal";
 import { ClienteDetalleModal } from "./ClienteDetalleModal";
 import { actualizarEstadoTicket, retrocederEstadoTicket, registrarPago } from "./actions";
@@ -126,7 +125,6 @@ export function TicketsBoard({
   const [cobroYEntregar, setCobroYEntregar] = useState(false);
   const [pagandoTicketId, setPagandoTicketId] = useState<string | null>(null);
   const [descuentoTicket, setDescuentoTicket] = useState<TicketConDetalle | null>(null);
-  const [calificacionTicketId, setCalificacionTicketId] = useState<string | null>(null);
   const [clienteDetalleTicket, setClienteDetalleTicket] = useState<TicketConDetalle | null>(null);
   const [errorAvance, setErrorAvance] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -217,7 +215,6 @@ export function TicketsBoard({
         setErrorAvance(result.error);
       } else {
         setPagandoTicketId(null);
-        setCalificacionTicketId(ticket.id);
       }
     });
   }
@@ -236,8 +233,6 @@ export function TicketsBoard({
       const result = await actualizarEstadoTicket(ticket.id, nuevoEstado);
       if (result.error) {
         setErrorAvance(result.error);
-      } else if (nuevoEstado === "entregado") {
-        setCalificacionTicketId(ticket.id);
       }
     });
   }
@@ -590,17 +585,11 @@ export function TicketsBoard({
                 const result = await actualizarEstadoTicket(ticketPagado.id, "entregado");
                 if (result.error) {
                   setErrorAvance(result.error);
-                } else {
-                  setCalificacionTicketId(ticketPagado.id);
-                }
+                  }
               });
             }
           }}
         />
-      )}
-
-      {calificacionTicketId && (
-        <CalificacionModal ticketId={calificacionTicketId} onClose={() => setCalificacionTicketId(null)} />
       )}
 
       {editarTicket && (

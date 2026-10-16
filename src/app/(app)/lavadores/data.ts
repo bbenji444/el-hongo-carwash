@@ -36,14 +36,8 @@ export type LavadorStat = {
   // tickets (no el conteo crudo) — un ticket de un paquete/tamaño más
   // difícil pesa más que uno rápido, en vez de contar los dos igual.
   volumenAjustadoMin: number | null;
-  // Calificación del cliente (1-10) al entregar — KPI de satisfacción,
-  // nuevo y opcional (rollout gradual), por eso también se guarda cuántas
-  // calificaciones tiene (para poder distinguir un promedio confiable de
-  // uno con muy pocos datos).
-  satisfaccionProm: number | null;
-  calificaciones: number;
-  // Puntaje combinado 0-100 (eficiencia + volumen ajustado + satisfacción,
-  // normalizados entre todos los lavadores del período) — null si el
+  // Puntaje combinado 0-100 (eficiencia + volumen ajustado, normalizados
+  // entre todos los lavadores del período) — null si el
   // lavador no tuvo ningún ticket entregado en el rango.
   puntaje: number | null;
 };
@@ -80,12 +74,11 @@ async function ticketsLavadosEnRango(rango: RangoResuelto) {
     hora_entrada: string;
     hora_inicio_lavado: string | null;
     hora_fin_lavado: string | null;
-    calificacion: number | null;
   }[] = [];
   for (let desde = 0; ; desde += TAMANO_PAGINA) {
     let paginaQuery = supabase
       .from("tickets")
-      .select("id, servicio_id, tamano_vehiculo, hora_entrada, hora_inicio_lavado, hora_fin_lavado, calificacion")
+      .select("id, servicio_id, tamano_vehiculo, hora_entrada, hora_inicio_lavado, hora_fin_lavado")
       .eq("estado", "entregado")
       .order("id")
       .range(desde, desde + TAMANO_PAGINA - 1);
@@ -128,7 +121,6 @@ async function ticketsLavadosEnRango(rango: RangoResuelto) {
       servicioId: t.servicio_id,
       tamanoVehiculo: t.tamano_vehiculo,
       monto: montoPorTicket.get(t.id) ?? 0,
-      calificacion: t.calificacion,
       tiempoLavadoMin:
         t.hora_inicio_lavado && t.hora_fin_lavado
           ? (new Date(t.hora_fin_lavado).getTime() - new Date(t.hora_inicio_lavado).getTime()) / 60000
@@ -143,14 +135,8 @@ async function ticketsLavadosEnRango(rango: RangoResuelto) {
 // Servicios (o el promedio general) como respaldo.
 const MIN_MUESTRAS_COMBINACION = 3;
 
-// A partir de cuántas calificaciones se confía por completo en el promedio
-// de satisfacción de un lavador — con menos, pesa proporcionalmente menos
-// en el puntaje combinado (para no juzgar de más con 1 sola calificación).
-const CALIFICACIONES_PARA_CONFIANZA_TOTAL = 5;
-
 const PESO_EFICIENCIA = 0.4;
 const PESO_VOLUMEN = 0.35;
-const PESO_SATISFACCION = 0.25;
 
 function normalizar(valor: number, min: number, max: number, invertir: boolean) {
   if (max === min) return 100;
@@ -209,8 +195,6 @@ export async function obtenerDatosLavadores(rango: RangoResuelto): Promise<Datos
       sumaRatioEficiencia: number;
       conEficiencia: number;
       volumenAjustadoMin: number;
-      sumaCalificacion: number;
-      conCalificacion: number;
     }
   >();
   for (const t of tickets) {
@@ -231,8 +215,6 @@ export async function obtenerDatosLavadores(rango: RangoResuelto): Promise<Datos
           sumaRatioEficiencia: 0,
           conEficiencia: 0,
           volumenAjustadoMin: 0,
-          sumaCalificacion: 0,
-          conCalificacion: 0,
         };
       entry.autos += 1;
       entry.ventas += t.monto;
@@ -249,10 +231,6 @@ export async function obtenerDatosLavadores(rango: RangoResuelto): Promise<Datos
         entry.sumaTiempoMin += t.tiempoLavadoMin;
         entry.conTiempo += 1;
       }
-      if (t.calificacion !== null) {
-        entry.sumaCalificacion += t.calificacion;
-        entry.conCalificacion += 1;
-      }
       statsPorLavador.set(lavadorId, entry);
     }
   }
@@ -261,8 +239,6 @@ export async function obtenerDatosLavadores(rango: RangoResuelto): Promise<Datos
     id,
     eficiencia: s.conEficiencia > 0 ? s.sumaRatioEficiencia / s.conEficiencia : null,
     volumenAjustadoMin: s.volumenAjustadoMin > 0 ? s.volumenAjustadoMin : null,
-    satisfaccionProm: s.conCalificacion > 0 ? s.sumaCalificacion / s.conCalificacion : null,
-    calificaciones: s.conCalificacion,
   }));
 
   const eficiencias = previos.map((p) => p.eficiencia).filter((v): v is number => v !== null);
@@ -281,20 +257,8 @@ export async function obtenerDatosLavadores(rango: RangoResuelto): Promise<Datos
     const scoreEficiencia = p.eficiencia !== null ? normalizar(p.eficiencia, minEficiencia, maxEficiencia, true) : 50;
     const scoreVolumen =
       p.volumenAjustadoMin !== null ? normalizar(p.volumenAjustadoMin, minVolumen, maxVolumen, false) : 50;
-    const scoreSatisfaccion = p.satisfaccionProm !== null ? ((p.satisfaccionProm - 1) / 9) * 100 : 50;
-
-    const confianzaSatisfaccion =
-      p.calificaciones > 0 ? Math.min(1, p.calificaciones / CALIFICACIONES_PARA_CONFIANZA_TOTAL) : 0;
-    const pesoSatisfaccionEfectivo = PESO_SATISFACCION * confianzaSatisfaccion;
-    const pesoSobrante = PESO_SATISFACCION - pesoSatisfaccionEfectivo;
     const pesoBase = PESO_EFICIENCIA + PESO_VOLUMEN;
-    const pesoEficienciaEfectivo = PESO_EFICIENCIA + pesoSobrante * (PESO_EFICIENCIA / pesoBase);
-    const pesoVolumenEfectivo = PESO_VOLUMEN + pesoSobrante * (PESO_VOLUMEN / pesoBase);
-
-    const puntaje =
-      pesoEficienciaEfectivo * scoreEficiencia +
-      pesoVolumenEfectivo * scoreVolumen +
-      pesoSatisfaccionEfectivo * scoreSatisfaccion;
+    const puntaje = (PESO_EFICIENCIA * scoreEficiencia + PESO_VOLUMEN * scoreVolumen) / pesoBase;
     puntajePorLavador.set(p.id, Math.round(puntaje));
   }
 
@@ -312,8 +276,6 @@ export async function obtenerDatosLavadores(rango: RangoResuelto): Promise<Datos
       tiempoPromedioLavadoMin: stat && stat.conTiempo > 0 ? stat.sumaTiempoMin / stat.conTiempo : null,
       eficiencia: previo?.eficiencia ?? null,
       volumenAjustadoMin: previo?.volumenAjustadoMin ?? null,
-      satisfaccionProm: previo?.satisfaccionProm ?? null,
-      calificaciones: previo?.calificaciones ?? 0,
       puntaje: puntajePorLavador.get(l.id) ?? null,
     };
   });

@@ -178,22 +178,6 @@ export function AutosPorLavadorChart({ data }: { data: { nombre: string; autos: 
   );
 }
 
-// Escala de 6 colores (rojo -> naranja -> amarillo -> verde claro -> verde
-// -> verde oscuro), repartida sobre el rango REAL que se observa entre los
-// lavadores del período (no una escala fija 1-10) — así siempre se ve
-// diferencia visual entre ellos, aunque todos anden en la parte alta de la
-// calificación (que es lo esperado la mayoría del tiempo). Gris si el
-// lavador todavía no tiene ninguna calificación (rollout gradual del KPI).
-const PALETA_SATISFACCION = ["#dc2626", "#ea580c", "#facc15", "#a3e635", "#4ade80", "#16a34a"];
-
-function colorPorSatisfaccion(valor: number | null, min: number, max: number) {
-  if (valor === null) return "var(--muted)";
-  if (max === min) return PALETA_SATISFACCION[PALETA_SATISFACCION.length - 1];
-  const t = Math.max(0, Math.min(1, (valor - min) / (max - min)));
-  const idx = Math.min(PALETA_SATISFACCION.length - 1, Math.floor(t * PALETA_SATISFACCION.length));
-  return PALETA_SATISFACCION[idx];
-}
-
 export function RelacionLavadoresChart({
   data,
 }: {
@@ -201,8 +185,6 @@ export function RelacionLavadoresChart({
     nombre: string;
     eficiencia: number;
     volumenAjustadoMin: number;
-    satisfaccionProm: number | null;
-    calificaciones: number;
   }[];
 }) {
   if (data.length === 0) {
@@ -215,9 +197,6 @@ export function RelacionLavadoresChart({
 
   const promedioVolumen = data.reduce((acc, d) => acc + d.volumenAjustadoMin, 0) / data.length;
   const promedioEficiencia = data.reduce((acc, d) => acc + d.eficiencia, 0) / data.length;
-  const satisfacciones = data.map((d) => d.satisfaccionProm).filter((v): v is number => v !== null);
-  const minSatisfaccion = satisfacciones.length ? Math.min(...satisfacciones) : 0;
-  const maxSatisfaccion = satisfacciones.length ? Math.max(...satisfacciones) : 0;
 
   return (
     <div className="flex flex-col gap-2">
@@ -251,7 +230,7 @@ export function RelacionLavadoresChart({
             axisLine={false}
             width={50}
           />
-          <ZAxis dataKey="calificaciones" range={[80, 320]} />
+          <ZAxis range={[160, 160]} />
           <ReferenceLine x={promedioEficiencia} stroke="var(--border)" strokeDasharray="4 4" />
           <ReferenceLine y={promedioVolumen} stroke="var(--border)" strokeDasharray="4 4" />
           <Tooltip
@@ -262,46 +241,24 @@ export function RelacionLavadoresChart({
                 nombre: string;
                 eficiencia: number;
                 volumenAjustadoMin: number;
-                satisfaccionProm: number | null;
-                calificaciones: number;
               };
               return (
                 <div className="rounded-lg border border-border bg-surface px-3 py-2 text-xs shadow-lg">
                   <p className="mb-0.5 font-medium text-foreground">{p.nombre}</p>
                   <p className="text-muted">Eficiencia: {p.eficiencia.toFixed(2)}</p>
                   <p className="text-muted">Volumen ajustado: {p.volumenAjustadoMin.toFixed(0)} min</p>
-                  <p className="text-muted">
-                    Satisfacción:{" "}
-                    {p.satisfaccionProm !== null ? `${p.satisfaccionProm.toFixed(1)}/10 (n=${p.calificaciones})` : "sin datos"}
-                  </p>
                 </div>
               );
             }}
           />
           <Scatter data={data} animationDuration={700} animationEasing="ease-out">
             {data.map((d) => (
-              <Cell
-                key={d.nombre}
-                fill={colorPorSatisfaccion(d.satisfaccionProm, minSatisfaccion, maxSatisfaccion)}
-              />
+              <Cell key={d.nombre} fill="var(--accent)" />
             ))}
             <LabelList dataKey="nombre" position="top" fontSize={11} fill="var(--foreground)" />
           </Scatter>
         </ScatterChart>
       </ResponsiveContainer>
-      <div className="flex flex-wrap items-center justify-center gap-3 text-[10px] text-muted">
-        <span className="flex items-center gap-1">
-          Baja
-          {PALETA_SATISFACCION.map((c) => (
-            <span key={c} className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: c }} />
-          ))}
-          Alta (satisfacción relativa al grupo)
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="h-2.5 w-2.5 rounded-full bg-muted" /> Sin calificaciones aún
-        </span>
-        <span>· Tamaño de burbuja = número de calificaciones</span>
-      </div>
     </div>
   );
 }

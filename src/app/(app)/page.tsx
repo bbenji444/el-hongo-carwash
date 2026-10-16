@@ -216,8 +216,6 @@ export default async function DashboardPage({
       nombre: l.nombre,
       eficiencia: l.eficiencia!,
       volumenAjustadoMin: l.volumenAjustadoMin!,
-      satisfaccionProm: l.satisfaccionProm,
-      calificaciones: l.calificaciones,
     }));
   const rankingLavadores = [...lavadoresRendimientoActivos]
     .filter((l) => l.puntaje !== null)
@@ -320,8 +318,7 @@ export default async function DashboardPage({
           <h2 className="font-semibold text-foreground">Rendimiento: eficiencia vs volumen (desde el 6 sep 2026)</h2>
           <p className="text-xs text-muted">
             Arriba-izquierda es lo mejor: más rápido que sus compañeros en trabajos de dificultad equivalente, con
-            más volumen ajustado. El color de la burbuja es la satisfacción del cliente; el tamaño, cuántas
-            calificaciones tiene.
+            más volumen ajustado.
           </p>
           <div className="mt-3">
             <RelacionLavadoresChart data={relacionLavadores} />
@@ -419,8 +416,7 @@ export default async function DashboardPage({
         <div className="hover-lift animate-in rounded-xl border border-border bg-surface p-5" style={{ animationDelay: "480ms" }}>
           <h2 className="font-semibold text-foreground">Ranking de lavadores (desde el 6 sep 2026)</h2>
           <p className="text-xs text-muted">
-            Puntaje combinado (eficiencia + volumen ajustado + satisfacción). Con pocas calificaciones, la
-            satisfacción pesa menos en el puntaje hasta acumular más datos.
+            Puntaje combinado (eficiencia + volumen ajustado).
           </p>
           <div className="mt-3 overflow-x-auto">
             <table className="w-full text-left text-sm">
@@ -430,7 +426,6 @@ export default async function DashboardPage({
                   <th className="px-3 py-2 text-right">Autos</th>
                   <th className="px-3 py-2 text-right">Volumen ajustado</th>
                   <th className="px-3 py-2 text-right">Eficiencia</th>
-                  <th className="px-3 py-2 text-right">Satisfacción</th>
                   <th className="px-3 py-2 text-right">Puntaje</th>
                 </tr>
               </thead>
@@ -447,9 +442,6 @@ export default async function DashboardPage({
                     </td>
                     <td className="px-3 py-2 text-right text-muted">
                       {l.eficiencia !== null ? l.eficiencia.toFixed(2) : "—"}
-                    </td>
-                    <td className="px-3 py-2 text-right text-muted">
-                      {l.satisfaccionProm !== null ? `${l.satisfaccionProm.toFixed(1)} (n=${l.calificaciones})` : "—"}
                     </td>
                     <td className="px-3 py-2 text-right text-lg font-bold text-primary">{l.puntaje}</td>
                   </tr>

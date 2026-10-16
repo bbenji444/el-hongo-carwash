@@ -163,8 +163,6 @@ async function rendimientoLavadores(args: Record<string, unknown>) {
         ventasGeneradas: l.ventasGeneradas,
         tiempoPromedioLavadoMin: l.tiempoPromedioLavadoMin !== null ? Math.round(l.tiempoPromedioLavadoMin) : null,
         eficiencia: l.eficiencia !== null ? Math.round(l.eficiencia * 100) / 100 : null,
-        satisfaccionPromedio: l.satisfaccionProm !== null ? Math.round(l.satisfaccionProm * 10) / 10 : null,
-        calificacionesRecibidas: l.calificaciones,
         puntaje: l.puntaje,
       }))
       .sort((a, b) => b.autosLavados - a.autosLavados),
@@ -696,7 +694,7 @@ export function construirHerramientas(incluirFinancieras: boolean, incluirHistor
         function: {
           name: "rendimiento_lavadores",
           description:
-            "Estadísticas de cada lavador activo en un período: autos lavados, ventas generadas, tiempo promedio, eficiencia, satisfacción del cliente y puntaje general. Úsala para cualquier pregunta sobre lavadores o su rendimiento.",
+            "Estadísticas de cada lavador activo en un período: autos lavados, ventas generadas, tiempo promedio, eficiencia y puntaje general. Úsala para cualquier pregunta sobre lavadores o su rendimiento.",
           parameters: PARAM_FECHA,
         },
       },

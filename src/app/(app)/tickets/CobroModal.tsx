@@ -29,7 +29,7 @@ export function CobroModal({
   const totalSugerido = Math.max(precioBase + precioExtras - ticket.descuento_monto, 0);
   const esGratis = totalSugerido === 0;
 
-  const [metodo, setMetodo] = useState<PagoMetodo>("efectivo");
+  const [metodo, setMetodo] = useState<PagoMetodo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -37,11 +37,18 @@ export function CobroModal({
   // extras - descuento). Solo se elige el método de pago y se confirma.
   function handleSubmit() {
     setError(null);
+    // Sin método por defecto: antes arrancaba en Efectivo y un cobro con
+    // tarjeta/transferencia podía quedar como efectivo por no cambiarlo,
+    // inflando el efectivo esperado de caja.
+    if (!esGratis && !metodo) {
+      setError("Elige el método de pago.");
+      return;
+    }
     startTransition(async () => {
       const result = await registrarPago({
         ticketId: ticket.id,
         turnoId,
-        metodo,
+        metodo: metodo ?? "efectivo",
         monto: esGratis ? 0 : totalSugerido,
         montoRecibido: null,
       });

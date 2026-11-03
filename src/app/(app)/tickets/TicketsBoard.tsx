@@ -59,6 +59,7 @@ export function TicketsBoard({
   const [pagandoTicketId, setPagandoTicketId] = useState<string | null>(null);
   const [clienteDetalleTicket, setClienteDetalleTicket] = useState<TicketConDetalle | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [busqueda, setBusqueda] = useState("");
   const [pending, startTransition] = useTransition();
 
   useRealtimeRefresh(["tickets", "pagos", "turnos", "ticket_extras"]);
@@ -82,9 +83,35 @@ export function TicketsBoard({
   // Desde el cambio a "registrar = cobrado y entregado", todo ticket nuevo
   // nace entregado. Los que siguen sin entregar son de antes del cambio
   // (flujo viejo de estados) — se muestran aparte solo para poder cerrarlos.
-  const pendientes = tickets.filter((t) => t.estado !== "entregado");
+  // Buscador: busca en todo lo que se ve en la tarjeta (distintivo, placa,
+  // cliente, lavador, paquete, tamaño, extras, método de pago), sin
+  // distinguir mayúsculas ni acentos.
+  const normalizar = (v: string) => v.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const terminos = normalizar(busqueda).split(/s+/).filter(Boolean);
+  function coincide(t: TicketConDetalle) {
+    if (terminos.length === 0) return true;
+    const texto = normalizar(
+      [
+        t.distintivo,
+        t.placa,
+        t.vehiculo?.placas,
+        t.cliente?.nombre,
+        t.servicio?.nombre,
+        nombreTamano(t.tamano_vehiculo),
+        ...t.lavadores.map((l) => l.nombre),
+        ...t.extras.map((e) => e.nombre),
+        t.metodoPago ? METODO_LABEL[t.metodoPago] ?? t.metodoPago : null,
+      ]
+        .filter(Boolean)
+        .join(" ")
+    );
+    return terminos.every((term) => texto.includes(term));
+  }
+
+  const pendientes = tickets.filter((t) => t.estado !== "entregado" && coincide(t));
+  const totalRegistrados = tickets.filter((t) => t.estado === "entregado").length;
   const registrados = tickets
-    .filter((t) => t.estado === "entregado")
+    .filter((t) => t.estado === "entregado" && coincide(t))
     .sort(
       (a, b) =>
         new Date(b.hora_salida ?? b.hora_entrada).getTime() - new Date(a.hora_salida ?? a.hora_entrada).getTime()
@@ -266,6 +293,17 @@ export function TicketsBoard({
         </div>
       </div>
 
+      <div className="relative">
+        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted">🔍</span>
+        <input
+          type="search"
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          placeholder="Buscar carro de este turno: distintivo, placa, cliente, lavador, paquete..."
+          className="w-full rounded-xl border border-border bg-surface py-2.5 pl-10 pr-3 text-sm text-foreground outline-none focus:border-accent"
+        />
+      </div>
+
       {pendientes.length > 0 && (
         <div className="flex flex-col gap-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-warning">
@@ -279,14 +317,18 @@ export function TicketsBoard({
 
       <div className="flex flex-col gap-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-          Registrados en este turno ({registrados.length})
+          {busqueda.trim()
+            ? `Resultados: ${registrados.length} de ${totalRegistrados}`
+            : `Registrados en este turno (${registrados.length})`}
         </p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {registrados.map((t) => tarjeta(t, false))}
         </div>
         {registrados.length === 0 && (
           <p className="rounded-xl border border-dashed border-border p-4 text-center text-xs text-muted">
-            Todavía no hay autos registrados en este turno.
+            {busqueda.trim()
+              ? "Ningún carro de este turno coincide con la búsqueda."
+              : "Todavía no hay autos registrados en este turno."}
           </p>
         )}
       </div>

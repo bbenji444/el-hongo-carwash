@@ -12,7 +12,6 @@ type ServicioInput = {
   caracteristicas: string[];
   orden: number;
   destacado: boolean;
-  tiempoEstimadoMin: number | null;
   precios: PrecioInput[];
 };
 
@@ -27,7 +26,6 @@ export async function crearServicio(input: ServicioInput) {
       caracteristicas: input.caracteristicas,
       orden: input.orden,
       destacado: input.destacado,
-      tiempo_estimado_min: input.tiempoEstimadoMin,
     })
     .select("id")
     .single();
@@ -59,7 +57,6 @@ export async function actualizarServicio(id: string, input: ServicioInput) {
       caracteristicas: input.caracteristicas,
       orden: input.orden,
       destacado: input.destacado,
-      tiempo_estimado_min: input.tiempoEstimadoMin,
     })
     .eq("id", id);
 

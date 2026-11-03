@@ -159,6 +159,7 @@ export default async function DesgloseTurnoPage({
       empleado: t.empleado_id ? nombrePorEmpleado.get(t.empleado_id) ?? null : null,
       lavadores: lavadoresPorTicket.get(t.id) ?? [],
       tienePago: pagosTicket.length > 0 || t.lavada_gratis,
+      metodoPago: pagosTicket[0]?.metodo ?? null,
       extras: extrasPorTicket.get(t.id) ?? [],
       pagos: pagosTicket,
       montoTotal: pagosTicket.reduce((acc, p) => acc + p.monto, 0),

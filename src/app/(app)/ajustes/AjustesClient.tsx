@@ -63,11 +63,6 @@ export function AjustesClient({ configuracion }: { configuracion: ConfiguracionA
     e.preventDefault();
     setError(null);
 
-    if (form.semaforo_critico_min <= form.semaforo_alerta_min) {
-      setError("El umbral crítico del semáforo debe ser mayor al de alerta.");
-      return;
-    }
-
     startTransition(async () => {
       const result = await actualizarConfiguracion(form);
       if (result.error) {
@@ -257,33 +252,6 @@ export function AjustesClient({ configuracion }: { configuracion: ConfiguracionA
                 onChange={(e) => set("color_warning", e.target.value)}
               />
             </div>
-          </Campo>
-        </div>
-      </section>
-
-      <section className="flex flex-col gap-3">
-        <h2 className="font-semibold text-foreground">Semáforo de espera (Tickets)</h2>
-        <p className="text-xs text-muted">
-          Minutos desde que se levanta el ticket antes de que la tarjeta cambie de color.
-        </p>
-        <div className="grid grid-cols-2 gap-3 sm:max-w-sm">
-          <Campo label="Amarillo (alerta) a partir de">
-            <input
-              type="number"
-              min="1"
-              className={inputClass}
-              value={form.semaforo_alerta_min}
-              onChange={(e) => set("semaforo_alerta_min", Number(e.target.value))}
-            />
-          </Campo>
-          <Campo label="Rojo (crítico) a partir de">
-            <input
-              type="number"
-              min="1"
-              className={inputClass}
-              value={form.semaforo_critico_min}
-              onChange={(e) => set("semaforo_critico_min", Number(e.target.value))}
-            />
           </Campo>
         </div>
       </section>

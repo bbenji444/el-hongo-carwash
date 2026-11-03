@@ -50,6 +50,10 @@ export function emojiPorTamano(config: ConfiguracionApp, tamano: string): string
       return config.emoji_moto_chica;
     case "moto_grande":
       return config.emoji_moto_grande;
+    case "taxi":
+      return "🚕";
+    case "van":
+      return "🚐";
     default:
       return "🚗";
   }

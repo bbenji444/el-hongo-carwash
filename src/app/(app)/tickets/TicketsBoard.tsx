@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import type { Turno, Lavador, ConfiguracionApp, ExtraCatalogo } from "@/types/database.types";
 import type { TicketConDetalle, ServicioConPrecios } from "./types";
 import { sumaExtras } from "./types";
@@ -8,18 +8,9 @@ import { nombreTamano, precioPorTamano } from "@/lib/servicios";
 import { AbrirTurnoForm } from "./AbrirTurnoForm";
 import { NuevoTicketModal } from "./NuevoTicketModal";
 import { EditarTicketModal } from "./EditarTicketModal";
-import { CobroModal } from "./CobroModal";
-import { DescuentoModal } from "./DescuentoModal";
 import { ClienteDetalleModal } from "./ClienteDetalleModal";
-import { actualizarEstadoTicket, retrocederEstadoTicket, registrarPago } from "./actions";
+import { entregarTicketPendiente } from "./actions";
 import { useRealtimeRefresh } from "@/lib/useRealtimeRefresh";
-
-const COLUMNAS: { estado: TicketConDetalle["estado"]; titulo: string }[] = [
-  { estado: "en_espera", titulo: "En espera" },
-  { estado: "en_proceso", titulo: "En proceso" },
-  { estado: "terminado", titulo: "Terminado" },
-  { estado: "entregado", titulo: "Entregado" },
-];
 
 const METODO_LABEL: Record<string, string> = {
   efectivo: "Efectivo",
@@ -33,62 +24,11 @@ type ResumenCaja = {
   pendientes: number;
   efectivoEsperado: number | null;
   ventasHoy: number;
-  tiempoEsperaMin: number | null;
 };
 
-// Semáforo de espera: verde en orden, amarillo/rojo a partir de los minutos
-// configurados en Ajustes (config.semaforo_*), sin que el ticket llegue a
-// "Entregado". El color se mide sobre el tiempo total del ciclo (persiste
-// aunque cambie de etapa) y el fondo de toda la tarjeta cambia según el
-// nivel, no solo un badge.
-type NivelEspera = "ok" | "alerta" | "critico";
-
-const TARJETA_ESTILO: Record<NivelEspera, string> = {
-  ok: "border-success/50 bg-success/10",
-  alerta: "border-warning/50 bg-warning/10",
-  critico: "border-primary/60 bg-primary/15",
-};
-
-const CRONOMETRO_ESTILO: Record<NivelEspera, string> = {
-  ok: "text-success",
-  alerta: "text-warning",
-  critico: "text-primary",
-};
-
-function calcularNivel(minutosTotal: number, alertaMin: number, criticoMin: number): NivelEspera {
-  return minutosTotal >= criticoMin ? "critico" : minutosTotal >= alertaMin ? "alerta" : "ok";
-}
-
-function formatearDuracion(ms: number) {
-  const totalSegundos = Math.max(0, Math.floor(ms / 1000));
-  const horas = Math.floor(totalSegundos / 3600);
-  const minutos = Math.floor((totalSegundos % 3600) / 60);
-  const segundos = totalSegundos % 60;
-  const mm = String(minutos).padStart(2, "0");
-  const ss = String(segundos).padStart(2, "0");
-  return horas > 0 ? `${horas}:${mm}:${ss}` : `${mm}:${ss}`;
-}
-
-function formatearMinutos(minutos: number) {
-  const redondeado = Math.round(minutos);
-  if (redondeado < 60) return `${redondeado} min`;
-  const horas = Math.floor(redondeado / 60);
-  const resto = redondeado % 60;
-  return resto > 0 ? `${horas}h ${resto}min` : `${horas}h`;
-}
-
-function ordenar(tickets: TicketConDetalle[], estado: string) {
-  if (estado === "entregado") {
-    // Entregados: el más reciente arriba, para no tener que bajar en la
-    // lista a buscar el ticket que se acaba de entregar.
-    return [...tickets].sort(
-      (a, b) => new Date(b.hora_salida ?? b.hora_entrada).getTime() - new Date(a.hora_salida ?? a.hora_entrada).getTime()
-    );
-  }
-  return [...tickets].sort((a, b) => {
-    if (a.prioridad !== b.prioridad) return a.prioridad ? -1 : 1;
-    return new Date(a.hora_entrada).getTime() - new Date(b.hora_entrada).getTime();
-  });
+function totalTicket(ticket: TicketConDetalle) {
+  const base = precioPorTamano(ticket.servicio?.precios, ticket.tamano_vehiculo);
+  return Math.max(base + sumaExtras(ticket.extras) - ticket.descuento_monto, 0);
 }
 
 export function TicketsBoard({
@@ -99,7 +39,6 @@ export function TicketsBoard({
   tickets,
   usuarioActualId,
   resumenCaja,
-  serverAhora,
   config,
   puedeEditarTickets,
   esDueno,
@@ -111,67 +50,23 @@ export function TicketsBoard({
   tickets: TicketConDetalle[];
   usuarioActualId: string;
   resumenCaja: ResumenCaja | null;
-  serverAhora: string;
   config: ConfiguracionApp;
   puedeEditarTickets: boolean;
   esDueno: boolean;
 }) {
   const [mostrarNuevo, setMostrarNuevo] = useState(false);
-  const [cobroTicket, setCobroTicket] = useState<TicketConDetalle | null>(null);
   const [editarTicket, setEditarTicket] = useState<TicketConDetalle | null>(null);
-  // Si el cobro se disparó al intentar entregar (columna "Terminado"), pagar debe
-  // avanzar el ticket a Entregado. Si se disparó desde el botón suelto "Cobrar"
-  // en una columna anterior, solo debe registrar el pago sin saltarse pasos.
-  const [cobroYEntregar, setCobroYEntregar] = useState(false);
   const [pagandoTicketId, setPagandoTicketId] = useState<string | null>(null);
-  const [descuentoTicket, setDescuentoTicket] = useState<TicketConDetalle | null>(null);
   const [clienteDetalleTicket, setClienteDetalleTicket] = useState<TicketConDetalle | null>(null);
-  const [errorAvance, setErrorAvance] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   useRealtimeRefresh(["tickets", "pagos", "turnos", "ticket_extras"]);
 
-  const [ahora, setAhora] = useState(() => Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setAhora(Date.now()), 1_000);
-    return () => clearInterval(id);
-  }, []);
-
-  // Los cronómetros comparan la hora del navegador contra marcas de tiempo
-  // puestas por el servidor. Si el reloj del equipo del cajero está
-  // desfasado (adelantado o atrasado) respecto al servidor, esa resta sale
-  // mal y el cronómetro se ve pegado en 0 hasta que el reloj local "alcanza"
-  // la hora del servidor. Por eso se corrige con un offset medido en cada
-  // carga: diferencia entre la hora que mandó el servidor y la hora local
-  // en ese instante, y se le suma siempre al "ahora" del cronómetro.
-  const [offsetMs, setOffsetMs] = useState(0);
-  useEffect(() => {
-    // Date.now() es impuro a propósito aquí: el efecto sincroniza el offset
-    // contra la hora real del reloj del navegador en el momento en que
-    // cambia serverAhora, no algo derivable de forma pura durante el render.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setOffsetMs(new Date(serverAhora).getTime() - Date.now());
-  }, [serverAhora]);
-  const ahoraCorregido = ahora + offsetMs;
-
-  // Cuántos tickets no entregados lleva cada lavador ahora mismo, para
-  // mostrarlo como referencia (no como bloqueo) al asignar uno nuevo.
-  const enProcesoPorLavador = useMemo(() => {
-    const mapa: Record<string, number> = {};
-    for (const t of tickets) {
-      if (t.estado !== "entregado") {
-        for (const l of t.lavadores) {
-          mapa[l.id] = (mapa[l.id] ?? 0) + 1;
-        }
-      }
-    }
-    return mapa;
-  }, [tickets]);
-
   const encabezado = (
     <div>
       <h1 className="text-2xl font-bold text-foreground">Tickets</h1>
-      <p className="text-sm text-muted">Tablero del turno en curso.</p>
+      <p className="text-sm text-muted">Autos registrados en el turno en curso.</p>
     </div>
   );
 
@@ -184,67 +79,129 @@ export function TicketsBoard({
     );
   }
 
-  function totalTicket(ticket: TicketConDetalle) {
-    const base = precioPorTamano(ticket.servicio?.precios, ticket.tamano_vehiculo);
-    return Math.max(base + sumaExtras(ticket.extras) - ticket.descuento_monto, 0);
-  }
+  // Desde el cambio a "registrar = cobrado y entregado", todo ticket nuevo
+  // nace entregado. Los que siguen sin entregar son de antes del cambio
+  // (flujo viejo de estados) — se muestran aparte solo para poder cerrarlos.
+  const pendientes = tickets.filter((t) => t.estado !== "entregado");
+  const registrados = tickets
+    .filter((t) => t.estado === "entregado")
+    .sort(
+      (a, b) =>
+        new Date(b.hora_salida ?? b.hora_entrada).getTime() - new Date(a.hora_salida ?? a.hora_entrada).getTime()
+    );
 
-  // Cobro en línea: la palomita ✓ de "Terminado" despliega ahí mismo los
-  // métodos de pago; al tocar uno se registra el pago (por el total, sin
-  // capturar monto) y se entrega el ticket en un solo paso.
-  function cobrarYEntregarEnLinea(ticket: TicketConDetalle, metodo: "efectivo" | "tarjeta" | "transferencia") {
-    if (!turno) return;
-    setErrorAvance(null);
+  function entregarPendiente(ticket: TicketConDetalle, metodo: "efectivo" | "tarjeta" | "transferencia" | null) {
+    setError(null);
     startTransition(async () => {
-      if (!ticket.tienePago) {
-        const total = totalTicket(ticket);
-        const pago = await registrarPago({
-          ticketId: ticket.id,
-          turnoId: turno.id,
-          metodo,
-          monto: total,
-          montoRecibido: null,
-        });
-        if (pago.error) {
-          setErrorAvance(pago.error);
-          return;
-        }
-      }
-      const result = await actualizarEstadoTicket(ticket.id, "entregado");
+      const result = await entregarTicketPendiente(ticket.id, metodo);
       if (result.error) {
-        setErrorAvance(result.error);
+        setError(result.error);
       } else {
         setPagandoTicketId(null);
       }
     });
   }
 
-  function avanzar(ticket: TicketConDetalle, nuevoEstado: TicketConDetalle["estado"]) {
-    if (nuevoEstado === "entregado" && !ticket.tienePago) {
-      if (totalTicket(ticket) === 0) {
-        cobrarYEntregarEnLinea(ticket, "efectivo");
-      } else {
-        setPagandoTicketId(ticket.id);
-      }
-      return;
-    }
-    setErrorAvance(null);
-    startTransition(async () => {
-      const result = await actualizarEstadoTicket(ticket.id, nuevoEstado);
-      if (result.error) {
-        setErrorAvance(result.error);
-      }
-    });
-  }
+  function tarjeta(ticket: TicketConDetalle, esPendiente: boolean) {
+    return (
+      <div key={ticket.id} className="flex flex-col gap-1.5 rounded-xl border border-border bg-surface p-3">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <button
+              type="button"
+              disabled={!ticket.cliente}
+              onClick={() => setClienteDetalleTicket(ticket)}
+              className="text-left text-sm font-semibold text-foreground disabled:cursor-default enabled:hover:text-accent enabled:hover:underline"
+            >
+              {ticket.cliente?.nombre ?? ticket.distintivo ?? "Cliente de mostrador"}
+            </button>
+            <p className="text-xs text-muted">
+              {[ticket.cliente ? ticket.distintivo : null, ticket.placa ?? ticket.vehiculo?.placas, nombreTamano(ticket.tamano_vehiculo)]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+          </div>
+          <span className="shrink-0 text-sm font-bold text-foreground">${totalTicket(ticket).toFixed(2)}</span>
+        </div>
 
-  function regresar(ticket: TicketConDetalle, estadoAnterior: "en_espera" | "en_proceso") {
-    setErrorAvance(null);
-    startTransition(async () => {
-      const result = await retrocederEstadoTicket(ticket.id, estadoAnterior);
-      if (result.error) {
-        setErrorAvance(result.error);
-      }
-    });
+        <p className="text-xs text-foreground">
+          {ticket.servicio?.nombre} · ${precioPorTamano(ticket.servicio?.precios, ticket.tamano_vehiculo).toFixed(2)}
+          {ticket.lavada_gratis && <span className="text-success"> · Lavada gratis</span>}
+        </p>
+        {ticket.extras.length > 0 && (
+          <p className="text-xs text-accent">
+            + {ticket.extras.map((e) => e.nombre).join(", ")} · ${sumaExtras(ticket.extras).toFixed(2)}
+          </p>
+        )}
+        {ticket.lavadores.length > 0 && (
+          <p className="text-xs text-muted">
+            {config.emoji_lavador} {ticket.lavadores.map((l) => l.nombre).join(", ")}
+          </p>
+        )}
+
+        <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+          {ticket.metodoPago && (
+            <span className="rounded-full border border-success/40 bg-success/15 px-2 py-0.5 text-success">
+              {METODO_LABEL[ticket.metodoPago] ?? ticket.metodoPago}
+            </span>
+          )}
+          {!esPendiente && (
+            <span className="text-muted">
+              {new Date(ticket.hora_salida ?? ticket.hora_entrada).toLocaleTimeString("es-MX", {
+                hour: "2-digit",
+                minute: "2-digit",
+                timeZone: "America/Mexico_City",
+              })}
+            </span>
+          )}
+        </div>
+
+        <div className="mt-1 flex flex-wrap gap-2">
+          {esPendiente && pagandoTicketId !== ticket.id && (
+            <button
+              onClick={() =>
+                ticket.tienePago || totalTicket(ticket) === 0
+                  ? entregarPendiente(ticket, null)
+                  : setPagandoTicketId(ticket.id)
+              }
+              disabled={pending}
+              aria-label="Cobrar y entregar"
+              className="rounded-lg bg-primary px-4 py-1.5 text-sm font-bold text-white hover:bg-primary-hover disabled:opacity-60"
+            >
+              ✓
+            </button>
+          )}
+          {esPendiente && pagandoTicketId === ticket.id && (
+            <div className="flex w-full flex-col gap-1.5">
+              <p className="text-[11px] text-muted">¿Cómo pagó?</p>
+              <div className="grid grid-cols-3 gap-1.5">
+                {(["efectivo", "tarjeta", "transferencia"] as const).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => entregarPendiente(ticket, m)}
+                    disabled={pending}
+                    className="rounded-lg bg-primary px-2 py-1.5 text-xs font-semibold text-white hover:bg-primary-hover disabled:opacity-60"
+                  >
+                    {METODO_LABEL[m]}
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => setPagandoTicketId(null)} className="text-[11px] text-muted hover:text-foreground">
+                Cancelar
+              </button>
+            </div>
+          )}
+          {puedeEditarTickets && (
+            <button
+              onClick={() => setEditarTicket(ticket)}
+              className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted hover:text-foreground"
+            >
+              Editar
+            </button>
+          )}
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -259,15 +216,13 @@ export function TicketsBoard({
         </button>
       </div>
 
-      {errorAvance && (
-        <p className="rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 text-sm text-primary">
-          {errorAvance}
-        </p>
+      {error && (
+        <p className="rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 text-sm text-primary">{error}</p>
       )}
 
       <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted">Resumen del turno</p>
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
           <div className="rounded-lg border border-border bg-background p-2.5">
             <p className="text-[10px] uppercase tracking-wide text-muted">Efectivo inicial</p>
             <p className="text-sm font-semibold text-foreground">${turno.efectivo_inicial.toFixed(2)}</p>
@@ -299,258 +254,41 @@ export function TicketsBoard({
               <div className="rounded-lg border border-success/40 bg-success/10 p-2.5">
                 <p className="text-[10px] uppercase tracking-wide text-muted">Ganancia</p>
                 <p className="text-sm font-semibold text-success">
-                  $
-                  {Object.values(resumenCaja.totalesVisibles).reduce((suma, monto) => suma + monto, 0).toFixed(2)}
+                  ${Object.values(resumenCaja.totalesVisibles).reduce((suma, monto) => suma + monto, 0).toFixed(2)}
                 </p>
               </div>
               <div className="rounded-lg border border-border bg-background p-2.5">
-                <p className="text-[10px] uppercase tracking-wide text-muted">Ventas hoy</p>
+                <p className="text-[10px] uppercase tracking-wide text-muted">Autos hoy</p>
                 <p className="text-sm font-semibold text-foreground">{resumenCaja.ventasHoy}</p>
-              </div>
-              <div className="rounded-lg border border-border bg-background p-2.5">
-                <p className="text-[10px] uppercase tracking-wide text-muted">Tiempo de espera</p>
-                <p className="text-sm font-semibold text-foreground">
-                  {resumenCaja.tiempoEsperaMin !== null ? formatearMinutos(resumenCaja.tiempoEsperaMin) : "—"}
-                </p>
               </div>
             </>
           )}
         </div>
-        {resumenCaja && resumenCaja.pendientes > 0 && (
-          <p className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs font-medium text-warning">
-            {resumenCaja.pendientes} ticket(s) sin entregar en este turno.
-          </p>
-        )}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
-        {COLUMNAS.map((col) => {
-          const ticketsCol = ordenar(tickets.filter((t) => t.estado === col.estado), col.estado);
-          return (
-            <div key={col.estado} className="flex flex-col gap-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-                {col.titulo} ({ticketsCol.length})
-              </p>
-              <div className="flex flex-col gap-3">
-                {ticketsCol.map((ticket) => {
-                  const entregado = col.estado === "entregado";
-                  const totalMs = ahoraCorregido - new Date(ticket.hora_entrada).getTime();
-                  const etapaMs = ahoraCorregido - new Date(ticket.hora_cambio_estado).getTime();
-                  const nivel = entregado
-                    ? "ok"
-                    : calcularNivel(Math.floor(totalMs / 60000), config.semaforo_alerta_min, config.semaforo_critico_min);
-                  return (
-                  <div
-                    key={ticket.id}
-                    className={`hover-lift flex flex-col gap-1.5 rounded-xl border p-3 transition-colors duration-500 ${TARJETA_ESTILO[nivel]}`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <button
-                          type="button"
-                          disabled={!ticket.cliente}
-                          onClick={() => setClienteDetalleTicket(ticket)}
-                          className="text-left text-sm font-semibold text-foreground disabled:cursor-default enabled:hover:text-accent enabled:hover:underline"
-                        >
-                          {ticket.cliente?.nombre ?? ticket.distintivo ?? "Cliente de mostrador"}
-                        </button>
-                        <p className="text-xs text-muted">
-                          {[
-                            ticket.cliente ? ticket.distintivo : null,
-                            ticket.placa ?? ticket.vehiculo?.placas,
-                            nombreTamano(ticket.tamano_vehiculo),
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </p>
-                      </div>
-                      {ticket.prioridad && (
-                        <span className="rounded-full border border-accent/40 bg-accent/15 px-2 py-0.5 text-[10px] font-medium text-accent">
-                          Prioridad
-                        </span>
-                      )}
-                    </div>
+      {pendientes.length > 0 && (
+        <div className="flex flex-col gap-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-warning">
+            Pendientes de antes del cambio ({pendientes.length}) — toca ✓ para cobrar y cerrar
+          </p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {pendientes.map((t) => tarjeta(t, true))}
+          </div>
+        </div>
+      )}
 
-                    <p className="text-xs text-foreground">
-                      {ticket.servicio?.nombre} · $
-                      {precioPorTamano(ticket.servicio?.precios, ticket.tamano_vehiculo).toFixed(2)}
-                      {ticket.descuento_monto > 0 && (
-                        <span className="text-warning"> · -${ticket.descuento_monto.toFixed(2)} desc.</span>
-                      )}
-                    </p>
-                    {ticket.extras.length > 0 && (
-                      <p className="text-xs text-accent">
-                        + {ticket.extras.map((e) => e.nombre).join(", ")} · ${sumaExtras(ticket.extras).toFixed(2)}
-                      </p>
-                    )}
-                    {ticket.lavadores.length > 0 && (
-                      <p className="text-xs text-muted">
-                        {config.emoji_lavador} {ticket.lavadores.map((l) => l.nombre).join(", ")}
-                      </p>
-                    )}
-
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {ticket.tienePago && (
-                        <span className="w-fit rounded-full border border-success/40 bg-success/15 px-2 py-0.5 text-[10px] text-success">
-                          Pagado
-                        </span>
-                      )}
-                    </div>
-
-                    {entregado ? (
-                      <div className="flex flex-col gap-0.5 text-[11px] text-muted">
-                        <span>
-                          Entregado a las{" "}
-                          {new Date(ticket.hora_salida ?? ticket.hora_cambio_estado).toLocaleTimeString("es-MX", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            timeZone: "America/Mexico_City",
-                          })}
-                        </span>
-                        {ticket.hora_inicio_lavado && ticket.hora_fin_lavado && (
-                          <span>
-                            🧽 Lavada:{" "}
-                            {formatearDuracion(
-                              new Date(ticket.hora_fin_lavado).getTime() -
-                                new Date(ticket.hora_inicio_lavado).getTime()
-                            )}
-                          </span>
-                        )}
-                        <span>
-                          ⏱ Total desde que llegó:{" "}
-                          {formatearDuracion(
-                            new Date(ticket.hora_salida ?? ticket.hora_cambio_estado).getTime() -
-                              new Date(ticket.hora_entrada).getTime()
-                          )}
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col gap-0.5 text-[11px]">
-                        <span className={`flex items-center gap-1.5 font-semibold ${CRONOMETRO_ESTILO[nivel]}`}>
-                          {nivel === "critico" && (
-                            <span className="relative flex h-2 w-2">
-                              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
-                              <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
-                            </span>
-                          )}
-                          ⏱ Total: {formatearDuracion(totalMs)}
-                        </span>
-                        <span className="text-muted">⏳ En esta etapa: {formatearDuracion(etapaMs)}</span>
-                      </div>
-                    )}
-
-                    <div className="mt-1 flex flex-wrap gap-2">
-                      {col.estado === "en_espera" && (
-                        <button
-                          onClick={() => avanzar(ticket, "en_proceso")}
-                          disabled={pending}
-                          className="rounded-lg bg-accent/15 px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent/25 disabled:opacity-60"
-                        >
-                          Iniciar
-                        </button>
-                      )}
-                      {col.estado === "en_proceso" && (
-                        <button
-                          onClick={() => avanzar(ticket, "terminado")}
-                          disabled={pending}
-                          className="rounded-lg bg-accent/15 px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent/25 disabled:opacity-60"
-                        >
-                          Terminar
-                        </button>
-                      )}
-                      {puedeEditarTickets && col.estado === "en_proceso" && (
-                        <button
-                          onClick={() => regresar(ticket, "en_espera")}
-                          disabled={pending}
-                          className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted hover:text-foreground disabled:opacity-60"
-                        >
-                          ↩ Regresar
-                        </button>
-                      )}
-                      {puedeEditarTickets && col.estado === "terminado" && (
-                        <button
-                          onClick={() => regresar(ticket, "en_proceso")}
-                          disabled={pending}
-                          className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted hover:text-foreground disabled:opacity-60"
-                        >
-                          ↩ Regresar
-                        </button>
-                      )}
-                      {col.estado === "terminado" && pagandoTicketId !== ticket.id && (
-                        <button
-                          onClick={() => avanzar(ticket, "entregado")}
-                          disabled={pending}
-                          aria-label="Cobrar y entregar"
-                          className="rounded-lg bg-primary px-4 py-1.5 text-sm font-bold text-white hover:bg-primary-hover disabled:opacity-60"
-                        >
-                          ✓
-                        </button>
-                      )}
-                      {col.estado === "terminado" && pagandoTicketId === ticket.id && (
-                        <div className="flex w-full flex-col gap-1.5">
-                          <p className="text-[11px] text-muted">
-                            Total ${totalTicket(ticket).toFixed(2)} — ¿cómo pagó?
-                          </p>
-                          <div className="grid grid-cols-3 gap-1.5">
-                            {(["efectivo", "tarjeta", "transferencia"] as const).map((m) => (
-                              <button
-                                key={m}
-                                onClick={() => cobrarYEntregarEnLinea(ticket, m)}
-                                disabled={pending}
-                                className="rounded-lg bg-primary px-2 py-1.5 text-xs font-semibold text-white hover:bg-primary-hover disabled:opacity-60"
-                              >
-                                {METODO_LABEL[m]}
-                              </button>
-                            ))}
-                          </div>
-                          <button
-                            onClick={() => setPagandoTicketId(null)}
-                            className="text-[11px] text-muted hover:text-foreground"
-                          >
-                            Cancelar
-                          </button>
-                        </div>
-                      )}
-                      {col.estado !== "entregado" && ticket.descuento_monto === 0 && (
-                        <button
-                          onClick={() => setDescuentoTicket(ticket)}
-                          className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted hover:text-foreground"
-                        >
-                          Precio especial
-                        </button>
-                      )}
-                      {col.estado !== "entregado" && col.estado !== "terminado" && !ticket.tienePago && (
-                        <button
-                          onClick={() => {
-                            setCobroTicket(ticket);
-                            setCobroYEntregar(false);
-                          }}
-                          className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted hover:text-foreground"
-                        >
-                          Cobrar
-                        </button>
-                      )}
-                      {puedeEditarTickets && (col.estado !== "entregado" || esDueno) && (
-                        <button
-                          onClick={() => setEditarTicket(ticket)}
-                          className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted hover:text-foreground"
-                        >
-                          Editar
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  );
-                })}
-                {ticketsCol.length === 0 && (
-                  <p className="rounded-xl border border-dashed border-border p-4 text-center text-xs text-muted">
-                    Sin tickets
-                  </p>
-                )}
-              </div>
-            </div>
-          );
-        })}
+      <div className="flex flex-col gap-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+          Registrados en este turno ({registrados.length})
+        </p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {registrados.map((t) => tarjeta(t, false))}
+        </div>
+        {registrados.length === 0 && (
+          <p className="rounded-xl border border-dashed border-border p-4 text-center text-xs text-muted">
+            Todavía no hay autos registrados en este turno.
+          </p>
+        )}
       </div>
 
       {mostrarNuevo && (
@@ -559,36 +297,9 @@ export function TicketsBoard({
           servicios={servicios}
           lavadores={lavadores}
           extras={extras}
-          enProcesoPorLavador={enProcesoPorLavador}
           config={config}
           usuarioActualId={usuarioActualId}
           onClose={() => setMostrarNuevo(false)}
-        />
-      )}
-
-      {cobroTicket && (
-        <CobroModal
-          ticket={cobroTicket}
-          turnoId={turno.id}
-          onClose={() => {
-            setCobroTicket(null);
-            setCobroYEntregar(false);
-          }}
-          onPagado={() => {
-            const ticketPagado = cobroTicket;
-            const debeEntregar = cobroYEntregar;
-            setCobroTicket(null);
-            setCobroYEntregar(false);
-            if (debeEntregar) {
-              setErrorAvance(null);
-              startTransition(async () => {
-                const result = await actualizarEstadoTicket(ticketPagado.id, "entregado");
-                if (result.error) {
-                  setErrorAvance(result.error);
-                  }
-              });
-            }
-          }}
         />
       )}
 
@@ -598,18 +309,9 @@ export function TicketsBoard({
           servicios={servicios}
           lavadores={lavadores}
           extras={extras}
-          enProcesoPorLavador={enProcesoPorLavador}
           config={config}
           esDueno={esDueno}
           onClose={() => setEditarTicket(null)}
-        />
-      )}
-
-      {descuentoTicket && (
-        <DescuentoModal
-          ticket={descuentoTicket}
-          onClose={() => setDescuentoTicket(null)}
-          onAutorizado={() => setDescuentoTicket(null)}
         />
       )}
 

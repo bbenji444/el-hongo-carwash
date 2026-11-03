@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import type { ConfiguracionApp, Lavador, ExtraCatalogo, PagoMetodo } from "@/types/database.types";
 import { nombreTamano } from "@/lib/servicios";
 import type { ServicioConPrecios, TicketConDetalle } from "../../../tickets/types";
@@ -13,21 +13,6 @@ export type TicketDesglose = TicketConDetalle & {
 
 function money(n: number) {
   return `$${n.toFixed(2)}`;
-}
-
-function formatearDuracion(ms: number) {
-  const totalSegundos = Math.max(0, Math.floor(ms / 1000));
-  const horas = Math.floor(totalSegundos / 3600);
-  const minutos = Math.floor((totalSegundos % 3600) / 60);
-  const segundos = totalSegundos % 60;
-  const mm = String(minutos).padStart(2, "0");
-  const ss = String(segundos).padStart(2, "0");
-  return horas > 0 ? `${horas}:${mm}:${ss}` : `${mm}:${ss}`;
-}
-
-function duracionLavado(t: { hora_inicio_lavado: string | null; hora_fin_lavado: string | null }) {
-  if (!t.hora_inicio_lavado || !t.hora_fin_lavado) return null;
-  return formatearDuracion(new Date(t.hora_fin_lavado).getTime() - new Date(t.hora_inicio_lavado).getTime());
 }
 
 const METODO_LABEL: Record<PagoMetodo, string> = {
@@ -65,19 +50,6 @@ export function DesgloseTurnoTabla({
 }) {
   const [editando, setEditando] = useState<TicketDesglose | null>(null);
 
-  // Cuántos tickets no entregados lleva cada lavador dentro de este turno,
-  // solo como referencia al reasignar uno (no bloquea la selección).
-  const enProcesoPorLavador = useMemo(() => {
-    const mapa: Record<string, number> = {};
-    for (const t of tickets) {
-      if (t.estado !== "entregado") {
-        for (const l of t.lavadores) {
-          mapa[l.id] = (mapa[l.id] ?? 0) + 1;
-        }
-      }
-    }
-    return mapa;
-  }, [tickets]);
 
   return (
     <>
@@ -92,7 +64,6 @@ export function DesgloseTurnoTabla({
               <th className="hidden px-4 py-3 lg:table-cell">Tamaño</th>
               <th className="hidden px-4 py-3 lg:table-cell">Empleado</th>
               <th className="hidden px-4 py-3 sm:table-cell">Lavador</th>
-              <th className="hidden px-4 py-3 lg:table-cell">Tiempo de lavado</th>
               <th className="hidden px-4 py-3 md:table-cell">Estado</th>
               <th className="hidden px-4 py-3 md:table-cell">Método</th>
               <th className="px-4 py-3">Monto</th>
@@ -124,7 +95,6 @@ export function DesgloseTurnoTabla({
                 <td className="hidden px-4 py-3 text-muted sm:table-cell">
                   {t.lavadores.length > 0 ? t.lavadores.map((l) => l.nombre).join(", ") : "—"}
                 </td>
-                <td className="hidden px-4 py-3 text-muted lg:table-cell">{duracionLavado(t) ?? "—"}</td>
                 <td className="hidden px-4 py-3 text-muted md:table-cell">{ESTADO_LABEL[t.estado] ?? t.estado}</td>
                 <td className="hidden px-4 py-3 text-muted md:table-cell">
                   {t.lavada_gratis
@@ -145,7 +115,7 @@ export function DesgloseTurnoTabla({
             ))}
             {tickets.length === 0 && (
               <tr>
-                <td colSpan={puedeEditarTickets ? 12 : 11} className="px-4 py-6 text-center text-muted">
+                <td colSpan={puedeEditarTickets ? 11 : 10} className="px-4 py-6 text-center text-muted">
                   {hayFiltro ? "Ningún ticket coincide con este filtro." : "Sin tickets en este turno."}
                 </td>
               </tr>
@@ -160,7 +130,6 @@ export function DesgloseTurnoTabla({
           servicios={servicios}
           lavadores={lavadores}
           extras={extras}
-          enProcesoPorLavador={enProcesoPorLavador}
           config={config}
           esDueno={esDueno}
           onClose={() => setEditando(null)}

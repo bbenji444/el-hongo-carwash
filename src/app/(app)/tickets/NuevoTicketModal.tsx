@@ -1,13 +1,19 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import type { TamanoVehiculo, Lavador, ConfiguracionApp, ExtraCatalogo } from "@/types/database.types";
+import type { TamanoVehiculo, Lavador, ConfiguracionApp, ExtraCatalogo, PagoMetodo } from "@/types/database.types";
 import { TAMANOS_VEHICULO, nombreTamano, precioPorTamano } from "@/lib/servicios";
 import { emojiPorTamano } from "@/lib/configuracionDefaults";
 import type { ServicioConPrecios } from "./types";
 import { BotonSeleccion } from "./BotonSeleccion";
 import { buscarClientes, crearCliente, crearTicket, progresoLealtadCliente } from "./actions";
 import { obtenerOCrearVehiculo, buscarVehiculosPorPlaca, buscarVehiculosPorTipo } from "../clientes/actions";
+
+const METODOS: { value: PagoMetodo; label: string }[] = [
+  { value: "efectivo", label: "Efectivo" },
+  { value: "tarjeta", label: "Tarjeta" },
+  { value: "transferencia", label: "Transferencia" },
+];
 
 type ClienteResultado = { id: string; nombre: string; telefono: string | null };
 type LealtadInfo = { lavadasEnCiclo: number; proximaGratis: boolean; ultimaLavada: string | null };
@@ -18,7 +24,6 @@ export function NuevoTicketModal({
   servicios,
   lavadores,
   extras,
-  enProcesoPorLavador,
   config,
   usuarioActualId,
   onClose,
@@ -27,7 +32,6 @@ export function NuevoTicketModal({
   servicios: ServicioConPrecios[];
   lavadores: Lavador[];
   extras: ExtraCatalogo[];
-  enProcesoPorLavador: Record<string, number>;
   config: ConfiguracionApp;
   usuarioActualId: string;
   onClose: () => void;
@@ -50,15 +54,12 @@ export function NuevoTicketModal({
   const [tamanoVehiculo, setTamanoVehiculo] = useState<TamanoVehiculo>("automovil");
 
   const [servicioId, setServicioId] = useState(servicios[0]?.id ?? "");
-  const [lavadorIds, setLavadorIds] = useState<string[]>([]);
+  const [lavadorId, setLavadorId] = useState<string | null>(null);
+  const [metodo, setMetodo] = useState<PagoMetodo | null>(null);
   const [extraIds, setExtraIds] = useState<string[]>([]);
 
   function toggleExtra(id: string) {
     setExtraIds((prev) => (prev.includes(id) ? prev.filter((e) => e !== id) : [...prev, id]));
-  }
-
-  function toggleLavador(id: string) {
-    setLavadorIds((prev) => (prev.includes(id) ? prev.filter((l) => l !== id) : [...prev, id]));
   }
 
   const [lealtad, setLealtad] = useState<LealtadInfo | null>(null);
@@ -161,8 +162,12 @@ export function NuevoTicketModal({
       setError("Selecciona un paquete.");
       return;
     }
-    if (lavadorIds.length === 0) {
+    if (!lavadorId) {
       setError("Selecciona quién va a lavar el auto.");
+      return;
+    }
+    if (!metodo) {
+      setError("Elige cómo pagó el cliente.");
       return;
     }
     if (creandoClienteNuevo && !nuevoClienteNombre.trim()) {
@@ -212,7 +217,8 @@ export function NuevoTicketModal({
         servicioId,
         tamanoVehiculo,
         empleadoId: usuarioActualId,
-        lavadorIds,
+        lavadorId,
+        metodo,
         turnoId,
         extraIds,
       });
@@ -225,6 +231,12 @@ export function NuevoTicketModal({
       onClose();
     });
   }
+
+  const servicioSeleccionado = servicios.find((s) => s.id === servicioId);
+  const sumaExtrasSeleccionados = extras
+    .filter((e) => extraIds.includes(e.id))
+    .reduce((acc, e) => acc + e.precio, 0);
+  const totalEstimado = precioPorTamano(servicioSeleccionado?.precios, tamanoVehiculo) + sumaExtrasSeleccionados;
 
   return (
     <div className="animate-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
@@ -382,7 +394,7 @@ export function NuevoTicketModal({
           {/* Tamaño de vehículo */}
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-medium text-muted">Tamaño de vehículo</label>
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+            <div className="grid grid-cols-4 gap-2">
               {TAMANOS_VEHICULO.map((t) => (
                 <BotonSeleccion
                   key={t.value}
@@ -436,29 +448,36 @@ export function NuevoTicketModal({
 
           {/* Lavador */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-muted">
-              Lavador (puedes seleccionar más de uno si van a lavar en pareja)
-            </label>
+            <label className="text-xs font-medium text-muted">Lavador</label>
             <div className="grid grid-cols-3 gap-2">
-              {lavadores.map((l) => {
-                const enProceso = enProcesoPorLavador[l.id] ?? 0;
-                return (
-                  <BotonSeleccion
-                    key={l.id}
-                    seleccionado={lavadorIds.includes(l.id)}
-                    onClick={() => toggleLavador(l.id)}
-                  >
-                    <span className="text-xl">{config.emoji_lavador}</span>
-                    <span className="text-xs font-medium leading-tight">{l.nombre}</span>
-                    {enProceso > 0 && <span className="text-[10px] text-warning">{enProceso} en curso</span>}
-                  </BotonSeleccion>
-                );
-              })}
+              {lavadores.map((l) => (
+                <BotonSeleccion key={l.id} seleccionado={lavadorId === l.id} onClick={() => setLavadorId(l.id)}>
+                  <span className="text-xl">{config.emoji_lavador}</span>
+                  <span className="text-xs font-medium leading-tight">{l.nombre}</span>
+                </BotonSeleccion>
+              ))}
               {lavadores.length === 0 && (
                 <p className="col-span-3 text-sm text-muted">
-                  No hay lavadores registrados. Agrega uno en la sección Lavadores.
+                  No hay lavadores registrados. Agrega uno en la sección Trabajadores.
                 </p>
               )}
+            </div>
+          </div>
+
+          {/* Pago: el auto queda cobrado y entregado al registrarlo */}
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-baseline justify-between">
+              <label className="text-xs font-medium text-muted">Método de pago</label>
+              <span className="text-sm font-bold text-foreground">
+                Total {lealtad?.proximaGratis ? "$" + sumaExtrasSeleccionados.toFixed(2) : "$" + totalEstimado.toFixed(2)}
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {METODOS.map((m) => (
+                <BotonSeleccion key={m.value} seleccionado={metodo === m.value} onClick={() => setMetodo(m.value)}>
+                  <span className="text-sm font-medium">{m.label}</span>
+                </BotonSeleccion>
+              ))}
             </div>
           </div>
 
@@ -473,7 +492,7 @@ export function NuevoTicketModal({
             disabled={pending}
             className="rounded-lg bg-primary px-4 py-2.5 font-semibold text-white transition hover:bg-primary-hover disabled:opacity-60"
           >
-            {pending ? "Creando..." : "Crear ticket"}
+            {pending ? "Registrando..." : "Registrar (cobrado)"}
           </button>
         </div>
       </div>

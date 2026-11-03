@@ -7,6 +7,8 @@ export const TAMANOS_VEHICULO: { value: TamanoVehiculo; label: string }[] = [
   { value: "camioneta_extra_grande", label: "Camioneta Extra Grande" },
   { value: "moto_chica", label: "Moto Chica" },
   { value: "moto_grande", label: "Moto Grande" },
+  { value: "taxi", label: "Taxi" },
+  { value: "van", label: "Van" },
 ];
 
 // Las motos tienen un precio fijo sin importar el paquete que se elija (no

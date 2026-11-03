@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import type { TamanoVehiculo, Lavador, ConfiguracionApp, ExtraCatalogo } from "@/types/database.types";
+import type { TamanoVehiculo, Lavador, ConfiguracionApp, ExtraCatalogo, PagoMetodo } from "@/types/database.types";
 import { TAMANOS_VEHICULO, nombreTamano, precioPorTamano } from "@/lib/servicios";
 import { emojiPorTamano } from "@/lib/configuracionDefaults";
 import type { ServicioConPrecios, TicketConDetalle } from "./types";
@@ -14,31 +14,29 @@ export function EditarTicketModal({
   servicios,
   lavadores,
   extras,
-  enProcesoPorLavador,
   config,
-  esDueno,
   onClose,
 }: {
   ticket: TicketConDetalle;
   servicios: ServicioConPrecios[];
   lavadores: Lavador[];
   extras: ExtraCatalogo[];
-  enProcesoPorLavador: Record<string, number>;
   config: ConfiguracionApp;
   esDueno: boolean;
   onClose: () => void;
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  // Todo ticket nace entregado y cobrado. El tablero solo muestra tickets
+  // del turno abierto, así que aquí siempre se puede corregir; el servidor
+  // de todos modos bloquea a quien no sea dueño si el turno ya cerró.
   const entregado = ticket.estado === "entregado";
-  // Un ticket entregado puede afectar una venta ya cobrada y sumada a una
-  // caja que quizás ya cerró — solo el dueño puede editarlo, no basta con
-  // el permiso normal de editar tickets.
-  const puedeEditarCampos = !entregado || esDueno;
+  const puedeEditarCampos = true;
 
   const [tamanoVehiculo, setTamanoVehiculo] = useState<TamanoVehiculo>(ticket.tamano_vehiculo);
   const [servicioId, setServicioId] = useState(ticket.servicio_id);
-  const [lavadorIds, setLavadorIds] = useState<string[]>(ticket.lavadores.map((l) => l.id));
+  const [lavadorId, setLavadorId] = useState<string | null>(ticket.lavadores[0]?.id ?? null);
+  const [metodo, setMetodo] = useState<PagoMetodo | null>((ticket.metodoPago as PagoMetodo | null) ?? null);
   const [distintivo, setDistintivo] = useState(ticket.distintivo ?? "");
   const [placa, setPlaca] = useState(ticket.placa ?? ticket.vehiculo?.placas ?? "");
   const [extraIds, setExtraIds] = useState<string[]>(ticket.extras.map((e) => e.extra_id));
@@ -49,15 +47,15 @@ export function EditarTicketModal({
     setExtraIds((prev) => (prev.includes(id) ? prev.filter((e) => e !== id) : [...prev, id]));
   }
 
-  function toggleLavador(id: string) {
-    setLavadorIds((prev) => (prev.includes(id) ? prev.filter((l) => l !== id) : [...prev, id]));
-  }
-
   function handleGuardar() {
     setError(null);
 
     if (!servicioId) {
       setError("Selecciona un paquete.");
+      return;
+    }
+    if (!lavadorId) {
+      setError("Selecciona quién lavó el auto.");
       return;
     }
 
@@ -111,7 +109,8 @@ export function EditarTicketModal({
       const result = await actualizarTicket(ticket.id, {
         servicioId,
         tamanoVehiculo,
-        lavadorIds,
+        lavadorId,
+        metodo,
         distintivo: distintivo.trim() || null,
         placa: placa.trim() || null,
         vehiculoId,
@@ -129,9 +128,8 @@ export function EditarTicketModal({
   }
 
   function handleEliminar() {
-    const mensaje = entregado
-      ? "¿Eliminar este ticket YA ENTREGADO por completo? Se borra también su pago y desaparece de las ventas/métricas. Esta acción no se puede deshacer."
-      : "¿Eliminar este ticket por completo? Esta acción no se puede deshacer.";
+    const mensaje =
+      "¿Eliminar este ticket por completo? Se borra también su pago y la comisión del lavador, y desaparece de las ventas. Esta acción no se puede deshacer.";
     if (!window.confirm(mensaje)) {
       return;
     }
@@ -164,14 +162,6 @@ export function EditarTicketModal({
               .map((v) => ` · ${v}`)
               .join("")}
           </div>
-
-          {entregado && (
-            <p className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
-              {esDueno
-                ? "Este ticket ya fue entregado — es una venta ya cobrada. Edítalo solo para corregir un error real."
-                : "Este ticket ya fue entregado — solo el dueño puede modificarlo o eliminarlo."}
-            </p>
-          )}
 
           {puedeEditarCampos && (
             <>
@@ -222,7 +212,7 @@ export function EditarTicketModal({
               {/* Tamaño de vehículo */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-medium text-muted">Tamaño de vehículo</label>
-                <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+                <div className="grid grid-cols-4 gap-2">
                   {TAMANOS_VEHICULO.map((t) => (
                     <BotonSeleccion
                       key={t.value}
@@ -277,29 +267,35 @@ export function EditarTicketModal({
 
               {/* Lavador */}
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-muted">
-                  Lavador (puedes seleccionar más de uno si van a lavar en pareja)
-                </label>
+                <label className="text-xs font-medium text-muted">Lavador</label>
                 <div className="grid grid-cols-3 gap-2">
-                  {lavadores.map((l) => {
-                    const enProceso = enProcesoPorLavador[l.id] ?? 0;
-                    return (
-                      <BotonSeleccion
-                        key={l.id}
-                        seleccionado={lavadorIds.includes(l.id)}
-                        onClick={() => toggleLavador(l.id)}
-                      >
-                        <span className="text-xl">{config.emoji_lavador}</span>
-                        <span className="text-xs font-medium leading-tight">{l.nombre}</span>
-                        {enProceso > 0 && <span className="text-[10px] text-warning">{enProceso} en curso</span>}
-                      </BotonSeleccion>
-                    );
-                  })}
+                  {lavadores.map((l) => (
+                    <BotonSeleccion key={l.id} seleccionado={lavadorId === l.id} onClick={() => setLavadorId(l.id)}>
+                      <span className="text-xl">{config.emoji_lavador}</span>
+                      <span className="text-xs font-medium leading-tight">{l.nombre}</span>
+                    </BotonSeleccion>
+                  ))}
                   {lavadores.length === 0 && (
                     <p className="col-span-3 text-sm text-muted">No hay lavadores registrados.</p>
                   )}
                 </div>
               </div>
+
+              {/* Método de pago (solo tickets ya cobrados) */}
+              {entregado && (
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-medium text-muted">Método de pago</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(["efectivo", "tarjeta", "transferencia"] as const).map((m) => (
+                      <BotonSeleccion key={m} seleccionado={metodo === m} onClick={() => setMetodo(m)}>
+                        <span className="text-sm font-medium">
+                          {m === "efectivo" ? "Efectivo" : m === "tarjeta" ? "Tarjeta" : "Transferencia"}
+                        </span>
+                      </BotonSeleccion>
+                    ))}
+                  </div>
+                </div>
+              )}
             </>
           )}
 
@@ -319,15 +315,13 @@ export function EditarTicketModal({
                 {pending ? "Guardando..." : "Guardar cambios"}
               </button>
             )}
-            {(!entregado || esDueno) && (
-              <button
-                onClick={handleEliminar}
-                disabled={pending}
-                className="rounded-lg border border-primary/40 px-4 py-2.5 text-sm font-medium text-primary transition hover:bg-primary/10 disabled:opacity-60"
-              >
-                Eliminar ticket
-              </button>
-            )}
+            <button
+              onClick={handleEliminar}
+              disabled={pending}
+              className="rounded-lg border border-primary/40 px-4 py-2.5 text-sm font-medium text-primary transition hover:bg-primary/10 disabled:opacity-60"
+            >
+              Eliminar ticket
+            </button>
           </div>
         </div>
       </div>

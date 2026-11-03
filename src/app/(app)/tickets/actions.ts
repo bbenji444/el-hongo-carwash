@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { PRECIOS_MOTO_FIJOS, nombreTamano } from "@/lib/servicios";
 import { registrarMovimiento } from "@/lib/historial";
-import type { TicketEstado, PagoMetodo, TamanoVehiculo } from "@/types/database.types";
+import type { PagoMetodo, TamanoVehiculo } from "@/types/database.types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
 
@@ -216,6 +216,129 @@ export async function detalleCliente(clienteId: string) {
   };
 }
 
+// Comisión del lavador: 35% del precio de LISTA del paquete (según tamaño
+// del vehículo) — sin extras, y aunque el ticket tenga descuento o sea la
+// lavada gratis (ese costo lo absorbe el negocio, no el lavador).
+const PORCENTAJE_COMISION_LAVADOR = 0.35;
+
+type SupabaseServidor = Awaited<ReturnType<typeof createClient>>;
+
+async function precioListaPaquete(
+  supabase: SupabaseServidor,
+  servicioId: string,
+  tamano: TamanoVehiculo
+): Promise<number> {
+  if (tamano in PRECIOS_MOTO_FIJOS) return PRECIOS_MOTO_FIJOS[tamano]!;
+  const { data } = await supabase
+    .from("servicios_precios")
+    .select("precio")
+    .eq("servicio_id", servicioId)
+    .eq("tamano_vehiculo", tamano)
+    .maybeSingle();
+  return data?.precio ?? 0;
+}
+
+// Total que paga el cliente: paquete + extras - descuento (la lavada
+// gratis de lealtad deja el descuento igual al paquete). Se calcula
+// siempre aquí en el servidor, nunca se confía en un monto del navegador.
+async function totalTicket(supabase: SupabaseServidor, ticketId: string) {
+  const { data: ticket } = await supabase
+    .from("tickets")
+    .select("servicio_id, tamano_vehiculo, descuento_monto, turno_id, lavada_gratis")
+    .eq("id", ticketId)
+    .maybeSingle();
+  if (!ticket) return null;
+  const [precio, { data: extras }] = await Promise.all([
+    precioListaPaquete(supabase, ticket.servicio_id, ticket.tamano_vehiculo),
+    supabase.from("ticket_extras").select("precio").eq("ticket_id", ticketId),
+  ]);
+  const sumaExtras = (extras ?? []).reduce((acc, e) => acc + e.precio, 0);
+  return {
+    ticket,
+    precioPaquete: precio,
+    total: Math.max(Math.round((precio + sumaExtras - ticket.descuento_monto) * 100) / 100, 0),
+  };
+}
+
+// Guarda (o recalcula) la comisión de cada lavador asignado al ticket. Es
+// la ÚNICA función que escribe ticket_lavadores.comision — la llaman el
+// registro, la edición y la entrega de tickets pendientes de antes del
+// cambio. Si (por tickets viejos) hubiera más de un lavador, el 35% se
+// reparte entre ellos para que el negocio nunca pague más de 35% por carro.
+async function guardarComisionTicket(supabase: SupabaseServidor, ticketId: string): Promise<string | null> {
+  const datos = await totalTicket(supabase, ticketId);
+  if (!datos) return "El ticket ya no existe.";
+  const { data: asignaciones, error } = await supabase
+    .from("ticket_lavadores")
+    .select("lavador_id")
+    .eq("ticket_id", ticketId);
+  if (error) return error.message;
+  const n = (asignaciones ?? []).length;
+  if (n === 0) return null;
+  const comision = Math.round(((datos.precioPaquete * PORCENTAJE_COMISION_LAVADOR) / n) * 100) / 100;
+  const { error: updateError } = await supabase
+    .from("ticket_lavadores")
+    .update({ comision, base_comision: datos.precioPaquete })
+    .eq("ticket_id", ticketId);
+  return updateError ? updateError.message : null;
+}
+
+// Deja el pago del ticket igual al total actual: lo crea si falta, lo
+// actualiza si cambió el monto o el método, o lo borra si el total quedó
+// en $0 (lavada gratis). Un ticket solo tiene un pago (restricción única
+// pagos_ticket_id_unico en la base de datos).
+async function sincronizarPagoTicket(
+  supabase: SupabaseServidor,
+  ticketId: string,
+  metodo: PagoMetodo | null,
+  usuarioId: string
+): Promise<string | null> {
+  const datos = await totalTicket(supabase, ticketId);
+  if (!datos) return "El ticket ya no existe.";
+  const { data: pagoActual } = await supabase
+    .from("pagos")
+    .select("id, metodo")
+    .eq("ticket_id", ticketId)
+    .maybeSingle();
+
+  if (datos.total <= 0) {
+    if (pagoActual) {
+      const { error } = await supabase.from("pagos").delete().eq("id", pagoActual.id);
+      if (error) return error.message;
+    }
+    return null;
+  }
+
+  const metodoFinal = metodo ?? pagoActual?.metodo ?? null;
+  if (!metodoFinal) return "Elige el método de pago.";
+
+  if (pagoActual) {
+    const { error } = await supabase
+      .from("pagos")
+      .update({ monto: datos.total, metodo: metodoFinal })
+      .eq("id", pagoActual.id);
+    return error ? error.message : null;
+  }
+
+  if (!datos.ticket.turno_id) return "El ticket no tiene turno.";
+  const { error } = await supabase.from("pagos").insert({
+    ticket_id: ticketId,
+    turno_id: datos.ticket.turno_id,
+    metodo: metodoFinal,
+    monto: datos.total,
+    monto_recibido: null,
+    usuario_id: usuarioId,
+  });
+  // 23505 = ya existía un pago (doble clic / reintento) — no es un error.
+  if (error && error.code !== "23505") return error.message;
+  return null;
+}
+
+// Registro de un auto: en un solo paso queda creado, con su lavador y
+// comisión, pagado (con el método elegido) y entregado. Ya no hay flujo de
+// "en espera → en proceso → terminado → cobrar → entregar" ni tiempos.
+// Si cualquier paso falla, se deshace todo lo que alcanzó a guardarse —
+// para que nunca quede un ticket a medias (sin pago o sin comisión).
 export async function crearTicket(input: {
   clienteId: string | null;
   vehiculoId: string | null;
@@ -224,7 +347,8 @@ export async function crearTicket(input: {
   servicioId: string;
   tamanoVehiculo: TamanoVehiculo;
   empleadoId: string;
-  lavadorIds: string[];
+  lavadorId: string;
+  metodo: PagoMetodo;
   turnoId: string;
   extraIds?: string[];
 }) {
@@ -235,6 +359,17 @@ export async function crearTicket(input: {
   } = await supabase.auth.getUser();
 
   if (!user) return { error: "Sesión no válida." };
+  if (!input.lavadorId) return { error: "Selecciona quién va a lavar el auto." };
+  if (!input.metodo) return { error: "Elige el método de pago." };
+
+  const { data: turno } = await supabase
+    .from("turnos")
+    .select("id, estado")
+    .eq("id", input.turnoId)
+    .maybeSingle();
+  if (!turno || turno.estado !== "abierto") {
+    return { error: "El turno ya no está abierto. Recarga la página." };
+  }
 
   let clienteId = input.clienteId;
   let vehiculoId = input.vehiculoId;
@@ -245,9 +380,7 @@ export async function crearTicket(input: {
   }
 
   // El descuento de la 6ta lavada gratis lo calcula y valida por completo el
-  // trigger tr_ticket_descuento_autorizado del lado del servidor (cuenta las
-  // lavadas previas del cliente) — aquí no se manda ni se confía en ningún
-  // monto de descuento.
+  // trigger tr_ticket_descuento_autorizado del lado del servidor.
   const { data: ticket, error } = await supabase
     .from("tickets")
     .insert({
@@ -266,15 +399,34 @@ export async function crearTicket(input: {
 
   if (error) return { error: error.message };
 
-  if (input.lavadorIds.length > 0) {
-    const errorLavadores = await sincronizarLavadoresTicket(supabase, ticket.id, input.lavadorIds);
-    if (errorLavadores) return { error: errorLavadores };
+  async function deshacer(mensaje: string) {
+    await supabase.from("pagos").delete().eq("ticket_id", ticket!.id);
+    await supabase.from("tickets").delete().eq("id", ticket!.id);
+    return { error: mensaje };
   }
+
+  const { error: lavadorError } = await supabase
+    .from("ticket_lavadores")
+    .insert({ ticket_id: ticket.id, lavador_id: input.lavadorId });
+  if (lavadorError) return deshacer(lavadorError.message);
 
   if (input.extraIds && input.extraIds.length > 0) {
     const errorExtras = await sincronizarExtrasTicket(supabase, ticket.id, input.extraIds);
-    if (errorExtras) return { error: errorExtras };
+    if (errorExtras) return deshacer(errorExtras);
   }
+
+  const errorComision = await guardarComisionTicket(supabase, ticket.id);
+  if (errorComision) return deshacer(errorComision);
+
+  const errorPago = await sincronizarPagoTicket(supabase, ticket.id, input.metodo, user.id);
+  if (errorPago) return deshacer(errorPago);
+
+  const ahora = new Date().toISOString();
+  const { error: entregaError } = await supabase
+    .from("tickets")
+    .update({ estado: "entregado", hora_salida: ahora, hora_cambio_estado: ahora })
+    .eq("id", ticket.id);
+  if (entregaError) return deshacer(entregaError.message);
 
   await registrarMovimiento(supabase, user.id, "crear", "ticket", ticket.id, `Creó un ticket (${resumenVehiculo(input.distintivo, input.placa)})`);
 
@@ -282,33 +434,11 @@ export async function crearTicket(input: {
   return { error: null };
 }
 
-// Reemplaza TODOS los lavadores asignados a un ticket por el conjunto que
-// se manda (mismo patrón que sincronizarExtrasTicket: borra y vuelve a
-// insertar en vez de calcular un diff — la lista siempre es corta). Se usa
-// tanto al crear como al editar un ticket.
-async function sincronizarLavadoresTicket(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  ticketId: string,
-  lavadorIds: string[]
-): Promise<string | null> {
-  const { error: borrarError } = await supabase.from("ticket_lavadores").delete().eq("ticket_id", ticketId);
-  if (borrarError) return borrarError.message;
-
-  if (lavadorIds.length === 0) return null;
-
-  const { error: insertError } = await supabase
-    .from("ticket_lavadores")
-    .insert(lavadorIds.map((lavadorId) => ({ ticket_id: ticketId, lavador_id: lavadorId })));
-
-  if (insertError) return insertError.message;
-  return null;
-}
-
 // Copia nombre y precio del extra tal como están en el catálogo al momento
 // de agregarlo al ticket (ver nota de la migración): si después se edita el
 // catálogo, lo ya agregado a tickets no cambia solo.
 async function sincronizarExtrasTicket(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  supabase: SupabaseServidor,
   ticketId: string,
   extraIds: string[]
 ): Promise<string | null> {
@@ -332,178 +462,27 @@ async function sincronizarExtrasTicket(
   return null;
 }
 
-export async function actualizarEstadoTicket(ticketId: string, estado: TicketEstado) {
+// Solo para tickets que quedaron pendientes de ANTES del cambio (registrados
+// con el flujo viejo de estados): los cobra y entrega en un paso, y les
+// guarda su comisión igual que a un registro nuevo.
+export async function entregarTicketPendiente(ticketId: string, metodo: PagoMetodo | null) {
   const supabase = await createClient();
-
-  // hora_cambio_estado se manda explícito aquí (no se deja solo al trigger de
-  // DB) para que el cronómetro de "tiempo en esta etapa" reinicie siempre que
-  // esta acción cambia el estado, sin depender de que la migración del
-  // trigger haya quedado aplicada correctamente en el entorno del usuario.
-  //
-  // hora_inicio_lavado y hora_fin_lavado son distintas de hora_cambio_estado:
-  // esa se sobreescribe en cada cambio de estado, así que para cuando el
-  // ticket llega a "entregado" ya se perdió el instante exacto en que
-  // empezó a lavarse. Estas dos solo se llenan una vez, al pasar por
-  // "en_proceso" y "terminado" respectivamente, para poder calcular después
-  // cuánto tardó la lavada en sí (sin contar la espera en cola).
-  const ahora = new Date().toISOString();
-  const update: {
-    estado: TicketEstado;
-    hora_cambio_estado: string;
-    hora_salida: string | null;
-    hora_inicio_lavado?: string;
-    hora_fin_lavado?: string;
-  } = {
-    estado,
-    hora_cambio_estado: ahora,
-    hora_salida: estado === "entregado" ? ahora : null,
-  };
-  if (estado === "en_proceso") update.hora_inicio_lavado = ahora;
-  if (estado === "terminado") update.hora_fin_lavado = ahora;
-
-  const { error } = await supabase.from("tickets").update(update).eq("id", ticketId);
-
-  if (error) return { error: error.message };
-
-  revalidatePath("/", "layout");
-  return { error: null };
-}
-
-// Regresar una etapa (para corregir un avance por error antes de editar
-// precio/servicio/etc.) — a propósito NO deja regresar desde "entregado":
-// entregar dispara el descuento de inventario y exige un pago ya registrado
-// (tr_ticket_consumo_inventario / tr_ticket_requiere_pago), así que
-// reabrirlo y volver a entregarlo descontaría el inventario dos veces. Para
-// corregir un ticket ya entregado se usa "Editar" (solo dueño), no esto.
-// Tampoco se toca hora_inicio_lavado/hora_fin_lavado aquí (a diferencia de
-// actualizarEstadoTicket): son el instante real en que se empezó/terminó a
-// lavar, y regresar de etapa no debe corromperlas con la hora actual.
-export async function retrocederEstadoTicket(ticketId: string, estado: "en_espera" | "en_proceso") {
-  const { supabase, error: permisoError } = await requierePermisoEditarTickets();
-  if (permisoError) return { error: permisoError };
-
-  const { error } = await supabase
-    .from("tickets")
-    .update({ estado, hora_cambio_estado: new Date().toISOString() })
-    .eq("id", ticketId);
-
-  if (error) return { error: error.message };
-
-  revalidatePath("/", "layout");
-  return { error: null };
-}
-
-export async function registrarPago(input: {
-  ticketId: string;
-  turnoId: string;
-  metodo: PagoMetodo;
-  monto: number;
-  montoRecibido?: number | null;
-}) {
-  const supabase = await createClient();
-
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
   if (!user) return { error: "Sesión no válida." };
 
-  // Una lavada gratis (6ta lavada del ciclo de lealtad) no genera cobro: la
-  // tabla pagos exige monto > 0, así que aquí no se inserta nada, solo se
-  // deja avanzar el ticket (el estado "gratis" ya vive en tickets.lavada_gratis).
-  if (input.monto === 0) {
-    revalidatePath("/", "layout");
-    return { error: null };
-  }
+  const errorPago = await sincronizarPagoTicket(supabase, ticketId, metodo, user.id);
+  if (errorPago) return { error: errorPago };
 
-  // Un ticket solo se cobra una vez — esta es la única función que inserta
-  // en "pagos" en toda la app. Sin esta verificación, un doble clic o un
-  // reintento por red lenta (el botón de "Registrar pago" solo se
-  // deshabilita mientras la petición está en vuelo, no después de que ya
-  // se envió) insertaba dos renglones de pago para el mismo ticket,
-  // inflando las ventas reales — se encontraron 10 casos así en el
-  // histórico real del negocio.
-  const { count: pagosExistentes } = await supabase
-    .from("pagos")
-    .select("id", { count: "exact", head: true })
-    .eq("ticket_id", input.ticketId);
-  if (pagosExistentes && pagosExistentes > 0) {
-    revalidatePath("/", "layout");
-    return { error: null };
-  }
+  const errorComision = await guardarComisionTicket(supabase, ticketId);
+  if (errorComision) return { error: errorComision };
 
-  const { error } = await supabase.from("pagos").insert({
-    ticket_id: input.ticketId,
-    turno_id: input.turnoId,
-    metodo: input.metodo,
-    monto: input.monto,
-    monto_recibido: input.montoRecibido ?? null,
-    usuario_id: user.id,
-  });
-
-  if (error) {
-    // 23505 = violó la restricción única de pagos.ticket_id — pasa solo si
-    // dos peticiones llegaron tan pegadas que ambas pasaron la revisión de
-    // arriba antes de que la primera terminara de insertar (la base de
-    // datos es la última línea de defensa para ese caso). Es el mismo caso
-    // que arriba: el ticket ya está cobrado, no es un error real que el
-    // cajero deba ver.
-    if (error.code === "23505") {
-      revalidatePath("/", "layout");
-      return { error: null };
-    }
-    return { error: error.message };
-  }
-
-  revalidatePath("/", "layout");
-  return { error: null };
-}
-
-// Precio especial: se captura el precio final (no el monto de descuento, la
-// resta la hace el servidor) y solo el nombre de quien lo autoriza — a
-// petición del dueño, ya no se pide correo/contraseña real de un
-// encargado/dueño (ver nota en la migración 20260909010000).
-export async function solicitarDescuento(input: {
-  ticketId: string;
-  precioFinal: number;
-  autorizadorNombre: string;
-}) {
-  if (!input.autorizadorNombre.trim()) {
-    return { error: "Escribe el nombre de quien autoriza este precio." };
-  }
-
-  const supabase = await createClient();
-
-  const { data: ticket } = await supabase
-    .from("tickets")
-    .select("servicio_id, tamano_vehiculo")
-    .eq("id", input.ticketId)
-    .maybeSingle();
-
-  if (!ticket) return { error: "El ticket ya no existe." };
-
-  const [{ data: precio }, { data: extras }] = await Promise.all([
-    supabase
-      .from("servicios_precios")
-      .select("precio")
-      .eq("servicio_id", ticket.servicio_id)
-      .eq("tamano_vehiculo", ticket.tamano_vehiculo)
-      .maybeSingle(),
-    supabase.from("ticket_extras").select("precio").eq("ticket_id", input.ticketId),
-  ]);
-
-  const precioTamano = PRECIOS_MOTO_FIJOS[ticket.tamano_vehiculo] ?? precio?.precio ?? 0;
-  const precioBase = precioTamano + (extras ?? []).reduce((suma, e) => suma + e.precio, 0);
-  const descuentoMonto = Math.max(precioBase - input.precioFinal, 0);
-
+  const ahora = new Date().toISOString();
   const { error } = await supabase
     .from("tickets")
-    .update({
-      descuento_monto: descuentoMonto,
-      descuento_autorizado_por: input.autorizadorNombre.trim(),
-    })
-    .eq("id", input.ticketId);
-
+    .update({ estado: "entregado", hora_salida: ahora, hora_cambio_estado: ahora })
+    .eq("id", ticketId);
   if (error) return { error: error.message };
 
   revalidatePath("/", "layout");
@@ -513,9 +492,15 @@ export async function solicitarDescuento(input: {
 // Verifica el permiso "puede_editar_tickets" (dueño siempre lo tiene; a los
 // demás roles el dueño se los puede delegar por usuario desde /usuarios).
 // Se revisa aquí además de en RLS porque UPDATE en tickets es permisivo a
-// nivel de base de datos para cualquier rol autenticado (lo usan los
-// avances normales de estado); esta acción específica de editar contenido
-// del ticket sí debe quedar reservada a quien tiene el permiso.
+// nivel de base de datos para cualquier rol autenticado; esta acción
+// específica de editar contenido del ticket sí debe quedar reservada a
+// quien tiene el permiso.
+async function turnoSigueAbierto(supabase: SupabaseServidor, turnoId: string | null) {
+  if (!turnoId) return false;
+  const { data } = await supabase.from("turnos").select("estado").eq("id", turnoId).maybeSingle();
+  return data?.estado === "abierto";
+}
+
 async function requierePermisoEditarTickets() {
   const supabase = await createClient();
 
@@ -545,7 +530,8 @@ export async function actualizarTicket(
   input: {
     servicioId: string;
     tamanoVehiculo: TamanoVehiculo;
-    lavadorIds: string[];
+    lavadorId: string;
+    metodo: PagoMetodo | null;
     distintivo: string | null;
     placa: string | null;
     vehiculoId: string | null;
@@ -563,7 +549,7 @@ export async function actualizarTicket(
   const [{ data: ticketAntes }, { data: lavadoresAntesRaw }, { data: extrasAntesRaw }] = await Promise.all([
     supabase
       .from("tickets")
-      .select("estado, servicio_id, tamano_vehiculo, distintivo, placa")
+      .select("estado, servicio_id, tamano_vehiculo, distintivo, placa, turno_id")
       .eq("id", ticketId)
       .maybeSingle(),
     supabase.from("ticket_lavadores").select("lavador_id").eq("ticket_id", ticketId),
@@ -572,13 +558,14 @@ export async function actualizarTicket(
 
   if (!ticketAntes) return { error: "El ticket ya no existe." };
 
-  // Editar un ticket ya entregado puede afectar una venta ya cobrada y
-  // sumada a una caja que quizás ya cerró — solo el dueño puede hacerlo
-  // (mismo criterio que eliminar un ticket entregado). A un
-  // encargado/cajero con el permiso normal de editar tickets se le sigue
-  // bloqueando en ese caso.
-  if (!esDueno && ticketAntes.estado === "entregado") {
-    return { error: "Solo el dueño puede editar un ticket ya entregado." };
+  if (!input.lavadorId) return { error: "Selecciona quién lavó el auto." };
+
+  // Ahora todo ticket queda entregado desde que se registra, así que el
+  // corte ya no es "entregado o no" sino si su caja sigue abierta: mientras
+  // el turno esté abierto, quien tenga el permiso puede corregir un error de
+  // captura; una vez cerrado el turno (caja ya contada), solo el dueño.
+  if (!esDueno && !(await turnoSigueAbierto(supabase, ticketAntes.turno_id))) {
+    return { error: "Solo el dueño puede editar un ticket de un turno ya cerrado." };
   }
 
   let clienteId = input.clienteId;
@@ -603,8 +590,14 @@ export async function actualizarTicket(
 
   if (error) return { error: error.message };
 
-  const errorLavadores = await sincronizarLavadoresTicket(supabase, ticketId, input.lavadorIds);
-  if (errorLavadores) return { error: errorLavadores };
+  // Un solo lavador por ticket: se reemplaza el (o los, en tickets viejos)
+  // que hubiera por el elegido.
+  const { error: borrarLavadoresError } = await supabase.from("ticket_lavadores").delete().eq("ticket_id", ticketId);
+  if (borrarLavadoresError) return { error: borrarLavadoresError.message };
+  const { error: lavadorError } = await supabase
+    .from("ticket_lavadores")
+    .insert({ ticket_id: ticketId, lavador_id: input.lavadorId });
+  if (lavadorError) return { error: lavadorError.message };
 
   // Se reemplazan todos los extras del ticket por la selección actual (en
   // vez de calcular un diff) — es una lista corta y así siempre queda en
@@ -627,11 +620,20 @@ export async function actualizarTicket(
     extrasDespuesRaw = extrasCatalogo ?? [];
   }
 
+  // Paquete/tamaño/extras pudieron cambiar: la comisión y el pago se
+  // recalculan para que sigan cuadrando con el ticket.
+  const errorComision = await guardarComisionTicket(supabase, ticketId);
+  if (errorComision) return { error: errorComision };
+  if (ticketAntes.estado === "entregado") {
+    const errorPago = await sincronizarPagoTicket(supabase, ticketId, input.metodo, actorId!);
+    if (errorPago) return { error: errorPago };
+  }
+
   // Arma el "qué cambió" del histórico: compara cada campo antes/después y
   // solo menciona los que de verdad cambiaron — para que un editor vea de
   // un vistazo "paquete: Plus → Premium" o "lavador: Tripas → Manuel" en vez
   // de solo "editó un ticket" a secas.
-  const idsLavadoresNecesarios = [...new Set([...(lavadoresAntesRaw ?? []).map((l) => l.lavador_id), ...input.lavadorIds])];
+  const idsLavadoresNecesarios = [...new Set([...(lavadoresAntesRaw ?? []).map((l) => l.lavador_id), input.lavadorId])];
   const idsServiciosNecesarios = [...new Set([ticketAntes.servicio_id, input.servicioId])];
   const [{ data: lavadoresNombresRaw }, { data: serviciosNombresRaw }] = await Promise.all([
     idsLavadoresNecesarios.length
@@ -658,7 +660,7 @@ export async function actualizarTicket(
     cambios.push(`vehículo: ${vehAntes} → ${vehDespues}`);
   }
   const lavadoresAntesTexto = (lavadoresAntesRaw ?? []).map((l) => nombrePorLavador.get(l.lavador_id) ?? "—").sort().join(", ") || "nadie";
-  const lavadoresDespuesTexto = input.lavadorIds.map((id) => nombrePorLavador.get(id) ?? "—").sort().join(", ") || "nadie";
+  const lavadoresDespuesTexto = nombrePorLavador.get(input.lavadorId) ?? "—";
   if (lavadoresAntesTexto !== lavadoresDespuesTexto) {
     cambios.push(`lavador: ${lavadoresAntesTexto} → ${lavadoresDespuesTexto}`);
   }
@@ -687,7 +689,7 @@ export async function eliminarTicket(ticketId: string) {
 
   const { data: ticket } = await supabase
     .from("tickets")
-    .select("estado, distintivo, placa")
+    .select("estado, distintivo, placa, turno_id")
     .eq("id", ticketId)
     .maybeSingle();
 
@@ -696,8 +698,8 @@ export async function eliminarTicket(ticketId: string) {
   // cerrada del turno — solo el dueño puede eliminarlo (p. ej. para
   // corregir una prueba capturada por error), no un encargado/cajero al
   // que solo se le delegó el permiso de editar/eliminar tickets normales.
-  if (ticket.estado === "entregado" && !esDueno) {
-    return { error: "Solo el dueño puede eliminar un ticket ya entregado (afectaría la caja cerrada)." };
+  if (!esDueno && !(await turnoSigueAbierto(supabase, ticket.turno_id))) {
+    return { error: "Solo el dueño puede eliminar un ticket de un turno ya cerrado (afectaría la caja ya contada)." };
   }
 
   // Un ticket puede ya tener pagos registrados (se puede cobrar antes de

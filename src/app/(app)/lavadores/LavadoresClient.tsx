@@ -157,6 +157,7 @@ export function LavadoresClient({
               <th className="px-4 py-3">Estado</th>
               <th className="px-4 py-3">Autos lavados</th>
               <th className="px-4 py-3">Ventas generadas</th>
+              <th className="px-4 py-3">Comisión (35%)</th>
               <th className="px-4 py-3"></th>
               {puedeEditar && <th className="px-4 py-3 text-right">Acciones</th>}
             </tr>
@@ -191,6 +192,7 @@ export function LavadoresClient({
                 </td>
                 <td className="px-4 py-3 text-foreground">{l.autosLavados}</td>
                 <td className="px-4 py-3 text-foreground">{money(l.ventasGeneradas)}</td>
+                <td className="px-4 py-3 font-semibold text-success">{l.tipo === "lavador" ? money(l.comision) : "—"}</td>
                 <td className="px-4 py-3">
                   <Link href={`/lavadores/${l.id}${queryString}`} className="text-xs text-accent hover:underline">
                     Ver desglose →
@@ -223,7 +225,7 @@ export function LavadoresClient({
             ))}
             {lavadores.length === 0 && (
               <tr>
-                <td colSpan={puedeEditar ? 7 : 6} className="px-4 py-6 text-center text-muted">
+                <td colSpan={puedeEditar ? 8 : 7} className="px-4 py-6 text-center text-muted">
                   Sin trabajadores registrados.
                 </td>
               </tr>

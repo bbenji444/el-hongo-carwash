@@ -122,19 +122,19 @@ export interface Database {
         Row: {
           id: string;
           servicio_id: string;
-          tamano_vehiculo: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande" | "moto_chica" | "moto_grande";
+          tamano_vehiculo: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande" | "moto_chica" | "moto_grande" | "taxi" | "van";
           precio: number;
         };
         Insert: {
           id?: string;
           servicio_id: string;
-          tamano_vehiculo: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande" | "moto_chica" | "moto_grande";
+          tamano_vehiculo: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande" | "moto_chica" | "moto_grande" | "taxi" | "van";
           precio: number;
         };
         Update: {
           id?: string;
           servicio_id?: string;
-          tamano_vehiculo?: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande" | "moto_chica" | "moto_grande";
+          tamano_vehiculo?: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande" | "moto_chica" | "moto_grande" | "taxi" | "van";
           precio?: number;
         };
         Relationships: [];
@@ -197,14 +197,20 @@ export interface Database {
         Row: {
           ticket_id: string;
           lavador_id: string;
+          comision: number | null;
+          base_comision: number | null;
         };
         Insert: {
           ticket_id: string;
           lavador_id: string;
+          comision?: number | null;
+          base_comision?: number | null;
         };
         Update: {
           ticket_id?: string;
           lavador_id?: string;
+          comision?: number | null;
+          base_comision?: number | null;
         };
         Relationships: [];
       };
@@ -506,7 +512,7 @@ export interface Database {
           distintivo: string | null;
           placa: string | null;
           servicio_id: string;
-          tamano_vehiculo: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande" | "moto_chica" | "moto_grande";
+          tamano_vehiculo: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande" | "moto_chica" | "moto_grande" | "taxi" | "van";
           empleado_id: string;
           lavador_id: string | null;
           turno_id: string;
@@ -530,7 +536,7 @@ export interface Database {
           distintivo?: string | null;
           placa?: string | null;
           servicio_id: string;
-          tamano_vehiculo: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande" | "moto_chica" | "moto_grande";
+          tamano_vehiculo: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande" | "moto_chica" | "moto_grande" | "taxi" | "van";
           empleado_id: string;
           lavador_id?: string | null;
           turno_id: string;
@@ -554,7 +560,7 @@ export interface Database {
           distintivo?: string | null;
           placa?: string | null;
           servicio_id?: string;
-          tamano_vehiculo?: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande" | "moto_chica" | "moto_grande";
+          tamano_vehiculo?: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande" | "moto_chica" | "moto_grande" | "taxi" | "van";
           empleado_id?: string;
           lavador_id?: string | null;
           turno_id?: string;
@@ -804,7 +810,7 @@ export interface Database {
       turno_estado: "abierto" | "cerrado";
       ticket_estado: "en_espera" | "en_proceso" | "terminado" | "entregado";
       pago_metodo: "efectivo" | "tarjeta" | "transferencia" | "membresia";
-      tamano_vehiculo: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande" | "moto_chica" | "moto_grande";
+      tamano_vehiculo: "automovil" | "camioneta_chica" | "camioneta_grande" | "camioneta_extra_grande" | "moto_chica" | "moto_grande" | "taxi" | "van";
       gasto_categoria: "nomina" | "insumos" | "servicios" | "renta" | "mantenimiento" | "otros";
       lavador_tipo: "lavador" | "encargado";
     };

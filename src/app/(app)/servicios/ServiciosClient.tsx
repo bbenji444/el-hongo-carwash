@@ -17,7 +17,6 @@ const emptyForm = {
   caracteristicas: "",
   orden: "",
   destacado: false,
-  tiempoEstimadoMin: "",
   precios: preciosVacios(),
 };
 
@@ -42,7 +41,6 @@ export function ServiciosClient({
       caracteristicas: servicio.caracteristicas.join("\n"),
       orden: String(servicio.orden),
       destacado: servicio.destacado,
-      tiempoEstimadoMin: servicio.tiempo_estimado_min ? String(servicio.tiempo_estimado_min) : "",
       precios: {
         ...preciosVacios(),
         ...Object.fromEntries(
@@ -73,11 +71,10 @@ export function ServiciosClient({
       precio: Number(form.precios[t.value]),
     }));
     if (precios.some((p) => !Number.isFinite(p.precio) || p.precio <= 0)) {
-      setError("Ingresa un precio válido para los 4 tamaños de vehículo.");
+      setError("Ingresa un precio válido para todos los tamaños de vehículo.");
       return;
     }
 
-    const tiempoEstimadoMin = form.tiempoEstimadoMin ? Number(form.tiempoEstimadoMin) : null;
     const caracteristicas = form.caracteristicas
       .split("\n")
       .map((c) => c.trim())
@@ -89,7 +86,6 @@ export function ServiciosClient({
       caracteristicas,
       orden: form.orden ? Number(form.orden) : 0,
       destacado: form.destacado,
-      tiempoEstimadoMin,
       precios,
     };
 
@@ -211,16 +207,6 @@ export function ServiciosClient({
                     value={form.orden}
                     onChange={(e) => setForm((f) => ({ ...f, orden: e.target.value }))}
                     type="number"
-                    className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
-                  />
-                </div>
-                <div className="flex w-36 flex-col gap-1.5">
-                  <label className="text-xs font-medium text-muted">Tiempo est. (min)</label>
-                  <input
-                    value={form.tiempoEstimadoMin}
-                    onChange={(e) => setForm((f) => ({ ...f, tiempoEstimadoMin: e.target.value }))}
-                    type="number"
-                    min="0"
                     className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
                   />
                 </div>

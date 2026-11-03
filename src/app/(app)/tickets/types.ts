@@ -7,10 +7,11 @@ export type TicketConDetalle = Ticket & {
   cliente: { id: string; nombre: string; telefono: string | null } | null;
   vehiculo: { id: string; placas: string | null; tipo_vehiculo: string | null } | null;
   empleado: { id: string; nombre: string } | null;
-  // Uno o más lavadores asignados (empiezan a lavar en pareja a veces) —
-  // arreglo vacío si nadie está asignado todavía, nunca null.
+  // Lavador asignado (desde el cambio a comisión, uno solo por ticket;
+  // tickets viejos pueden traer más de uno) — arreglo vacío si nadie.
   lavadores: { id: string; nombre: string }[];
   tienePago: boolean;
+  metodoPago: string | null;
   extras: TicketExtra[];
 };
 

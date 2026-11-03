@@ -8,14 +8,10 @@ import {
   CartesianGrid,
   Cell,
   LabelList,
-  ReferenceLine,
   ResponsiveContainer,
-  Scatter,
-  ScatterChart,
   Tooltip,
   XAxis,
   YAxis,
-  ZAxis,
 } from "recharts";
 
 const COLORES_LAVADORES = [
@@ -178,87 +174,3 @@ export function AutosPorLavadorChart({ data }: { data: { nombre: string; autos: 
   );
 }
 
-export function RelacionLavadoresChart({
-  data,
-}: {
-  data: {
-    nombre: string;
-    eficiencia: number;
-    volumenAjustadoMin: number;
-  }[];
-}) {
-  if (data.length === 0) {
-    return (
-      <p className="flex h-[260px] items-center justify-center text-sm text-muted">
-        Aún no hay suficientes lavadas cronometradas (Iniciar → Terminado) en los últimos 7 días.
-      </p>
-    );
-  }
-
-  const promedioVolumen = data.reduce((acc, d) => acc + d.volumenAjustadoMin, 0) / data.length;
-  const promedioEficiencia = data.reduce((acc, d) => acc + d.eficiencia, 0) / data.length;
-
-  return (
-    <div className="flex flex-col gap-2">
-      <ResponsiveContainer width="100%" height={260}>
-        <ScatterChart margin={{ top: 16, right: 24, left: 0, bottom: 8 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-          <XAxis
-            type="number"
-            dataKey="eficiencia"
-            name="Eficiencia"
-            stroke="var(--muted)"
-            fontSize={12}
-            tickLine={false}
-            axisLine={false}
-            label={{
-              value: "Índice de eficiencia — menos es mejor (1.0 = como el promedio)",
-              position: "insideBottom",
-              offset: -4,
-              fontSize: 10,
-              fill: "var(--muted)",
-            }}
-          />
-          <YAxis
-            type="number"
-            dataKey="volumenAjustadoMin"
-            name="Volumen ajustado"
-            unit=" min"
-            stroke="var(--muted)"
-            fontSize={12}
-            tickLine={false}
-            axisLine={false}
-            width={50}
-          />
-          <ZAxis range={[160, 160]} />
-          <ReferenceLine x={promedioEficiencia} stroke="var(--border)" strokeDasharray="4 4" />
-          <ReferenceLine y={promedioVolumen} stroke="var(--border)" strokeDasharray="4 4" />
-          <Tooltip
-            cursor={{ strokeDasharray: "3 3", stroke: "var(--muted)" }}
-            content={({ active, payload }) => {
-              if (!active || !payload?.length) return null;
-              const p = payload[0].payload as {
-                nombre: string;
-                eficiencia: number;
-                volumenAjustadoMin: number;
-              };
-              return (
-                <div className="rounded-lg border border-border bg-surface px-3 py-2 text-xs shadow-lg">
-                  <p className="mb-0.5 font-medium text-foreground">{p.nombre}</p>
-                  <p className="text-muted">Eficiencia: {p.eficiencia.toFixed(2)}</p>
-                  <p className="text-muted">Volumen ajustado: {p.volumenAjustadoMin.toFixed(0)} min</p>
-                </div>
-              );
-            }}
-          />
-          <Scatter data={data} animationDuration={700} animationEasing="ease-out">
-            {data.map((d) => (
-              <Cell key={d.nombre} fill="var(--accent)" />
-            ))}
-            <LabelList dataKey="nombre" position="top" fontSize={11} fill="var(--foreground)" />
-          </Scatter>
-        </ScatterChart>
-      </ResponsiveContainer>
-    </div>
-  );
-}

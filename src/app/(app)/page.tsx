@@ -1,13 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { diaMX, inicioDeDiaMX, inicioDeDiaMXDesdeFecha } from "@/lib/fecha";
+import { diaMX, inicioDeDiaMX } from "@/lib/fecha";
 import { obtenerConfiguracion } from "@/lib/configuracion";
-import { resolverRango, PERIODOS, type RangoResuelto } from "@/lib/rangoFechas";
-import { obtenerDatosLavadores, obtenerTiemposPorPaquete } from "./lavadores/data";
+import { resolverRango, PERIODOS } from "@/lib/rangoFechas";
+import { obtenerDatosLavadores } from "./lavadores/data";
 import { AnimatedNumber } from "@/components/AnimatedNumber";
-import { VentasPorServicioChart, TendenciaVentasChart, AutosPorLavadorChart, RelacionLavadoresChart } from "./DashboardCharts";
-import { TiemposPorPaqueteGrid } from "./TiemposPorPaqueteGrid";
+import { VentasPorServicioChart, TendenciaVentasChart, AutosPorLavadorChart } from "./DashboardCharts";
 import { AiAssistantCard } from "./AiAssistantCard";
 import { HistorialMovimientos } from "./HistorialMovimientos";
 
@@ -166,60 +165,31 @@ export default async function DashboardPage({
     total,
   }));
 
-  // Eficiencia/volumen ajustado/satisfacción: métricas nuevas (fase 38) —
-  // se cuentan desde esta fecha fija en vez de los últimos 7 días, para no
-  // mezclar datos de antes de que existiera el ajuste por dificultad ni la
-  // calificación del cliente.
-  const INICIO_METRICA_RENDIMIENTO = "2026-09-06";
-  const rangoRendimiento: RangoResuelto = {
-    desdeIso: inicioDeDiaMXDesdeFecha(INICIO_METRICA_RENDIMIENTO).toISOString(),
-    hastaIso: null,
-    personalizado: true,
-    periodo: "todo",
-    etiqueta: `desde el ${INICIO_METRICA_RENDIMIENTO}`,
-    desdeInput: INICIO_METRICA_RENDIMIENTO,
-    hastaInput: "",
-  };
-
-  // Esta tarjeta sí tiene su propio filtro de período (independiente del
-  // resto de las métricas de rendimiento, que se cuentan desde el 6 sep
-  // fijo) — el dueño quiere poder ver "hoy" o un rango específico solo
-  // para los tiempos por paquete.
-  const rangoTiempos = resolverRango({
+  // Comisiones de lavadores (35% del paquete): con su propio filtro de
+  // período (por default "Hoy", porque se les paga por día).
+  const rangoComisiones = resolverRango({
     periodo: paramsTiempos.tperiodo,
     desde: paramsTiempos.tdesde,
     hasta: paramsTiempos.thasta,
   });
 
-  // Ninguna de estas tres consultas depende de las otras — se piden todas
-  // a la vez en vez de una tras otra (antes tardaban lo que suman las tres
-  // juntas; era la causa real de que el Dashboard se sintiera lento).
-  const [{ lavadores: lavadoresStats }, { lavadores: lavadoresRendimiento }, tiemposPorPaquete] = await Promise.all([
+  // Independientes entre sí — se piden juntas.
+  const [{ lavadores: lavadoresStats }, { lavadores: lavadoresComision }] = await Promise.all([
     obtenerDatosLavadores(resolverRango({ periodo: "7d" })),
-    obtenerDatosLavadores(rangoRendimiento),
-    obtenerTiemposPorPaquete(rangoTiempos),
+    obtenerDatosLavadores(rangoComisiones),
   ]);
 
-  // Autos lavados por lavador (últimos 7 días): igual que siempre, ventana
-  // móvil de 7 días. Solo tipo "lavador" — un encargado (ej. Fani) no lava
-  // autos, así que no tiene sentido evaluarlo aquí.
+  // Autos lavados por lavador (últimos 7 días). Solo tipo "lavador" — un
+  // encargado (ej. Fani) no lava autos.
   const lavadoresActivos = lavadoresStats.filter((l) => l.activo && l.tipo === "lavador");
   const autosPorLavador = [...lavadoresActivos]
     .sort((a, b) => b.autosLavados - a.autosLavados)
     .map((l) => ({ nombre: l.nombre, autos: l.autosLavados }));
 
-  const lavadoresRendimientoActivos = lavadoresRendimiento.filter((l) => l.activo && l.tipo === "lavador");
-
-  const relacionLavadores = lavadoresRendimientoActivos
-    .filter((l) => l.eficiencia !== null && l.volumenAjustadoMin !== null)
-    .map((l) => ({
-      nombre: l.nombre,
-      eficiencia: l.eficiencia!,
-      volumenAjustadoMin: l.volumenAjustadoMin!,
-    }));
-  const rankingLavadores = [...lavadoresRendimientoActivos]
-    .filter((l) => l.puntaje !== null)
-    .sort((a, b) => (b.puntaje ?? 0) - (a.puntaje ?? 0));
+  const comisionesLavadores = lavadoresComision
+    .filter((l) => l.tipo === "lavador" && (l.activo || l.autosLavados > 0))
+    .sort((a, b) => b.comision - a.comision || b.autosLavados - a.autosLavados);
+  const totalComisiones = comisionesLavadores.reduce((acc, l) => acc + l.comision, 0);
 
   return (
     <div className="flex flex-col gap-6">
@@ -301,43 +271,22 @@ export default async function DashboardPage({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div
-          className="hover-lift animate-in rounded-xl border border-border bg-surface p-5"
-          style={{ animationDelay: "360ms" }}
-        >
-          <h2 className="font-semibold text-foreground">Autos lavados por lavador (últimos 7 días)</h2>
-          <div className="mt-3">
-            <AutosPorLavadorChart data={autosPorLavador} />
-          </div>
-        </div>
-        <div
-          className="hover-lift animate-in rounded-xl border border-border bg-surface p-5"
-          style={{ animationDelay: "420ms" }}
-        >
-          <h2 className="font-semibold text-foreground">Rendimiento: eficiencia vs volumen (desde el 6 sep 2026)</h2>
-          <p className="text-xs text-muted">
-            Arriba-izquierda es lo mejor: más rápido que sus compañeros en trabajos de dificultad equivalente, con
-            más volumen ajustado.
-          </p>
-          <div className="mt-3">
-            <RelacionLavadoresChart data={relacionLavadores} />
-          </div>
+      <div
+        className="hover-lift animate-in rounded-xl border border-border bg-surface p-5"
+        style={{ animationDelay: "360ms" }}
+      >
+        <h2 className="font-semibold text-foreground">Autos lavados por lavador (últimos 7 días)</h2>
+        <div className="mt-3">
+          <AutosPorLavadorChart data={autosPorLavador} />
         </div>
       </div>
 
-      <div className="hover-lift animate-in rounded-xl border border-border bg-surface p-5" style={{ animationDelay: "450ms" }}>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="font-semibold text-foreground">
-              Tiempo promedio por paquete y tamaño ({rangoTiempos.etiqueta})
-            </h2>
-            <p className="text-xs text-muted">
-              Igual que el rótulo de precios, pero con el tiempo real que se está tardando cada combinación — verde
-              es más rápido, rojo es más lento (comparado entre sí, no contra un número fijo).
-            </p>
-          </div>
-        </div>
+      <div className="hover-lift animate-in rounded-xl border border-border bg-surface p-5" style={{ animationDelay: "420ms" }}>
+        <h2 className="font-semibold text-foreground">Comisiones de lavadores ({rangoComisiones.etiqueta})</h2>
+        <p className="text-xs text-muted">
+          35% del precio de lista del paquete de cada auto que lavaron (sin extras). Solo cuentan los autos
+          registrados desde el cambio a pago por comisión.
+        </p>
 
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <div className="flex gap-2">
@@ -346,7 +295,7 @@ export default async function DashboardPage({
                 key={p.value}
                 href={hrefTiempos({ tperiodo: p.value })}
                 className={`rounded-lg border px-3 py-1.5 text-sm transition ${
-                  !rangoTiempos.personalizado && p.value === rangoTiempos.periodo
+                  !rangoComisiones.personalizado && p.value === rangoComisiones.periodo
                     ? "border-primary bg-primary/10 text-primary"
                     : "border-border text-muted hover:text-foreground"
                 }`}
@@ -365,7 +314,7 @@ export default async function DashboardPage({
                 id="tdesde"
                 type="date"
                 name="tdesde"
-                defaultValue={rangoTiempos.desdeInput}
+                defaultValue={rangoComisiones.desdeInput}
                 className="rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-foreground outline-none focus:border-accent"
               />
             </div>
@@ -377,21 +326,21 @@ export default async function DashboardPage({
                 id="thasta"
                 type="date"
                 name="thasta"
-                defaultValue={rangoTiempos.hastaInput}
+                defaultValue={rangoComisiones.hastaInput}
                 className="rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-foreground outline-none focus:border-accent"
               />
             </div>
             <button
               type="submit"
               className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
-                rangoTiempos.personalizado
+                rangoComisiones.personalizado
                   ? "border-primary bg-primary/10 text-primary"
                   : "border-border text-muted hover:text-foreground"
               }`}
             >
               Filtrar
             </button>
-            {rangoTiempos.personalizado && (
+            {rangoComisiones.personalizado && (
               <Link
                 href="/"
                 className="rounded-lg border border-border px-3 py-1.5 text-sm text-muted hover:text-foreground"
@@ -402,55 +351,47 @@ export default async function DashboardPage({
           </form>
         </div>
 
-        <div className="mt-3">
-          <TiemposPorPaqueteGrid
-            servicios={tiemposPorPaquete.servicios}
-            tamanos={tiemposPorPaquete.tamanos}
-            celdas={tiemposPorPaquete.celdas}
-            config={config}
-          />
+
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="text-xs uppercase tracking-wide text-muted">
+              <tr>
+                <th className="px-3 py-2">Lavador</th>
+                <th className="px-3 py-2 text-right">Autos</th>
+                <th className="px-3 py-2 text-right">Ventas</th>
+                <th className="px-3 py-2 text-right">Comisión</th>
+              </tr>
+            </thead>
+            <tbody>
+              {comisionesLavadores.map((l) => (
+                <tr key={l.id} className="border-t border-border">
+                  <td className="px-3 py-2 font-medium text-foreground">{l.nombre}</td>
+                  <td className="px-3 py-2 text-right text-muted">{l.autosLavados}</td>
+                  <td className="px-3 py-2 text-right text-muted">${l.ventasGeneradas.toFixed(2)}</td>
+                  <td className="px-3 py-2 text-right font-bold text-success">${l.comision.toFixed(2)}</td>
+                </tr>
+              ))}
+              {comisionesLavadores.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-3 py-6 text-center text-muted">
+                    Sin autos lavados en este período.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+            {comisionesLavadores.length > 0 && (
+              <tfoot>
+                <tr className="border-t-2 border-border">
+                  <td className="px-3 py-2 font-semibold text-foreground" colSpan={3}>
+                    Total a pagar
+                  </td>
+                  <td className="px-3 py-2 text-right text-lg font-bold text-success">${totalComisiones.toFixed(2)}</td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
         </div>
       </div>
-
-      {rankingLavadores.length > 0 && (
-        <div className="hover-lift animate-in rounded-xl border border-border bg-surface p-5" style={{ animationDelay: "480ms" }}>
-          <h2 className="font-semibold text-foreground">Ranking de lavadores (desde el 6 sep 2026)</h2>
-          <p className="text-xs text-muted">
-            Puntaje combinado (eficiencia + volumen ajustado).
-          </p>
-          <div className="mt-3 overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="text-xs uppercase tracking-wide text-muted">
-                <tr>
-                  <th className="px-3 py-2">Lavador</th>
-                  <th className="px-3 py-2 text-right">Autos</th>
-                  <th className="px-3 py-2 text-right">Volumen ajustado</th>
-                  <th className="px-3 py-2 text-right">Eficiencia</th>
-                  <th className="px-3 py-2 text-right">Puntaje</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rankingLavadores.map((l, i) => (
-                  <tr key={l.id} className="border-t border-border">
-                    <td className="px-3 py-2 font-medium text-foreground">
-                      {i === 0 ? "🏆 " : ""}
-                      {l.nombre}
-                    </td>
-                    <td className="px-3 py-2 text-right text-muted">{l.autosLavados}</td>
-                    <td className="px-3 py-2 text-right text-muted">
-                      {l.volumenAjustadoMin !== null ? `${Math.round(l.volumenAjustadoMin)} min` : "—"}
-                    </td>
-                    <td className="px-3 py-2 text-right text-muted">
-                      {l.eficiencia !== null ? l.eficiencia.toFixed(2) : "—"}
-                    </td>
-                    <td className="px-3 py-2 text-right text-lg font-bold text-primary">{l.puntaje}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

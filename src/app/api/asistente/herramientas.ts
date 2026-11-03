@@ -145,8 +145,8 @@ async function resumenNegocio(args: Record<string, unknown>) {
   };
 }
 
-// Rendimiento de lavadores — autos lavados, ventas generadas, tiempo,
-// eficiencia y satisfacción. Disponible para cualquier rol (la página de
+// Rendimiento de lavadores — autos lavados, ventas generadas y comisión
+// acumulada (35% del precio de lista del paquete, sin extras). Disponible para cualquier rol (la página de
 // Lavadores tampoco está restringida a cajeros).
 async function rendimientoLavadores(args: Record<string, unknown>) {
   const rango = resolverRangoDesdeArgs(args);
@@ -161,9 +161,7 @@ async function rendimientoLavadores(args: Record<string, unknown>) {
         nombre: l.nombre,
         autosLavados: l.autosLavados,
         ventasGeneradas: l.ventasGeneradas,
-        tiempoPromedioLavadoMin: l.tiempoPromedioLavadoMin !== null ? Math.round(l.tiempoPromedioLavadoMin) : null,
-        eficiencia: l.eficiencia !== null ? Math.round(l.eficiencia * 100) / 100 : null,
-        puntaje: l.puntaje,
+        comisionAcumulada: l.comision,
       }))
       .sort((a, b) => b.autosLavados - a.autosLavados),
   };
@@ -643,18 +641,24 @@ async function crearTicketAsistente(args: Record<string, unknown>) {
   const distintivo = typeof args.distintivo === "string" && args.distintivo.trim() ? args.distintivo.trim() : null;
   const placa = typeof args.placa === "string" && args.placa.trim() ? args.placa.trim() : null;
 
-  const nombresLavadores = Array.isArray(args.lavadores)
-    ? (args.lavadores as unknown[]).filter((v): v is string => typeof v === "string")
-    : [];
-  const lavadorIds: string[] = [];
-  const lavadoresNoEncontrados: string[] = [];
-  if (nombresLavadores.length > 0) {
-    const { data: lavadoresRaw } = await supabase.from("lavadores").select("id, nombre").eq("activo", true);
-    for (const nombre of nombresLavadores) {
-      const match = (lavadoresRaw ?? []).find((l) => l.nombre.trim().toLowerCase() === nombre.trim().toLowerCase());
-      if (match) lavadorIds.push(match.id);
-      else lavadoresNoEncontrados.push(nombre);
-    }
+  const nombreLavador = typeof args.lavador === "string" ? args.lavador.trim() : "";
+  if (!nombreLavador) return { error: "Falta el nombre del lavador — pregunta quién va a lavar el auto." };
+  const { data: lavadoresRaw } = await supabase
+    .from("lavadores")
+    .select("id, nombre")
+    .eq("activo", true)
+    .eq("tipo", "lavador");
+  const lavador = (lavadoresRaw ?? []).find((l) => l.nombre.trim().toLowerCase() === nombreLavador.toLowerCase());
+  if (!lavador) {
+    return {
+      error: `No encontré un lavador activo llamado "${nombreLavador}".`,
+      lavadoresDisponibles: (lavadoresRaw ?? []).map((l) => l.nombre),
+    };
+  }
+
+  const metodo = args.metodoPago;
+  if (metodo !== "efectivo" && metodo !== "tarjeta" && metodo !== "transferencia") {
+    return { error: "Falta el método de pago (efectivo, tarjeta o transferencia) — pregúntalo antes de registrar." };
   }
 
   const resultado = await crearTicket({
@@ -665,7 +669,8 @@ async function crearTicketAsistente(args: Record<string, unknown>) {
     servicioId: servicio.id,
     tamanoVehiculo: tamano,
     empleadoId: user.id,
-    lavadorIds,
+    lavadorId: lavador.id,
+    metodo,
     turnoId: turnoAbierto.id,
   });
 
@@ -676,8 +681,9 @@ async function crearTicketAsistente(args: Record<string, unknown>) {
     paquete: servicio.nombre,
     tamano: nombreTamano(tamano),
     vehiculo: [distintivo, placa].filter(Boolean).join(" · ") || "sin distintivo/placa",
-    lavadoresAsignados: lavadorIds.length,
-    lavadoresNoEncontrados: lavadoresNoEncontrados.length > 0 ? lavadoresNoEncontrados : undefined,
+    lavador: lavador.nombre,
+    metodoPago: metodo,
+    estado: "Registrado, cobrado y entregado",
   };
 }
 
@@ -694,7 +700,7 @@ export function construirHerramientas(incluirFinancieras: boolean, incluirHistor
         function: {
           name: "rendimiento_lavadores",
           description:
-            "Estadísticas de cada lavador activo en un período: autos lavados, ventas generadas, tiempo promedio, eficiencia y puntaje general. Úsala para cualquier pregunta sobre lavadores o su rendimiento.",
+            "Estadísticas de cada lavador activo en un período: autos lavados, ventas generadas y comisión acumulada (lo que se le debe pagar: 35% del precio de lista del paquete de cada auto que lavó, sin extras). Úsala para cualquier pregunta sobre lavadores, su rendimiento o cuánto se le debe pagar a cada uno. Ya NO existen métricas de tiempo de lavado ni de espera.",
           parameters: PARAM_FECHA,
         },
       },
@@ -783,7 +789,7 @@ export function construirHerramientas(incluirFinancieras: boolean, incluirHistor
         function: {
           name: "crear_ticket",
           description:
-            "Crea un ticket real (registra un auto para lavar) en el turno abierto ahorita. Requiere que ya haya un turno abierto. Es una ACCIÓN REAL que escribe en el sistema, no una consulta — antes de llamarla, asegúrate de tener claro el paquete y el tamaño del vehículo (pregunta si la persona no los dio claros), y confirma con un '¿lo registro así?' antes de ejecutar salvo que la petición ya haya sido explícita y completa en un solo mensaje. Si la herramienta regresa un error (sin turno abierto, paquete no encontrado o ambiguo, etc.), explica el problema con claridad en vez de adivinar o reintentar con datos inventados.",
+            "Registra un auto en el turno abierto ahorita: queda creado, cobrado y entregado en un solo paso (ya no hay cobro ni entrega después). Requiere que ya haya un turno abierto. Es una ACCIÓN REAL que escribe en el sistema, no una consulta — antes de llamarla, asegúrate de tener claro el paquete, el tamaño del vehículo, el lavador y el método de pago (pregunta lo que falte), y confirma con un '¿lo registro así?' antes de ejecutar salvo que la petición ya haya sido explícita y completa en un solo mensaje. Si la herramienta regresa un error (sin turno abierto, paquete no encontrado o ambiguo, etc.), explica el problema con claridad en vez de adivinar o reintentar con datos inventados.",
           parameters: {
             type: "object",
             properties: {
@@ -804,13 +810,17 @@ export function construirHerramientas(incluirFinancieras: boolean, incluirHistor
                 type: "string",
                 description: "Placa del vehículo. Opcional, pero recomendable para poder identificarlo después.",
               },
-              lavadores: {
-                type: "array",
-                items: { type: "string" },
-                description: "Nombre(s) de el/los lavador(es) a asignar, si ya se sabe quién(es). Opcional.",
+              lavador: {
+                type: "string",
+                description: "Nombre del lavador que lava el auto (uno solo).",
+              },
+              metodoPago: {
+                type: "string",
+                enum: ["efectivo", "tarjeta", "transferencia"],
+                description: "Cómo pagó el cliente. El ticket queda cobrado y entregado al registrarlo.",
               },
             },
-            required: ["servicio", "tamano"],
+            required: ["servicio", "tamano", "lavador", "metodoPago"],
           },
         },
       },

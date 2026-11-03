@@ -145,6 +145,7 @@ export default async function TicketsPage() {
     empleado: t.empleado_id ? empleadoMap.get(t.empleado_id) ?? null : null,
     lavadores: lavadoresPorTicket.get(t.id) ?? [],
     tienePago: (pagosPorTicket.get(t.id) ?? []).length > 0 || t.lavada_gratis,
+    metodoPago: (pagosPorTicket.get(t.id) ?? [])[0]?.metodo ?? null,
     extras: extrasPorTicket.get(t.id) ?? [],
   }));
 
@@ -158,7 +159,6 @@ export default async function TicketsPage() {
     pendientes: number;
     efectivoEsperado: number | null;
     ventasHoy: number;
-    tiempoEsperaMin: number | null;
   } | null = null;
 
   if (turno) {
@@ -174,29 +174,11 @@ export default async function TicketsPage() {
     // (inicioDeDiaMX), no en la hora local del servidor (que en Vercel
     // corre en UTC) — si no, las ventas de la noche (después de las 6pm
     // hora de México) se contaban como del día siguiente.
-    const { data: ticketsHoy } = await supabase
+    const { count: ventasHoy } = await supabase
       .from("tickets")
-      .select("hora_entrada, hora_fin_lavado, hora_salida")
+      .select("id", { count: "exact", head: true })
       .eq("estado", "entregado")
       .gte("hora_salida", inicioDeDiaMX(0).toISOString());
-
-    const entregadosHoy = (ticketsHoy ?? []).filter((t) => t.hora_salida);
-
-    // Tiempo de espera: desde que el auto llega hasta que se TERMINA de
-    // lavar (hora_fin_lavado) — no hasta que se entrega (hora_salida),
-    // porque entre "terminado" y "entregado" puede pasar rato sin que sea
-    // por el lavado en sí (el cliente tarda en pasar a recogerlo, la caja
-    // está ocupada con otro cobro, etc.) y eso inflaba el número.
-    const conTiempoEspera = entregadosHoy.filter((t) => t.hora_fin_lavado);
-    const tiempoEsperaMin =
-      conTiempoEspera.length > 0
-        ? conTiempoEspera.reduce(
-            (suma, t) => suma + (new Date(t.hora_fin_lavado!).getTime() - new Date(t.hora_entrada).getTime()),
-            0
-          ) /
-          conTiempoEspera.length /
-          60000
-        : null;
 
     resumenCaja = {
       totalesVisibles: puedeVerEfectivo
@@ -205,8 +187,7 @@ export default async function TicketsPage() {
       ocultarEfectivo: !puedeVerEfectivo,
       pendientes: (tickets ?? []).filter((t) => t.estado !== "entregado").length,
       efectivoEsperado: puedeVerEfectivo ? turno.efectivo_inicial + totalesPorMetodo.efectivo : null,
-      ventasHoy: entregadosHoy.length,
-      tiempoEsperaMin,
+      ventasHoy: ventasHoy ?? 0,
     };
   }
 
@@ -219,7 +200,6 @@ export default async function TicketsPage() {
       tickets={ticketsConDetalle}
       usuarioActualId={usuario.id}
       resumenCaja={resumenCaja}
-      serverAhora={new Date().toISOString()}
       config={config}
       puedeEditarTickets={puedeEditarTickets}
       esDueno={esDueno}

@@ -12,14 +12,6 @@ function money(n: number) {
   return `$${n.toFixed(2)}`;
 }
 
-function formatearMinutos(minutos: number) {
-  const redondeado = Math.round(minutos);
-  if (redondeado < 60) return `${redondeado} min`;
-  const horas = Math.floor(redondeado / 60);
-  const resto = redondeado % 60;
-  return resto > 0 ? `${horas}h ${resto}min` : `${horas}h`;
-}
-
 const ESTADO_LABEL: Record<string, string> = {
   en_espera: "En espera",
   en_proceso: "En proceso",
@@ -115,9 +107,10 @@ export default async function DesgloseLavadorPage({
   const qs = queryStringRango(rango);
 
   const asignacionesLavador = await fetchPaginado((desde, hasta) =>
-    supabase.from("ticket_lavadores").select("ticket_id").eq("lavador_id", id).range(desde, hasta)
+    supabase.from("ticket_lavadores").select("ticket_id, comision").eq("lavador_id", id).range(desde, hasta)
   );
   const ticketIdsAsignados = asignacionesLavador.map((a) => a.ticket_id);
+  const comisionPorTicket = new Map(asignacionesLavador.map((a) => [a.ticket_id, a.comision ?? null]));
 
   let tickets: Array<{
     id: string;
@@ -129,8 +122,6 @@ export default async function DesgloseLavadorPage({
     tamano_vehiculo: TamanoVehiculo;
     estado: string;
     hora_entrada: string;
-    hora_inicio_lavado: string | null;
-    hora_fin_lavado: string | null;
   }> = [];
 
   if (ticketIdsAsignados.length > 0) {
@@ -138,7 +129,7 @@ export default async function DesgloseLavadorPage({
       let q = supabase
         .from("tickets")
         .select(
-          "id, cliente_id, vehiculo_id, distintivo, placa, servicio_id, tamano_vehiculo, estado, hora_entrada, hora_inicio_lavado, hora_fin_lavado"
+          "id, cliente_id, vehiculo_id, distintivo, placa, servicio_id, tamano_vehiculo, estado, hora_entrada"
         )
         .in("id", lote)
         .order("hora_entrada", { ascending: false });
@@ -207,10 +198,7 @@ export default async function DesgloseLavadorPage({
     estado: t.estado,
     monto: montoPorTicket.get(t.id) ?? 0,
     companeros: companerosPorTicket.get(t.id) ?? [],
-    tiempoLavadoMin:
-      t.hora_inicio_lavado && t.hora_fin_lavado
-        ? (new Date(t.hora_fin_lavado).getTime() - new Date(t.hora_inicio_lavado).getTime()) / 60000
-        : null,
+    comision: comisionPorTicket.get(t.id) ?? null,
   }));
 
   const entregados = filaTickets.filter((t) => t.estado === "entregado");
@@ -221,19 +209,9 @@ export default async function DesgloseLavadorPage({
     porTamano.set(t.tamanoVehiculo, (porTamano.get(t.tamanoVehiculo) ?? 0) + 1);
   }
 
-  // Tiempo real de lavada (de "Iniciar" a "Terminado", sin contar la espera
-  // en cola) de todas las lavadas que ya pasaron por ese tramo, entregadas
-  // o no.
-  const conTiempoLavado = (tickets ?? []).filter((t) => t.hora_inicio_lavado && t.hora_fin_lavado);
-  const tiempoPromedioLavadoMin =
-    conTiempoLavado.length > 0
-      ? conTiempoLavado.reduce(
-          (acc, t) => acc + (new Date(t.hora_fin_lavado!).getTime() - new Date(t.hora_inicio_lavado!).getTime()),
-          0
-        ) /
-        conTiempoLavado.length /
-        60000
-      : null;
+  // Comisión del período: 35% del precio de lista del paquete, guardada al
+  // registrar cada ticket (tickets de antes del cambio no la tienen).
+  const totalComision = entregados.reduce((acc, t) => acc + (t.comision ?? 0), 0);
 
   return (
     <div className="flex flex-col gap-6">
@@ -321,12 +299,10 @@ export default async function DesgloseLavadorPage({
           <p className="text-xs uppercase tracking-wide text-muted">Ventas generadas</p>
           <p className="mt-1 text-2xl font-bold text-foreground">{money(totalVentas)}</p>
         </div>
-        <div className="rounded-xl border border-border bg-surface p-5">
-          <p className="text-xs uppercase tracking-wide text-muted">Tiempo promedio de lavada</p>
-          <p className="mt-1 text-2xl font-bold text-foreground">
-            {tiempoPromedioLavadoMin !== null ? formatearMinutos(tiempoPromedioLavadoMin) : "—"}
-          </p>
-          <p className="text-[11px] text-muted">De &quot;Iniciar&quot; a &quot;Terminado&quot;</p>
+        <div className="rounded-xl border border-success/40 bg-success/5 p-5">
+          <p className="text-xs uppercase tracking-wide text-muted">Comisión ganada (35%)</p>
+          <p className="mt-1 text-2xl font-bold text-success">{money(totalComision)}</p>
+          <p className="text-[11px] text-muted">Del precio del paquete, sin extras</p>
         </div>
         {puedeVerNomina && (
           <div className="rounded-xl border border-success/40 bg-success/5 p-5">
@@ -362,8 +338,8 @@ export default async function DesgloseLavadorPage({
               <th className="px-4 py-3">Tamaño</th>
               <th className="px-4 py-3">Compañero</th>
               <th className="px-4 py-3">Estado</th>
-              <th className="px-4 py-3">Tiempo de lavada</th>
               <th className="px-4 py-3">Monto</th>
+              <th className="px-4 py-3">Comisión</th>
             </tr>
           </thead>
           <tbody>
@@ -378,10 +354,8 @@ export default async function DesgloseLavadorPage({
                   {t.companeros.length > 0 ? t.companeros.join(", ") : "—"}
                 </td>
                 <td className="px-4 py-3 text-muted">{ESTADO_LABEL[t.estado] ?? t.estado}</td>
-                <td className="px-4 py-3 text-muted">
-                  {t.tiempoLavadoMin !== null ? formatearMinutos(t.tiempoLavadoMin) : "—"}
-                </td>
                 <td className="px-4 py-3 font-medium text-foreground">{money(t.monto)}</td>
+                <td className="px-4 py-3 font-medium text-success">{t.comision !== null ? money(t.comision) : "—"}</td>
               </tr>
             ))}
             {filaTickets.length === 0 && (

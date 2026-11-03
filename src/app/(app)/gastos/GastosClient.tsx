@@ -260,8 +260,10 @@ export function GastosClient({
   // Opciones (productos/conceptos) que corresponden a la categoría elegida
   // en el formulario — se administran desde Ajustes → Opciones de gastos.
   // Una opción sin categoría asignada aparece en todas.
+  // Si un gasto viejo trae una opción de otra categoría, se sigue mostrando
+  // (si no, el menú la ocultaría y parecería que se perdió al editar).
   const opcionesCategoria = subcategoriasLocal.filter(
-    (s) => s.categoria === null || s.categoria === form.categoria
+    (s) => s.categoria === null || s.categoria === form.categoria || s.id === form.subcategoriaId
   );
 
   const tieneItems = itemsForm.some((it) => it.producto.trim() !== "");

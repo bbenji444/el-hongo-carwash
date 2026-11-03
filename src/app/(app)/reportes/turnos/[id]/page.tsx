@@ -364,6 +364,7 @@ export default async function DesgloseTurnoPage({
         config={config}
         esDueno={esDueno}
         puedeEditarTickets={puedeEditarTickets}
+        turnoAbierto={turno.estado === "abierto"}
       />
     </div>
   );

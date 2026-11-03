@@ -552,9 +552,18 @@ export async function actualizarTicket(
       .select("estado, servicio_id, tamano_vehiculo, distintivo, placa, turno_id")
       .eq("id", ticketId)
       .maybeSingle(),
-    supabase.from("ticket_lavadores").select("lavador_id").eq("ticket_id", ticketId),
+    supabase.from("ticket_lavadores").select("lavador_id, comision").eq("ticket_id", ticketId),
     supabase.from("ticket_extras").select("nombre").eq("ticket_id", ticketId),
   ]);
+  const lavadoresAntesIds = (lavadoresAntesRaw ?? []).map((l) => l.lavador_id);
+  // Tickets de antes del cambio a comisión no tienen comisión guardada — al
+  // editarlos no se les asigna una retroactiva (la comisión cuenta solo a
+  // partir del cambio).
+  const teniaComision = (lavadoresAntesRaw ?? []).some((l) => l.comision !== null);
+  // Si el lavador elegido ya estaba asignado, no se toca la asignación: así
+  // un ticket viejo lavado en pareja conserva a los dos (y sus estadísticas)
+  // aunque la pantalla de edición ahora solo deje elegir uno.
+  const lavadorSinCambio = lavadoresAntesIds.includes(input.lavadorId);
 
   if (!ticketAntes) return { error: "El ticket ya no existe." };
 
@@ -564,7 +573,8 @@ export async function actualizarTicket(
   // corte ya no es "entregado o no" sino si su caja sigue abierta: mientras
   // el turno esté abierto, quien tenga el permiso puede corregir un error de
   // captura; una vez cerrado el turno (caja ya contada), solo el dueño.
-  if (!esDueno && !(await turnoSigueAbierto(supabase, ticketAntes.turno_id))) {
+  const turnoAbierto = await turnoSigueAbierto(supabase, ticketAntes.turno_id);
+  if (!esDueno && !turnoAbierto) {
     return { error: "Solo el dueño puede editar un ticket de un turno ya cerrado." };
   }
 
@@ -590,14 +600,16 @@ export async function actualizarTicket(
 
   if (error) return { error: error.message };
 
-  // Un solo lavador por ticket: se reemplaza el (o los, en tickets viejos)
-  // que hubiera por el elegido.
-  const { error: borrarLavadoresError } = await supabase.from("ticket_lavadores").delete().eq("ticket_id", ticketId);
-  if (borrarLavadoresError) return { error: borrarLavadoresError.message };
-  const { error: lavadorError } = await supabase
-    .from("ticket_lavadores")
-    .insert({ ticket_id: ticketId, lavador_id: input.lavadorId });
-  if (lavadorError) return { error: lavadorError.message };
+  // Un solo lavador por ticket: si se eligió otro distinto, se reemplaza el
+  // (o los, en tickets viejos) que hubiera por el elegido.
+  if (!lavadorSinCambio) {
+    const { error: borrarLavadoresError } = await supabase.from("ticket_lavadores").delete().eq("ticket_id", ticketId);
+    if (borrarLavadoresError) return { error: borrarLavadoresError.message };
+    const { error: lavadorError } = await supabase
+      .from("ticket_lavadores")
+      .insert({ ticket_id: ticketId, lavador_id: input.lavadorId });
+    if (lavadorError) return { error: lavadorError.message };
+  }
 
   // Se reemplazan todos los extras del ticket por la selección actual (en
   // vez de calcular un diff) — es una lista corta y así siempre queda en
@@ -621,10 +633,15 @@ export async function actualizarTicket(
   }
 
   // Paquete/tamaño/extras pudieron cambiar: la comisión y el pago se
-  // recalculan para que sigan cuadrando con el ticket.
-  const errorComision = await guardarComisionTicket(supabase, ticketId);
-  if (errorComision) return { error: errorComision };
-  if (ticketAntes.estado === "entregado") {
+  // recalculan para que sigan cuadrando con el ticket — pero solo donde no
+  // se altera historia ya cerrada: la comisión, solo si el ticket ya la
+  // tenía (sistema nuevo); el pago, solo mientras su turno siga abierto
+  // (un turno cerrado ya se contó en caja, y su corte no se recalcula).
+  if (teniaComision) {
+    const errorComision = await guardarComisionTicket(supabase, ticketId);
+    if (errorComision) return { error: errorComision };
+  }
+  if (ticketAntes.estado === "entregado" && turnoAbierto) {
     const errorPago = await sincronizarPagoTicket(supabase, ticketId, input.metodo, actorId!);
     if (errorPago) return { error: errorPago };
   }
@@ -660,7 +677,7 @@ export async function actualizarTicket(
     cambios.push(`vehículo: ${vehAntes} → ${vehDespues}`);
   }
   const lavadoresAntesTexto = (lavadoresAntesRaw ?? []).map((l) => nombrePorLavador.get(l.lavador_id) ?? "—").sort().join(", ") || "nadie";
-  const lavadoresDespuesTexto = nombrePorLavador.get(input.lavadorId) ?? "—";
+  const lavadoresDespuesTexto = lavadorSinCambio ? lavadoresAntesTexto : (nombrePorLavador.get(input.lavadorId) ?? "—");
   if (lavadoresAntesTexto !== lavadoresDespuesTexto) {
     cambios.push(`lavador: ${lavadoresAntesTexto} → ${lavadoresDespuesTexto}`);
   }

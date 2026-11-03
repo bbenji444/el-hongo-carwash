@@ -15,6 +15,7 @@ export function EditarTicketModal({
   lavadores,
   extras,
   config,
+  permiteCambiarPago = true,
   onClose,
 }: {
   ticket: TicketConDetalle;
@@ -23,6 +24,9 @@ export function EditarTicketModal({
   extras: ExtraCatalogo[];
   config: ConfiguracionApp;
   esDueno: boolean;
+  // false cuando el ticket es de un turno ya cerrado: su caja ya se contó y
+  // el servidor no le recalcula el pago, así que no se ofrece cambiarlo.
+  permiteCambiarPago?: boolean;
   onClose: () => void;
 }) {
   const [pending, startTransition] = useTransition();
@@ -282,7 +286,13 @@ export function EditarTicketModal({
               </div>
 
               {/* Método de pago (solo tickets ya cobrados) */}
-              {entregado && (
+              {entregado && !permiteCambiarPago && (
+                <p className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
+                  Este ticket es de un turno ya cerrado: puedes corregir sus datos, pero su pago y la caja de ese
+                  turno no cambian.
+                </p>
+              )}
+              {entregado && permiteCambiarPago && (
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-medium text-muted">Método de pago</label>
                   <div className="grid grid-cols-3 gap-2">

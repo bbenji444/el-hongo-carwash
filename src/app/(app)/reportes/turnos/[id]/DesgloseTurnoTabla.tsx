@@ -38,6 +38,7 @@ export function DesgloseTurnoTabla({
   config,
   esDueno,
   puedeEditarTickets,
+  turnoAbierto,
 }: {
   tickets: TicketDesglose[];
   hayFiltro: boolean;
@@ -47,6 +48,7 @@ export function DesgloseTurnoTabla({
   config: ConfiguracionApp;
   esDueno: boolean;
   puedeEditarTickets: boolean;
+  turnoAbierto: boolean;
 }) {
   const [editando, setEditando] = useState<TicketDesglose | null>(null);
 
@@ -132,6 +134,7 @@ export function DesgloseTurnoTabla({
           extras={extras}
           config={config}
           esDueno={esDueno}
+          permiteCambiarPago={turnoAbierto}
           onClose={() => setEditando(null)}
         />
       )}

@@ -11,6 +11,9 @@ import { EditarTicketModal } from "./EditarTicketModal";
 import { ClienteDetalleModal } from "./ClienteDetalleModal";
 import { entregarTicketPendiente } from "./actions";
 import { useRealtimeRefresh } from "@/lib/useRealtimeRefresh";
+import { AnimatePresence, MotionConfig, motion } from "motion/react";
+import { AnimatedNumber } from "@/components/AnimatedNumber";
+import { TarjetaTicket } from "./TarjetaTicket";
 
 const METODO_LABEL: Record<string, string> = {
   efectivo: "Efectivo",
@@ -129,9 +132,9 @@ export function TicketsBoard({
     });
   }
 
-  function tarjeta(ticket: TicketConDetalle, esPendiente: boolean) {
+  function tarjeta(ticket: TicketConDetalle, esPendiente: boolean, indice: number) {
     return (
-      <div key={ticket.id} className="flex flex-col gap-1.5 rounded-xl border border-border bg-surface p-3">
+      <TarjetaTicket key={ticket.id} metodoPago={ticket.metodoPago} indice={indice}>
         <div className="flex items-start justify-between gap-2">
           <div>
             <button
@@ -148,7 +151,9 @@ export function TicketsBoard({
                 .join(" · ")}
             </p>
           </div>
-          <span className="shrink-0 text-sm font-bold text-foreground">${totalTicket(ticket).toFixed(2)}</span>
+          <span className="shrink-0 rounded-full border border-border bg-background px-2 py-0.5 text-sm font-bold text-foreground transition-colors duration-300 group-hover:border-[var(--acento)] group-hover:text-[var(--acento)]">
+            ${totalTicket(ticket).toFixed(2)}
+          </span>
         </div>
 
         <p className="text-xs text-foreground">
@@ -227,80 +232,106 @@ export function TicketsBoard({
             </button>
           )}
         </div>
-      </div>
+      </TarjetaTicket>
     );
   }
 
+  // Casillas del resumen del turno: aparecen escalonadas y los montos
+  // cuentan hacia arriba (AnimatedNumber).
+  const casillas: { etiqueta: string; valor: number; formato: "dinero" | "entero"; destacada?: boolean }[] = [
+    { etiqueta: "Efectivo inicial", valor: turno.efectivo_inicial, formato: "dinero" },
+    ...(resumenCaja
+      ? [
+          ...(!resumenCaja.ocultarEfectivo
+            ? [{ etiqueta: METODO_LABEL.efectivo, valor: resumenCaja.totalesVisibles.efectivo ?? 0, formato: "dinero" as const }]
+            : []),
+          ...(resumenCaja.efectivoEsperado !== null
+            ? [{ etiqueta: "Efectivo esperado", valor: resumenCaja.efectivoEsperado, formato: "dinero" as const }]
+            : []),
+          ...(["tarjeta", "transferencia"] as const).map((m) => ({
+            etiqueta: METODO_LABEL[m],
+            valor: resumenCaja.totalesVisibles[m] ?? 0,
+            formato: "dinero" as const,
+          })),
+          {
+            etiqueta: "Ganancia",
+            valor: Object.values(resumenCaja.totalesVisibles).reduce((suma, monto) => suma + monto, 0),
+            formato: "dinero" as const,
+            destacada: true,
+          },
+          { etiqueta: "Autos hoy", valor: resumenCaja.ventasHoy, formato: "entero" as const },
+        ]
+      : []),
+  ];
+
   return (
+    <MotionConfig reducedMotion="user">
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         {encabezado}
-        <button
+        <motion.button
           onClick={() => setMostrarNuevo(true)}
-          className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-all duration-150 hover:-translate-y-0.5 hover:bg-primary-hover hover:shadow-lg hover:shadow-primary/25"
+          whileHover={{ scale: 1.04, y: -2 }}
+          whileTap={{ scale: 0.96 }}
+          transition={{ type: "spring", stiffness: 450, damping: 22 }}
+          className="relative overflow-hidden rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-primary/20 transition-colors hover:bg-primary-hover hover:shadow-primary/40"
         >
-          + Nuevo ticket
-        </button>
+          <span className="relative z-10">+ Nuevo ticket</span>
+          <motion.span
+            aria-hidden
+            className="absolute inset-y-0 -left-1/2 w-1/2 -skew-x-12 bg-white/25"
+            initial={{ x: "-100%" }}
+            animate={{ x: "400%" }}
+            transition={{ duration: 1.6, repeat: Infinity, repeatDelay: 3.5, ease: "easeInOut" }}
+          />
+        </motion.button>
       </div>
 
-      {error && (
-        <p className="rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 text-sm text-primary">{error}</p>
-      )}
+      <AnimatePresence>
+        {error && (
+          <motion.p
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            className="rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 text-sm text-primary"
+          >
+            {error}
+          </motion.p>
+        )}
+      </AnimatePresence>
 
       <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted">Resumen del turno</p>
         <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
-          <div className="rounded-lg border border-border bg-background p-2.5">
-            <p className="text-[10px] uppercase tracking-wide text-muted">Efectivo inicial</p>
-            <p className="text-sm font-semibold text-foreground">${turno.efectivo_inicial.toFixed(2)}</p>
-          </div>
-          {resumenCaja && (
-            <>
-              {!resumenCaja.ocultarEfectivo && (
-                <div className="rounded-lg border border-border bg-background p-2.5">
-                  <p className="text-[10px] uppercase tracking-wide text-muted">{METODO_LABEL.efectivo}</p>
-                  <p className="text-sm font-semibold text-foreground">
-                    ${(resumenCaja.totalesVisibles.efectivo ?? 0).toFixed(2)}
-                  </p>
-                </div>
-              )}
-              {resumenCaja.efectivoEsperado !== null && (
-                <div className="rounded-lg border border-border bg-background p-2.5">
-                  <p className="text-[10px] uppercase tracking-wide text-muted">Efectivo esperado</p>
-                  <p className="text-sm font-semibold text-foreground">${resumenCaja.efectivoEsperado.toFixed(2)}</p>
-                </div>
-              )}
-              {(["tarjeta", "transferencia"] as const).map((m) => (
-                <div key={m} className="rounded-lg border border-border bg-background p-2.5">
-                  <p className="text-[10px] uppercase tracking-wide text-muted">{METODO_LABEL[m]}</p>
-                  <p className="text-sm font-semibold text-foreground">
-                    ${(resumenCaja.totalesVisibles[m] ?? 0).toFixed(2)}
-                  </p>
-                </div>
-              ))}
-              <div className="rounded-lg border border-success/40 bg-success/10 p-2.5">
-                <p className="text-[10px] uppercase tracking-wide text-muted">Ganancia</p>
-                <p className="text-sm font-semibold text-success">
-                  ${Object.values(resumenCaja.totalesVisibles).reduce((suma, monto) => suma + monto, 0).toFixed(2)}
-                </p>
-              </div>
-              <div className="rounded-lg border border-border bg-background p-2.5">
-                <p className="text-[10px] uppercase tracking-wide text-muted">Autos hoy</p>
-                <p className="text-sm font-semibold text-foreground">{resumenCaja.ventasHoy}</p>
-              </div>
-            </>
-          )}
+          {casillas.map((c, i) => (
+            <motion.div
+              key={c.etiqueta}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0, transition: { delay: i * 0.05, duration: 0.35, ease: "easeOut" } }}
+              whileHover={{ y: -3, transition: { type: "spring", stiffness: 420, damping: 24 } }}
+              className={`rounded-lg border p-2.5 transition-shadow duration-300 hover:shadow-md ${
+                c.destacada ? "border-success/40 bg-success/10" : "border-border bg-background"
+              }`}
+            >
+              <p className="text-[10px] uppercase tracking-wide text-muted">{c.etiqueta}</p>
+              <p className={`text-sm font-semibold ${c.destacada ? "text-success" : "text-foreground"}`}>
+                <AnimatedNumber value={c.valor} format={c.formato} />
+              </p>
+            </motion.div>
+          ))}
         </div>
       </div>
 
-      <div className="relative">
-        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted">🔍</span>
+      <div className="group relative">
+        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted transition-transform duration-300 group-focus-within:scale-110">
+          🔍
+        </span>
         <input
           type="search"
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
           placeholder="Buscar carro de este turno: distintivo, placa, cliente, lavador, paquete..."
-          className="w-full rounded-xl border border-border bg-surface py-2.5 pl-10 pr-3 text-sm text-foreground outline-none focus:border-accent"
+          className="w-full rounded-xl border border-border bg-surface py-2.5 pl-10 pr-3 text-sm text-foreground outline-none transition-all duration-300 focus:border-accent focus:shadow-[0_0_0_4px_color-mix(in_srgb,var(--accent)_15%,transparent)]"
         />
       </div>
 
@@ -310,27 +341,39 @@ export function TicketsBoard({
             Pendientes de antes del cambio ({pendientes.length}) — toca ✓ para cobrar y cerrar
           </p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {pendientes.map((t) => tarjeta(t, true))}
+            <AnimatePresence mode="popLayout">{pendientes.map((t, i) => tarjeta(t, true, i))}</AnimatePresence>
           </div>
         </div>
       )}
 
       <div className="flex flex-col gap-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+        <motion.p
+          key={busqueda.trim() ? "busqueda" : "todos"}
+          initial={{ opacity: 0, x: -6 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="text-xs font-semibold uppercase tracking-wide text-muted"
+        >
           {busqueda.trim()
             ? `Resultados: ${registrados.length} de ${totalRegistrados}`
             : `Registrados en este turno (${registrados.length})`}
-        </p>
+        </motion.p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {registrados.map((t) => tarjeta(t, false))}
+          <AnimatePresence mode="popLayout">{registrados.map((t, i) => tarjeta(t, false, i))}</AnimatePresence>
         </div>
-        {registrados.length === 0 && (
-          <p className="rounded-xl border border-dashed border-border p-4 text-center text-xs text-muted">
-            {busqueda.trim()
-              ? "Ningún carro de este turno coincide con la búsqueda."
-              : "Todavía no hay autos registrados en este turno."}
-          </p>
-        )}
+        <AnimatePresence>
+          {registrados.length === 0 && (
+            <motion.p
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              className="rounded-xl border border-dashed border-border p-4 text-center text-xs text-muted"
+            >
+              {busqueda.trim()
+                ? "Ningún carro de este turno coincide con la búsqueda."
+                : "Todavía no hay autos registrados en este turno."}
+            </motion.p>
+          )}
+        </AnimatePresence>
       </div>
 
       {mostrarNuevo && (
@@ -374,5 +417,6 @@ export function TicketsBoard({
         />
       )}
     </div>
+    </MotionConfig>
   );
 }

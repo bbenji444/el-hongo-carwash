@@ -112,7 +112,7 @@ export async function actualizarGasto(
 // etc.) — crece conforme se compran cosas nuevas, se agrega desde la misma
 // pantalla de Gastos en vez de necesitar una pantalla de administración
 // aparte.
-export async function crearSubcategoriaGasto(nombreInput: string) {
+export async function crearSubcategoriaGasto(nombreInput: string, categoria: GastoCategoria | null) {
   const { supabase, error: permisoError } = await requiereDuenoOEncargado();
   if (permisoError) return { data: null, error: permisoError };
 
@@ -124,15 +124,15 @@ export async function crearSubcategoriaGasto(nombreInput: string) {
   // por cómo cada quien lo escribió.
   const { data: existente } = await supabase
     .from("gasto_subcategorias")
-    .select("id, nombre")
+    .select("id, nombre, categoria")
     .ilike("nombre", nombre)
     .maybeSingle();
   if (existente) return { data: existente, error: null };
 
   const { data, error } = await supabase
     .from("gasto_subcategorias")
-    .insert({ nombre })
-    .select("id, nombre")
+    .insert({ nombre, categoria })
+    .select("id, nombre, categoria")
     .single();
 
   if (error) {
@@ -142,7 +142,7 @@ export async function crearSubcategoriaGasto(nombreInput: string) {
     if (error.code === "23505") {
       const { data: carrera } = await supabase
         .from("gasto_subcategorias")
-        .select("id, nombre")
+        .select("id, nombre, categoria")
         .ilike("nombre", nombre)
         .maybeSingle();
       if (carrera) return { data: carrera, error: null };

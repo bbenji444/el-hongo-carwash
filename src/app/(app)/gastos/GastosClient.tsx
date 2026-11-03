@@ -29,7 +29,7 @@ import {
 
 type GastoArchivo = { id: string; nombre: string; tipo: string | null };
 type GastoItem = { id: string; producto: string; cantidad: number; precioUnitario: number };
-type Subcategoria = { id: string; nombre: string };
+type Subcategoria = { id: string; nombre: string; categoria: GastoCategoria | null };
 type Lavador = { id: string; nombre: string };
 
 type Gasto = {
@@ -229,7 +229,7 @@ export function GastosClient({
     const nombre = nuevaSubcategoriaNombre.trim();
     if (!nombre) return;
     setGuardandoSubcategoria(true);
-    const result = await crearSubcategoriaGasto(nombre);
+    const result = await crearSubcategoriaGasto(nombre, form.categoria);
     setGuardandoSubcategoria(false);
     if (result.error || !result.data) {
       setError(result.error ?? "No se pudo agregar el producto.");
@@ -256,6 +256,13 @@ export function GastosClient({
   const [archivosNuevos, setArchivosNuevos] = useState<File[]>([]);
   const [archivosEdit, setArchivosEdit] = useState<GastoArchivo[]>([]);
   const [archivoPendingEdit, setArchivoPendingEdit] = useState(false);
+
+  // Opciones (productos/conceptos) que corresponden a la categoría elegida
+  // en el formulario — se administran desde Ajustes → Opciones de gastos.
+  // Una opción sin categoría asignada aparece en todas.
+  const opcionesCategoria = subcategoriasLocal.filter(
+    (s) => s.categoria === null || s.categoria === form.categoria
+  );
 
   const tieneItems = itemsForm.some((it) => it.producto.trim() !== "");
   const totalItems = itemsForm.reduce((acc, it) => {
@@ -598,7 +605,14 @@ export function GastosClient({
                 <label className="text-xs font-medium text-muted">Categoría</label>
                 <select
                   value={form.categoria}
-                  onChange={(e) => setForm((f) => ({ ...f, categoria: e.target.value as GastoCategoria }))}
+                  onChange={(e) => {
+                    const categoria = e.target.value as GastoCategoria;
+                    setForm((f) => {
+                      const sub = subcategoriasLocal.find((s) => s.id === f.subcategoriaId);
+                      const sigueAplicando = !sub || sub.categoria === null || sub.categoria === categoria;
+                      return { ...f, categoria, subcategoriaId: sigueAplicando ? f.subcategoriaId : "" };
+                    });
+                  }}
                   className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
                 >
                   {CATEGORIAS_GASTO.map((c) => (
@@ -629,7 +643,7 @@ export function GastosClient({
               )}
               <div className="flex flex-col gap-1.5 sm:col-span-2">
                 <label className="text-xs font-medium text-muted">
-                  Producto específico (opcional — para Sueldos, Renta, etc. déjalo en blanco)
+                  Producto o concepto (opcional) — opciones de esta categoría, se editan en Ajustes
                 </label>
                 {!agregandoSubcategoria ? (
                   <div className="flex gap-2">
@@ -638,8 +652,8 @@ export function GastosClient({
                       onChange={(e) => setForm((f) => ({ ...f, subcategoriaId: e.target.value }))}
                       className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
                     >
-                      <option value="">Sin producto específico</option>
-                      {subcategoriasLocal.map((s) => (
+                      <option value="">Sin producto/concepto específico</option>
+                      {opcionesCategoria.map((s) => (
                         <option key={s.id} value={s.id}>
                           {s.nombre}
                         </option>
@@ -777,7 +791,8 @@ export function GastosClient({
                           <input
                             value={it.producto}
                             onChange={(e) => actualizarRenglonItem(it.key, "producto", e.target.value)}
-                            placeholder="Producto (ej. Fibras)"
+                            placeholder="Producto (ej. Fabuloso)"
+                            list="opciones-gasto-categoria"
                             className="rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-foreground outline-none focus:border-accent"
                           />
                           <input
@@ -808,6 +823,11 @@ export function GastosClient({
                         </div>
                       )
                     )}
+                    <datalist id="opciones-gasto-categoria">
+                      {opcionesCategoria.map((s) => (
+                        <option key={s.id} value={s.nombre} />
+                      ))}
+                    </datalist>
                     <p className="text-right text-xs font-medium text-foreground">Total: {money(totalItems)}</p>
                   </div>
                 )}

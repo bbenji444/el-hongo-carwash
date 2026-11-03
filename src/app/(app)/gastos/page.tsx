@@ -160,7 +160,7 @@ export default async function GastosPage({
           .in("gasto_id", lote)
           .order("creado_en", { ascending: true })
       ),
-      supabase.from("gasto_subcategorias").select("id, nombre").eq("activo", true).order("nombre"),
+      supabase.from("gasto_subcategorias").select("id, nombre, categoria").eq("activo", true).order("nombre"),
       supabase.from("lavadores").select("id, nombre").order("nombre"),
       gastosTendenciaPromise,
       // Opciones del filtro "Registró" — dueño/encargado son los únicos que

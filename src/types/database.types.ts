@@ -658,18 +658,21 @@ export interface Database {
           nombre: string;
           activo: boolean;
           creado_en: string;
+          categoria: "nomina" | "insumos" | "servicios" | "renta" | "mantenimiento" | "otros" | null;
         };
         Insert: {
           id?: string;
           nombre: string;
           activo?: boolean;
           creado_en?: string;
+          categoria?: "nomina" | "insumos" | "servicios" | "renta" | "mantenimiento" | "otros" | null;
         };
         Update: {
           id?: string;
           nombre?: string;
           activo?: boolean;
           creado_en?: string;
+          categoria?: "nomina" | "insumos" | "servicios" | "renta" | "mantenimiento" | "otros" | null;
         };
         Relationships: [];
       };

@@ -47,10 +47,13 @@ export function useRealtimeRefresh(tablas: string[]) {
     }
 
     function desuscribir() {
-      if (canal) {
-        supabase.removeChannel(canal);
-        canal = null;
-      }
+      const actual = canal;
+      if (!actual) return;
+      // Se suelta ANTES de quitarlo: removeChannel avisa CLOSED de inmediato
+      // (en la misma llamada), y si el canal siguiera asignado, ese aviso
+      // volvería a llamar a desuscribir sin fin (Maximum call stack size).
+      canal = null;
+      supabase.removeChannel(actual);
     }
 
     // El celular suspende la conexión de websocket cuando la pantalla se
@@ -60,12 +63,14 @@ export function useRealtimeRefresh(tablas: string[]) {
     // quedarse muerto en silencio hasta que alguien recargue a mano.
     function suscribir() {
       if (canal) return;
-      canal = supabase.channel(`live-${tablasClave}`);
+      const este = supabase.channel(`live-${tablasClave}`);
+      canal = este;
       for (const tabla of tablasClave.split(",")) {
-        canal.on("postgres_changes", { event: "*", schema: "public", table: tabla }, refrescar);
+        este.on("postgres_changes", { event: "*", schema: "public", table: tabla }, refrescar);
       }
-      canal.subscribe((status) => {
-        if (!vivo || pausado) return;
+      este.subscribe((status) => {
+        // Los avisos de un canal que ya se quitó no cuentan.
+        if (!vivo || pausado || canal !== este) return;
         if (status === "CLOSED" || status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
           desuscribir();
           setTimeout(() => {

@@ -20,10 +20,10 @@ export const metadata: Metadata = {
   },
 };
 
-// Modo oscuro por omisión: solo queda en claro si la persona lo eligió con
-// el botón de sol/luna (se guarda en "tema"). La clave anterior ("theme")
-// se descarta para que todos arranquen en oscuro con esta versión.
-const THEME_INIT_SCRIPT = `try{if(localStorage.getItem('tema')!=='claro'){document.documentElement.classList.add('dark')}localStorage.removeItem('theme')}catch(e){document.documentElement.classList.add('dark')}`;
+// El login siempre se ve en modo oscuro. Dentro del sistema el modo es
+// claro, salvo que la persona elija oscuro con el botón de sol/luna (se
+// guarda en "tema"; al iniciar sesión se regresa a claro).
+const THEME_INIT_SCRIPT = `try{var l=location.pathname.indexOf('/login')===0;if(l||localStorage.getItem('tema')==='oscuro'){document.documentElement.classList.add('dark')}localStorage.removeItem('theme')}catch(e){if(location.pathname.indexOf('/login')===0){document.documentElement.classList.add('dark')}}`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

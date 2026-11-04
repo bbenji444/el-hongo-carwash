@@ -1,13 +1,12 @@
 "use client";
 
-import { Suspense, useRef, useState, type FormEvent, type MouseEvent } from "react";
+import { Suspense, useEffect, useRef, useState, type FormEvent, type MouseEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { ArrowRight, Eye, EyeOff, LoaderCircle, Lock, ShieldCheck, User } from "lucide-react";
 import { iniciarSesionConUsuario } from "./actions";
 import { FondoAnimado } from "@/components/FondoAnimado";
-import { ThemeToggle } from "@/components/ThemeToggle";
 
 // API nativa del navegador para guardar credenciales tras un login exitoso
 // — soportada en Chrome/Edge, no en Firefox/Safari, por eso va detrás de
@@ -47,6 +46,23 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const tarjetaRef = useRef<HTMLDivElement>(null);
 
+  // El login siempre se ve en modo oscuro (también cuando se llega aquí sin
+  // recargar la página, p. ej. al cerrar sesión). Al salir, ya con sesión,
+  // se aplica el tema del sistema: claro, salvo que se haya elegido oscuro.
+  useEffect(() => {
+    const html = document.documentElement;
+    html.classList.add("dark");
+    return () => {
+      let oscuro = false;
+      try {
+        oscuro = localStorage.getItem("tema") === "oscuro";
+      } catch {
+        // Sin acceso a localStorage: se queda el predeterminado (claro).
+      }
+      html.classList.toggle("dark", oscuro);
+    };
+  }, []);
+
   // A propósito NO se auto-rellena el usuario al cargar la página (antes
   // se hacía con navigator.credentials.get({mediation:"optional"}), pero
   // eso dejaba el campo "Usuario" pre-llenado con el último que inició
@@ -84,6 +100,13 @@ function LoginForm() {
       }
     }
 
+    // Cada vez que se inicia sesión, el sistema arranca en modo claro.
+    try {
+      localStorage.setItem("tema", "claro");
+    } catch {
+      // Sin acceso a localStorage: claro es el predeterminado de todos modos.
+    }
+
     router.replace("/");
     router.refresh();
   }
@@ -112,15 +135,6 @@ function LoginForm() {
         <div className="absolute inset-0 -z-10">
           <FondoAnimado intensidad="intensa" />
         </div>
-
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6 }}
-          className="absolute right-4 top-4"
-        >
-          <ThemeToggle variante="suave" />
-        </motion.div>
 
         {/* Logo + formulario, centrados en la pantalla */}
         <div className="w-full max-w-sm">

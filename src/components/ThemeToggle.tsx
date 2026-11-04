@@ -15,18 +15,16 @@ function getSnapshot() {
   return !document.documentElement.classList.contains("dark");
 }
 
-// El modo oscuro es el predeterminado (ver layout.tsx).
+// Dentro del sistema el modo claro es el predeterminado (ver layout.tsx).
 function getServerSnapshot() {
-  return false;
+  return true;
 }
 
 function notificar() {
   for (const callback of listeners) callback();
 }
 
-// "encabezado": blanco sobre la barra roja de la app. "suave": con los
-// colores normales del tema (pantalla de login).
-export function ThemeToggle({ variante = "encabezado" }: { variante?: "encabezado" | "suave" }) {
+export function ThemeToggle() {
   const claro = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   function alternar() {
@@ -36,11 +34,6 @@ export function ThemeToggle({ variante = "encabezado" }: { variante?: "encabezad
     notificar();
   }
 
-  const estilo =
-    variante === "encabezado"
-      ? "border-white/50 text-white hover:border-white hover:bg-white/15"
-      : "border-border bg-surface/70 text-foreground backdrop-blur hover:border-primary/50 hover:bg-surface";
-
   return (
     <motion.button
       type="button"
@@ -49,7 +42,7 @@ export function ThemeToggle({ variante = "encabezado" }: { variante?: "encabezad
       title={claro ? "Cambiar a modo oscuro" : "Cambiar a modo claro"}
       whileHover={{ scale: 1.06 }}
       whileTap={{ scale: 0.9 }}
-      className={`relative flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg border transition-colors ${estilo}`}
+      className="relative flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg border border-white/50 text-white transition-colors hover:border-white hover:bg-white/15"
     >
       {/* La luna/el sol entra girando y el otro sale */}
       <AnimatePresence mode="wait" initial={false}>

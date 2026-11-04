@@ -151,7 +151,7 @@ export function TicketsBoard({
                 .join(" · ")}
             </p>
           </div>
-          <span className="shrink-0 rounded-full border border-border bg-background px-2 py-0.5 text-sm font-bold text-foreground transition-colors duration-300 group-hover:border-[var(--acento)] group-hover:text-[var(--acento)]">
+          <span className="shrink-0 rounded-full border border-border bg-background px-2 py-0.5 text-sm font-bold text-foreground transition-colors duration-300 group-hover:border-[var(--acento)] group-hover:text-[var(--acento)] group-data-[tocada]:border-[var(--acento)] group-data-[tocada]:text-[var(--acento)]">
             ${totalTicket(ticket).toFixed(2)}
           </span>
         </div>

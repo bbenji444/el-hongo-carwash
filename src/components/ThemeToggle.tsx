@@ -15,8 +15,9 @@ function getSnapshot() {
   return !document.documentElement.classList.contains("dark");
 }
 
+// El modo oscuro es el predeterminado (ver layout.tsx).
 function getServerSnapshot() {
-  return true;
+  return false;
 }
 
 function notificar() {
@@ -31,7 +32,7 @@ export function ThemeToggle({ variante = "encabezado" }: { variante?: "encabezad
   function alternar() {
     const siguiente = !claro;
     document.documentElement.classList.toggle("dark", !siguiente);
-    localStorage.setItem("theme", siguiente ? "light" : "dark");
+    localStorage.setItem("tema", siguiente ? "claro" : "oscuro");
     notificar();
   }
 

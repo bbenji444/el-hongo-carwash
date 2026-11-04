@@ -20,7 +20,10 @@ export const metadata: Metadata = {
   },
 };
 
-const THEME_INIT_SCRIPT = `try{if(localStorage.getItem('theme')==='dark'){document.documentElement.classList.add('dark')}}catch(e){}`;
+// Modo oscuro por omisión: solo queda en claro si la persona lo eligió con
+// el botón de sol/luna (se guarda en "tema"). La clave anterior ("theme")
+// se descarta para que todos arranquen en oscuro con esta versión.
+const THEME_INIT_SCRIPT = `try{if(localStorage.getItem('tema')!=='claro'){document.documentElement.classList.add('dark')}localStorage.removeItem('theme')}catch(e){document.documentElement.classList.add('dark')}`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

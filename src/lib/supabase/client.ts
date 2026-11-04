@@ -1,6 +1,7 @@
 import { createBrowserClient } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
+import { COOKIE_SESION } from "./sesion";
 
 // Un solo cliente para toda la pestaña (singleton), no uno nuevo cada vez
 // que algo llama a createClient(). Cada cliente trae su propio temporizador
@@ -18,7 +19,8 @@ export function createClient() {
   if (!client) {
     client = createBrowserClient<Database>(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { cookieOptions: { name: COOKIE_SESION } }
     );
   }
   return client;

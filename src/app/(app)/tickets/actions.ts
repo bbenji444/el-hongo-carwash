@@ -4,6 +4,15 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { PRECIOS_MOTO_FIJOS, nombreTamano } from "@/lib/servicios";
 import { registrarMovimiento } from "@/lib/historial";
+import { inicioDeDiaMX } from "@/lib/fecha";
+import {
+  DIAS_ATRAS_MAX_TURNO,
+  esTurnoDeOtroDia,
+  horaMX,
+  instanteMX,
+  fechaTurno,
+  momentoRegistro,
+} from "@/lib/turnoDia";
 import type { PagoMetodo, TamanoVehiculo } from "@/types/database.types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
@@ -55,7 +64,10 @@ async function resolverClienteAutomatico(
   return { clienteId: cliente.id, vehiculoId: vehiculo?.id ?? null };
 }
 
-export async function abrirTurno(efectivoInicial: number) {
+// "inicio" (opcional) es el día y la hora en que empezó el turno, para poder
+// registrar el turno de un día anterior que no se capturó a tiempo (ver
+// lib/turnoDia.ts). Sin él, el turno empieza ahora.
+export async function abrirTurno(efectivoInicial: number, inicio?: { fecha: string; hora: string }) {
   const supabase = await createClient();
 
   const {
@@ -63,6 +75,24 @@ export async function abrirTurno(efectivoInicial: number) {
   } = await supabase.auth.getUser();
 
   if (!user) return { error: "Sesión no válida." };
+  if (!Number.isFinite(efectivoInicial) || efectivoInicial < 0) return { error: "Ingresa un monto válido." };
+
+  const ahora = new Date();
+  let horaApertura = ahora;
+  if (inicio) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(inicio.fecha) || !/^\d{2}:\d{2}$/.test(inicio.hora)) {
+      return { error: "Elige el día y la hora de inicio del turno." };
+    }
+    horaApertura = instanteMX(inicio.fecha, inicio.hora);
+    if (Number.isNaN(horaApertura.getTime())) return { error: "La fecha del turno no es válida." };
+    // Un minuto de tolerancia por si el reloj del celular va un poco adelantado.
+    if (horaApertura.getTime() > ahora.getTime() + 60 * 1000) {
+      return { error: "La hora de inicio no puede ser en el futuro." };
+    }
+    if (horaApertura.getTime() < inicioDeDiaMX(DIAS_ATRAS_MAX_TURNO).getTime()) {
+      return { error: `Solo se puede abrir un turno de hasta ${DIAS_ATRAS_MAX_TURNO} días atrás.` };
+    }
+  }
 
   // Antes no se validaba esto: si la página tardaba en reflejar el turno ya
   // abierto (o alguien le daba varias veces a "Abrir turno" en pestañas o
@@ -83,6 +113,7 @@ export async function abrirTurno(efectivoInicial: number) {
     .insert({
       usuario_apertura_id: user.id,
       efectivo_inicial: efectivoInicial,
+      hora_apertura: horaApertura.toISOString(),
     })
     .select("id")
     .single();
@@ -101,7 +132,9 @@ export async function abrirTurno(efectivoInicial: number) {
     "abrir",
     "turno",
     nuevoTurno?.id ?? null,
-    `Abrió un turno con $${efectivoInicial.toFixed(2)} de caja inicial`
+    esTurnoDeOtroDia(horaApertura.toISOString(), ahora)
+      ? `Abrió el turno del ${fechaTurno(horaApertura.toISOString())} (desde las ${horaMX(horaApertura)}, capturado después) con $${efectivoInicial.toFixed(2)} de caja inicial`
+      : `Abrió un turno con $${efectivoInicial.toFixed(2)} de caja inicial`
   );
 
   revalidatePath("/", "layout");
@@ -244,7 +277,7 @@ async function precioListaPaquete(
 async function totalTicket(supabase: SupabaseServidor, ticketId: string) {
   const { data: ticket } = await supabase
     .from("tickets")
-    .select("servicio_id, tamano_vehiculo, descuento_monto, turno_id, lavada_gratis")
+    .select("servicio_id, tamano_vehiculo, descuento_monto, turno_id, lavada_gratis, hora_salida")
     .eq("id", ticketId)
     .maybeSingle();
   if (!ticket) return null;
@@ -286,12 +319,15 @@ async function guardarComisionTicket(supabase: SupabaseServidor, ticketId: strin
 // Deja el pago del ticket igual al total actual: lo crea si falta, lo
 // actualiza si cambió el monto o el método, o lo borra si el total quedó
 // en $0 (lavada gratis). Un ticket solo tiene un pago (restricción única
-// pagos_ticket_id_unico en la base de datos).
+// pagos_ticket_id_unico en la base de datos). Un pago nuevo lleva la fecha
+// del registro del auto (momento, o su hora de entrega) — no la de hoy —
+// para que un turno de un día anterior cuente sus ventas en ese día.
 async function sincronizarPagoTicket(
   supabase: SupabaseServidor,
   ticketId: string,
   metodo: PagoMetodo | null,
-  usuarioId: string
+  usuarioId: string,
+  momento?: string
 ): Promise<string | null> {
   const datos = await totalTicket(supabase, ticketId);
   if (!datos) return "El ticket ya no existe.";
@@ -328,6 +364,7 @@ async function sincronizarPagoTicket(
     monto: datos.total,
     monto_recibido: null,
     usuario_id: usuarioId,
+    ...((momento ?? datos.ticket.hora_salida) ? { creado_en: momento ?? datos.ticket.hora_salida! } : {}),
   });
   // 23505 = ya existía un pago (doble clic / reintento) — no es un error.
   if (error && error.code !== "23505") return error.message;
@@ -364,12 +401,27 @@ export async function crearTicket(input: {
 
   const { data: turno } = await supabase
     .from("turnos")
-    .select("id, estado")
+    .select("id, estado, hora_apertura")
     .eq("id", input.turnoId)
     .maybeSingle();
   if (!turno || turno.estado !== "abierto") {
     return { error: "El turno ya no está abierto. Recarga la página." };
   }
+
+  // Fecha y hora con que queda el auto (y su pago): la de ahora si el turno
+  // es de hoy, o dentro del día del turno si es de un día anterior.
+  let ultimoRegistro: string | null = null;
+  if (esTurnoDeOtroDia(turno.hora_apertura)) {
+    const { data: ultimo } = await supabase
+      .from("tickets")
+      .select("hora_entrada")
+      .eq("turno_id", turno.id)
+      .order("hora_entrada", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    ultimoRegistro = ultimo?.hora_entrada ?? null;
+  }
+  const momento = momentoRegistro(turno.hora_apertura, ultimoRegistro);
 
   let clienteId = input.clienteId;
   let vehiculoId = input.vehiculoId;
@@ -393,6 +445,7 @@ export async function crearTicket(input: {
       empleado_id: input.empleadoId,
       turno_id: input.turnoId,
       creado_por: user.id,
+      hora_entrada: momento,
     })
     .select("id")
     .single();
@@ -418,13 +471,12 @@ export async function crearTicket(input: {
   const errorComision = await guardarComisionTicket(supabase, ticket.id);
   if (errorComision) return deshacer(errorComision);
 
-  const errorPago = await sincronizarPagoTicket(supabase, ticket.id, input.metodo, user.id);
+  const errorPago = await sincronizarPagoTicket(supabase, ticket.id, input.metodo, user.id, momento);
   if (errorPago) return deshacer(errorPago);
 
-  const ahora = new Date().toISOString();
   const { error: entregaError } = await supabase
     .from("tickets")
-    .update({ estado: "entregado", hora_salida: ahora, hora_cambio_estado: ahora })
+    .update({ estado: "entregado", hora_salida: momento, hora_cambio_estado: momento })
     .eq("id", ticket.id);
   if (entregaError) return deshacer(entregaError.message);
 

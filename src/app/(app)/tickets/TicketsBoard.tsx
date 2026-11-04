@@ -14,6 +14,8 @@ import { useRealtimeRefresh } from "@/lib/useRealtimeRefresh";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { AnimatedNumber } from "@/components/AnimatedNumber";
 import { TarjetaTicket } from "./TarjetaTicket";
+import { CalendarClock } from "lucide-react";
+import { esTurnoDeOtroDia, nombreDiaTurno } from "@/lib/turnoDia";
 
 const METODO_LABEL: Record<string, string> = {
   efectivo: "Efectivo",
@@ -286,6 +288,19 @@ export function TicketsBoard({
           />
         </motion.button>
       </div>
+
+      {esTurnoDeOtroDia(turno.hora_apertura) && (
+        <p
+          className="flex items-start gap-2 rounded-lg border border-warning/60 bg-warning/15 px-3 py-2 text-sm text-foreground"
+          suppressHydrationWarning
+        >
+          <CalendarClock className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+          <span>
+            Estás registrando en el turno de <strong>{nombreDiaTurno(turno.hora_apertura)}</strong>: los autos quedan
+            con fecha de ese día. Cuando termines, ciérralo en Caja y turnos.
+          </span>
+        </p>
+      )}
 
       <AnimatePresence>
         {error && (

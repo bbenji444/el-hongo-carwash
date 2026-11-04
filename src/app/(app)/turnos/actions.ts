@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { registrarMovimiento } from "@/lib/historial";
+import { diaMX } from "@/lib/fecha";
+import { fechaTurno, horaMX, instanteMX } from "@/lib/turnoDia";
 
 // Verifica el permiso "puede_editar_turnos" (dueño siempre lo tiene; a los
 // demás roles el dueño se los puede delegar por usuario desde /usuarios).
@@ -151,7 +153,10 @@ export async function eliminarTurno(turnoId: string) {
   return { error: null };
 }
 
-export async function cerrarTurno(turnoId: string, efectivoContado: number) {
+// "horaCierre" ("HH:MM") es la hora en que de verdad terminó el turno, del
+// mismo día del turno (ver lib/turnoDia.ts) — así un turno que se cierra
+// tarde (al día siguiente, por ejemplo) queda cerrado en su día.
+export async function cerrarTurno(turnoId: string, efectivoContado: number, horaCierre?: string) {
   const supabase = await createClient();
 
   const {
@@ -159,6 +164,36 @@ export async function cerrarTurno(turnoId: string, efectivoContado: number) {
   } = await supabase.auth.getUser();
 
   if (!user) return { error: "Sesión no válida." };
+  if (!Number.isFinite(efectivoContado) || efectivoContado < 0) return { error: "Ingresa el efectivo contado en caja." };
+
+  const { data: turno } = await supabase
+    .from("turnos")
+    .select("hora_apertura, estado")
+    .eq("id", turnoId)
+    .maybeSingle();
+  if (!turno || turno.estado !== "abierto") return { error: "El turno ya no está abierto. Recarga la página." };
+
+  const ahora = new Date();
+  let cierre = ahora;
+  if (horaCierre) {
+    if (!/^\d{2}:\d{2}$/.test(horaCierre)) return { error: "Elige la hora de cierre." };
+    cierre = instanteMX(diaMX(turno.hora_apertura), horaCierre);
+    if (cierre.getTime() > ahora.getTime() + 60 * 1000) return { error: "La hora de cierre no puede ser en el futuro." };
+    if (cierre.getTime() < new Date(turno.hora_apertura).getTime()) {
+      return { error: `La hora de cierre no puede ser antes de que empezara el turno (${horaMX(turno.hora_apertura)}).` };
+    }
+    const { data: ultimo } = await supabase
+      .from("tickets")
+      .select("hora_entrada")
+      .eq("turno_id", turnoId)
+      .order("hora_entrada", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    // Comparado por minuto: la hora que se elige no lleva segundos.
+    if (ultimo && Math.floor(cierre.getTime() / 60000) < Math.floor(new Date(ultimo.hora_entrada).getTime() / 60000)) {
+      return { error: `La hora de cierre no puede ser antes del último auto registrado (${horaMX(ultimo.hora_entrada)}).` };
+    }
+  }
 
   const { error } = await supabase
     .from("turnos")
@@ -166,7 +201,7 @@ export async function cerrarTurno(turnoId: string, efectivoContado: number) {
       estado: "cerrado",
       efectivo_contado: efectivoContado,
       usuario_cierre_id: user.id,
-      hora_cierre: new Date().toISOString(),
+      hora_cierre: cierre.toISOString(),
     })
     .eq("id", turnoId);
 
@@ -178,7 +213,7 @@ export async function cerrarTurno(turnoId: string, efectivoContado: number) {
     "cerrar",
     "turno",
     turnoId,
-    `Cerró un turno (efectivo contado: $${efectivoContado.toFixed(2)})`
+    `Cerró el turno del ${fechaTurno(turno.hora_apertura)} a las ${horaMX(cierre)} (efectivo contado: $${efectivoContado.toFixed(2)})`
   );
 
   revalidatePath("/", "layout");

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { diaMX, inicioDeDiaMX } from "@/lib/fecha";
+import { esTurnoDeOtroDia, nombreDiaTurno } from "@/lib/turnoDia";
 import { obtenerConfiguracion } from "@/lib/configuracion";
 import { resolverRango, PERIODOS } from "@/lib/rangoFechas";
 import { obtenerDatosLavadores } from "./lavadores/data";
@@ -91,6 +92,9 @@ export default async function DashboardPage({
               Abierto
             </p>
             <p className="mt-1 text-sm text-muted">
+              {esTurnoDeOtroDia(turnoAbierto.hora_apertura) && (
+                <span className="capitalize">Turno de {nombreDiaTurno(turnoAbierto.hora_apertura)} · </span>
+              )}
               Desde las{" "}
               {new Date(turnoAbierto.hora_apertura).toLocaleTimeString("es-MX", {
                 hour: "2-digit",
@@ -101,7 +105,7 @@ export default async function DashboardPage({
           </div>
         ) : (
           <p className="rounded-xl border border-dashed border-border p-4 text-center text-sm text-muted">
-            No hay un turno abierto. Ábrelo desde la sección de Tickets.
+            No hay un turno abierto. Ábrelo desde Tickets o desde Caja y turnos.
           </p>
         )}
 

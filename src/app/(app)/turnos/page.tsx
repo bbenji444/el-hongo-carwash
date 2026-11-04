@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { registrarMovimiento } from "@/lib/historial";
 import { TurnoActivoCard } from "./TurnoActivoCard";
+import { AbrirTurnoForm } from "../tickets/AbrirTurnoForm";
 import { HistorialTurnos } from "./HistorialTurnos";
 import { RealtimeSync } from "@/components/RealtimeSync";
 import { resolverRango } from "@/lib/rangoFechas";
@@ -81,15 +82,25 @@ export default async function TurnosPage({
   const puedeEliminarTurnos = usuario.rol === "dueno" || usuario.puede_eliminar_turnos;
 
   let resumen = null;
+  let ultimoRegistro: string | null = null;
   if (turnoAbierto) {
-    const [{ data: pagos }, { count: pendientes }] = await Promise.all([
+    const [{ data: pagos }, { count: pendientes }, { data: ultimo }] = await Promise.all([
       supabase.from("pagos").select("metodo, monto").eq("turno_id", turnoAbierto.id),
       supabase
         .from("tickets")
         .select("*", { count: "exact", head: true })
         .eq("turno_id", turnoAbierto.id)
         .neq("estado", "entregado"),
+      // Para no dejar cerrar el turno antes del último auto registrado.
+      supabase
+        .from("tickets")
+        .select("hora_entrada")
+        .eq("turno_id", turnoAbierto.id)
+        .order("hora_entrada", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ]);
+    ultimoRegistro = ultimo?.hora_entrada ?? null;
 
     const totales: Record<string, number> = { efectivo: 0, tarjeta: 0, transferencia: 0 };
     for (const p of pagos ?? []) {
@@ -167,15 +178,18 @@ export default async function TurnosPage({
       <RealtimeSync tablas={["turnos", "pagos"]} />
       <div>
         <h1 className="text-2xl font-bold text-foreground">Caja y turnos</h1>
-        <p className="text-sm text-muted">Cierre de turno y conciliación de efectivo.</p>
+        <p className="text-sm text-muted">Apertura y cierre de turno, y conciliación de efectivo.</p>
       </div>
 
       {turnoAbierto && resumen ? (
-        <TurnoActivoCard turno={turnoAbierto} resumen={resumen} puedeEliminar={puedeEliminarTurnos} />
+        <TurnoActivoCard
+          turno={turnoAbierto}
+          resumen={resumen}
+          puedeEliminar={puedeEliminarTurnos}
+          ultimoRegistro={ultimoRegistro}
+        />
       ) : (
-        <p className="rounded-xl border border-dashed border-border p-4 text-center text-sm text-muted">
-          No hay un turno abierto. Ábrelo desde la sección de Tickets.
-        </p>
+        <AbrirTurnoForm />
       )}
 
       <div className="flex flex-col gap-3">

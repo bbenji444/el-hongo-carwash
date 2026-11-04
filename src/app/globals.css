@@ -101,16 +101,50 @@ a:active,
 }
 
 .animate-in {
-  animation: fade-in-up 0.4s ease-out both;
+  animation: fade-in-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .hover-lift {
-  transition: transform 200ms ease-out, box-shadow 200ms ease-out, border-color 200ms ease-out;
+  transition: transform 250ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 250ms ease-out, border-color 200ms ease-out;
 }
 
 .hover-lift:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 24px -12px rgba(0, 0, 0, 0.25);
+  transform: translateY(-3px);
+  box-shadow:
+    0 16px 32px -18px color-mix(in srgb, var(--primary) 55%, transparent),
+    0 6px 14px -10px rgba(0, 0, 0, 0.2);
+}
+
+/* Detalles de marca en todo el sistema: texto seleccionado, foco con
+   teclado y barras de desplazamiento delgadas con el color de la marca. */
+::selection {
+  background: color-mix(in srgb, var(--primary) 28%, transparent);
+}
+
+:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  outline-offset: 2px;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--primary) 45%, var(--border)) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary) 40%, var(--border)) padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary) padding-box;
 }
 
 @keyframes backdrop-in {
@@ -169,3 +203,91 @@ a:active,
 .animate-blob {
   animation: blob-float 14s ease-in-out infinite;
 }
+
+/* ------------------------------------------------------------------------
+   Fondo animado (FondoAnimado.tsx): aurora que deriva lento + burbujas de
+   jabón subiendo. Solo transform/opacity — ligero también en celular.
+   ------------------------------------------------------------------------ */
+@keyframes aurora-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(18%, 12%) scale(1.15); }
+}
+@keyframes aurora-2 {
+  0%, 100% { transform: translate(0, 0) scale(1.05); }
+  50% { transform: translate(-16%, -14%) scale(0.92); }
+}
+@keyframes aurora-3 {
+  0%, 100% { transform: translate(0, 0) scale(0.9); }
+  33% { transform: translate(-20%, 10%) scale(1.1); }
+  66% { transform: translate(15%, -12%) scale(1); }
+}
+.fondo-aurora { will-change: transform; }
+.fondo-aurora-1 { animation: aurora-1 26s ease-in-out infinite; }
+.fondo-aurora-2 { animation: aurora-2 32s ease-in-out infinite; }
+.fondo-aurora-3 { animation: aurora-3 40s ease-in-out infinite; }
+
+@keyframes burbuja-subir {
+  0% { transform: translateY(15vh); opacity: 0; }
+  10% { opacity: var(--opacidad, 0.6); }
+  85% { opacity: var(--opacidad, 0.6); }
+  100% { transform: translateY(-115vh); opacity: 0; }
+}
+@keyframes burbuja-vaiven {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(22px); }
+}
+.fondo-burbuja {
+  opacity: 0;
+  will-change: transform, opacity;
+  animation: burbuja-subir var(--dur, 22s) linear var(--delay, 0s) infinite;
+}
+.fondo-burbuja-vaiven {
+  animation: burbuja-vaiven 4.5s ease-in-out infinite;
+}
+
+/* Logo de fondo "respirando" muy despacio */
+@keyframes respirar {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  50% { transform: scale(1.04) rotate(1.5deg); }
+}
+.animate-respirar { animation: respirar 9s ease-in-out infinite; }
+
+/* Brillo que recorre una línea (pie de página) */
+@keyframes linea-brillo {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+.animate-linea-brillo {
+  background-size: 200% 100%;
+  animation: linea-brillo 6s linear infinite;
+}
+
+/* Flotación suave (burbuja del asistente) */
+@keyframes flotar {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+.animate-flotar { animation: flotar 3.5s ease-in-out infinite; }
+
+/* Anillo de colores girando (avatar del asistente) */
+@keyframes girar {
+  to { transform: rotate(360deg); }
+}
+.animate-girar { animation: girar 5s linear infinite; }
+
+/* Degradado que se desplaza (encabezado del chat, bordes) */
+@keyframes degradado-mover {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+.animate-degradado {
+  background-size: 220% 220%;
+  animation: degradado-mover 9s ease-in-out infinite;
+}
+
+/* Destello que cruza un elemento de lado a lado cada tanto */
+@keyframes barrido {
+  0% { transform: translateX(-130%) skewX(-20deg); }
+  55%, 100% { transform: translateX(330%) skewX(-20deg); }
+}
+.animate-barrido { animation: barrido 5s ease-in-out infinite; }

@@ -1,6 +1,8 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import { Moon, Sun } from "lucide-react";
 
 const listeners = new Set<() => void>();
 
@@ -21,7 +23,9 @@ function notificar() {
   for (const callback of listeners) callback();
 }
 
-export function ThemeToggle() {
+// "encabezado": blanco sobre la barra roja de la app. "suave": con los
+// colores normales del tema (pantalla de login).
+export function ThemeToggle({ variante = "encabezado" }: { variante?: "encabezado" | "suave" }) {
   const claro = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   function alternar() {
@@ -31,26 +35,33 @@ export function ThemeToggle() {
     notificar();
   }
 
+  const estilo =
+    variante === "encabezado"
+      ? "border-white/50 text-white hover:border-white hover:bg-white/15"
+      : "border-border bg-surface/70 text-foreground backdrop-blur hover:border-primary/50 hover:bg-surface";
+
   return (
-    <button
+    <motion.button
+      type="button"
       onClick={alternar}
       aria-label={claro ? "Cambiar a modo oscuro" : "Cambiar a modo claro"}
       title={claro ? "Cambiar a modo oscuro" : "Cambiar a modo claro"}
-      className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/50 text-white transition hover:border-white hover:bg-white/15"
+      whileHover={{ scale: 1.06 }}
+      whileTap={{ scale: 0.9 }}
+      className={`relative flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg border transition-colors ${estilo}`}
     >
-      {claro ? (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z" />
-        </svg>
-      ) : (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
-          <circle cx="12" cy="12" r="4" />
-          <path
-            strokeLinecap="round"
-            d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"
-          />
-        </svg>
-      )}
-    </button>
+      {/* La luna/el sol entra girando y el otro sale */}
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.span
+          key={claro ? "luna" : "sol"}
+          initial={{ y: 14, rotate: -90, opacity: 0 }}
+          animate={{ y: 0, rotate: 0, opacity: 1 }}
+          exit={{ y: -14, rotate: 90, opacity: 0 }}
+          transition={{ duration: 0.22, ease: "easeOut" }}
+        >
+          {claro ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+        </motion.span>
+      </AnimatePresence>
+    </motion.button>
   );
 }

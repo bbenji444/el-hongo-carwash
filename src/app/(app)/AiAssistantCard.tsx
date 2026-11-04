@@ -1,10 +1,10 @@
 "use client";
 
-import { MascotaAvatar } from "./MascotaAvatar";
+import { useState } from "react";
 import { ChatConversation } from "./ChatConversation";
 import { ChatInputBar } from "./ChatInputBar";
+import { ChatEncabezado, ChatFondo } from "./ChatMarco";
 import { useAiChat } from "./useAiChat";
-import { useState } from "react";
 
 export function AiAssistantCard({ nombreUsuario }: { nombreUsuario: string }) {
   const { mensajes, enviando, enviarPregunta, reiniciar } = useAiChat();
@@ -16,29 +16,17 @@ export function AiAssistantCard({ nombreUsuario }: { nombreUsuario: string }) {
   }
 
   return (
-    <div className="flex h-[calc(100svh-12rem)] min-h-[420px] flex-col overflow-hidden rounded-3xl border border-border bg-surface shadow-sm sm:h-[34rem] lg:h-[38rem]">
-      <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3 sm:px-5">
-        <div className="flex items-center gap-2.5">
-          <MascotaAvatar size={36} />
-          <div>
-            <p className="text-sm font-semibold text-foreground">El Hongo AI Assistant</p>
-            <p className="text-[11px] text-muted">Conectado a tus datos en tiempo real</p>
-          </div>
-        </div>
-        {mensajes.length > 0 && (
-          <button
-            type="button"
-            onClick={reiniciar}
-            className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted transition hover:bg-surface-hover hover:text-foreground"
-          >
-            Nuevo chat
-          </button>
-        )}
+    // Marco con borde de degradado de la marca que se desplaza lento
+    <div
+      className="animate-degradado rounded-3xl p-[1.5px] shadow-[0_20px_50px_-24px_var(--primary)]"
+      style={{ backgroundImage: "linear-gradient(120deg, var(--primary), #facc15, var(--accent), var(--primary))" }}
+    >
+      <div className="relative isolate flex h-[calc(100svh-12rem)] min-h-[420px] flex-col overflow-hidden rounded-[calc(1.5rem-1.5px)] bg-surface sm:h-[34rem] lg:h-[38rem]">
+        <ChatFondo />
+        <ChatEncabezado hayMensajes={mensajes.length > 0} onNuevo={reiniciar} />
+        <ChatConversation mensajes={mensajes} enviando={enviando} nombreUsuario={nombreUsuario} onSeleccionarPregunta={enviar} />
+        <ChatInputBar texto={texto} setTexto={setTexto} onEnviar={enviar} enviando={enviando} />
       </div>
-
-      <ChatConversation mensajes={mensajes} enviando={enviando} nombreUsuario={nombreUsuario} onSeleccionarPregunta={enviar} />
-
-      <ChatInputBar texto={texto} setTexto={setTexto} onEnviar={enviar} enviando={enviando} />
     </div>
   );
 }
